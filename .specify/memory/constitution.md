@@ -1,50 +1,143 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# WebRTC Load Engine Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Infrastructure-First, Not Browser Emulation
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+The project focuses on **infrastructure-level WebRTC load testing**, not browser behavior emulation.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+* Synthetic peers are first-class citizens.
+* The goal is to stress **SFUs, MCUs, signaling planes, and networks**, not frontend UIs.
+* Browser-based clients MAY be added later, but are explicitly out of scope for the initial architecture.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+---
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### II. Media Engine Independence
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+The media engine MUST remain fully **independent from signaling and platform logic**.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+* The engine consumes only:
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+  * SDP offers/answers
+  * ICE candidates
+  * lifecycle events
+* No platform-specific signaling concepts (XMPP, JSON schemas, REST endpoints) are allowed inside the media layer.
+* Media behavior MUST be reproducible and deterministic.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+---
+
+### III. Pluggable Signaling (NON-NEGOTIABLE)
+
+All signaling MUST be implemented through **pluggable adapters**.
+
+* Each platform (Jitsi, Janus, mediasoup, LiveKit, etc.) implements a shared signaling contract.
+* Adapters encapsulate all protocol-specific complexity.
+* Scenarios and media code MUST NOT depend on signaling internals.
+
+Breaking this principle is considered an architectural violation.
+
+---
+
+### IV. CPU Efficiency as a First-Class Constraint
+
+CPU efficiency is a **core design requirement**, not an optimization.
+
+* The default execution model MUST allow hundreds of peers on a single machine.
+* Real-time encoding and rendering SHOULD be avoided.
+* Pre-encoded or synthetic media is preferred.
+* Any feature significantly increasing CPU usage MUST be explicitly justified.
+
+---
+
+### V. Deterministic Peer Lifecycle
+
+All peers MUST follow a **shared, explicit lifecycle state machine**.
+
+* Platform-specific events MUST be mapped to the common lifecycle.
+* Illegal or unexpected transitions MUST be surfaced as errors.
+* Lifecycle state is observable and exportable for diagnostics.
+
+---
+
+## Technical Constraints
+
+### Language and Runtime
+
+* **Go** is the reference implementation language.
+* The WebRTC stack is based on **Pion**.
+* The project SHOULD build as a **single static binary**.
+
+---
+
+### Signaling Support
+
+The architecture MUST support heterogeneous signaling mechanisms:
+
+* XMPP (Jitsi)
+* WebSocket / REST (Janus, mediasoup)
+* gRPC / WebSocket (LiveKit)
+
+Signaling diversity MUST NOT leak outside adapter boundaries.
+
+---
+
+### Scenario Definition
+
+* Scenarios are defined declaratively (YAML).
+* Scenarios describe *what* to test, not *how* signaling works.
+* Scenario formats MUST be stable and versioned.
+
+---
+
+### Observability
+
+* Structured logging is REQUIRED.
+* Metrics MUST be exportable (Prometheus-compatible).
+* Signaling, ICE, and media metrics MUST be correlatable.
+
+---
+
+## Development Workflow
+
+### Test Discipline
+
+* Core components (media engine, signaling interface, lifecycle) MUST be test-covered.
+* Signaling adapters MUST include contract tests.
+* Performance-sensitive paths SHOULD include benchmarks.
+
+---
+
+### Incremental Complexity
+
+* Start simple.
+* No feature is added "just in case".
+* Every abstraction must justify its cost.
+
+---
+
+### AI-Assisted Development
+
+The project MAY use **AI agent–assisted coding workflows**.
+
+* AI-generated code is subject to the same review standards as human-written code.
+* Architectural decisions remain human-owned.
+* The constitution always takes precedence over AI output.
+
+---
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+* This constitution supersedes all informal practices.
+* All pull requests MUST be reviewed for constitutional compliance.
+* Violations require explicit discussion and documented justification.
+* Amendments require:
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+  * a written proposal,
+  * rationale and trade-offs,
+  * migration or refactoring plan.
+
+---
+
+**Version**: 0.1.0
+**Ratified**: 2025-01-24
+**Last Amended**: 2025-01-24
