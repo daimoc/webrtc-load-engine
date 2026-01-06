@@ -1,0 +1,85 @@
+openapi: 3.0.0
+info:
+  title: WebRTC Load Engine API
+  version: "1.0.0"
+  description: API for managing and orchestrating WebRTC load tests.
+
+paths:
+  /api/v1/scenarios:
+    post:
+      summary: Create a new load test scenario
+      operationId: createScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioRequest'
+      responses:
+        '201':
+          description: Scenario created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          description: Bad Request - Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ScenarioRequest:
+      type: object
+      required:
+        - name
+        - platform
+        - test_plan
+      properties:
+        name:
+          type: string
+          example: "My First Load Test"
+        platform:
+          type: string
+          example: "jitsi"
+        test_plan:
+          $ref: '#/components/schemas/TestPlan'
+
+    TestPlan:
+      type: object
+      required:
+        - participants
+        - ramp_up_seconds
+        - duration_seconds
+      properties:
+        participants:
+          type: integer
+          minimum: 1
+          example: 100
+        ramp_up_seconds:
+          type: integer
+          minimum: 0
+          example: 60
+        duration_seconds:
+          type: integer
+          minimum: 1
+          example: 300
+
+    ScenarioResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "scenario-a1b2c3d4"
+        status:
+          type: string
+          example: "created"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid platform adapter: skype"
