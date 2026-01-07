@@ -118,7 +118,7 @@ func TestNewScenario(t *testing.T) {
 
 func TestService_CreateScenario(t *testing.T) {
 	testLogger := slog.New(&NoOpLogger{}) // Create a dummy logger
-	service := NewService(testLogger)     // Pass the dummy logger
+	service := NewService(testLogger, nil)     // Pass the dummy logger and nil starter
 
 	tests := []struct {
 		name        string

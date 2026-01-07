@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt" // Add fmt import
 	"log/slog"
 	"net/http"
 	"time" // Import time for Prometheus duration tracking
@@ -33,22 +34,26 @@ type ErrorResponse struct {
 type Metrics interface {
 	IncScenarioCreationRequestsTotal(status string)
 	ObserveScenarioCreationDurationSeconds(durationSeconds float64)
+	IncScenarioExecutionRequestsTotal(status string) // New metric
 }
 
 // HandlerMetrics implements the Metrics interface
 type HandlerMetrics struct {
 	scenarioCreationRequestsTotal *prometheus.CounterVec
 	scenarioCreationDurationSeconds prometheus.Histogram
+	scenarioExecutionRequestsTotal *prometheus.CounterVec // New metric
 }
 
 // NewHandlerMetrics creates a new HandlerMetrics instance
 func NewHandlerMetrics(
 	requestsTotal *prometheus.CounterVec,
 	durationSeconds prometheus.Histogram,
+	executionRequestsTotal *prometheus.CounterVec, // New metric
 ) *HandlerMetrics {
 	return &HandlerMetrics{
 		scenarioCreationRequestsTotal: requestsTotal,
 		scenarioCreationDurationSeconds: durationSeconds,
+		scenarioExecutionRequestsTotal: executionRequestsTotal, // New metric
 	}
 }
 
@@ -58,6 +63,10 @@ func (m *HandlerMetrics) IncScenarioCreationRequestsTotal(status string) {
 
 func (m *HandlerMetrics) ObserveScenarioCreationDurationSeconds(durationSeconds float64) {
 	m.scenarioCreationDurationSeconds.Observe(durationSeconds)
+}
+
+func (m *HandlerMetrics) IncScenarioExecutionRequestsTotal(status string) { // New metric method
+	m.scenarioExecutionRequestsTotal.WithLabelValues(status).Inc()
 }
 
 // ScenarioHandler handles HTTP requests for scenarios.
@@ -122,3 +131,68 @@ func (h *ScenarioHandler) CreateScenario(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(ScenarioResponse{ID: newScenario.ID, Status: newScenario.Status})
 }
+
+// ExecuteScenario handles the POST /api/v1/scenarios/{id}/_execute request.
+func (h *ScenarioHandler) ExecuteScenario(w http.ResponseWriter, r *http.Request) {
+	status := "success"
+	defer func() {
+		h.metrics.IncScenarioExecutionRequestsTotal(status)
+	}()
+
+	h.logger.Info("Received request to execute scenario",
+		slog.String("method", r.Method),
+		slog.String("path", r.URL.Path))
+
+	if r.Method != http.MethodPost {
+		status = "failure"
+		h.logger.Warn("Method not allowed", slog.String("method", r.Method))
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	scenarioID := r.URL.Path[len("/api/v1/scenarios/") : len(r.URL.Path)-len("/_execute")]
+
+	err := h.scenarioService.ExecuteScenario(scenarioID)
+	if err != nil {
+		status = "failure"
+		h.logger.Error("Failed to execute scenario", slog.String("scenario_id", scenarioID), slog.String("error", err.Error()))
+		switch err.Error() {
+		case fmt.Sprintf("scenario not found: %s", scenarioID):
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+		case fmt.Sprintf("scenario is already running: %s", scenarioID):
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+		default: // Catch other validation errors like "scenario cannot be executed in current status"
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+		}
+		return
+	}
+
+	h.logger.Info("Scenario execution accepted", slog.String("scenario_id", scenarioID))
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// GetScenario handles the GET /api/v1/scenarios/{id} request.
+func (h *ScenarioHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.logger.Warn("Method not allowed", slog.String("method", r.Method))
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	scenarioID := r.URL.Path[len("/api/v1/scenarios/"):]
+
+	scenario, err := h.scenarioService.GetScenario(scenarioID)
+	if err != nil {
+		h.logger.Error("Failed to get scenario", slog.String("scenario_id", scenarioID), slog.String("error", err.Error()))
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(ScenarioResponse{ID: scenario.ID, Status: scenario.Status})
+}
+

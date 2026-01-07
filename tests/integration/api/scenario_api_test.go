@@ -26,6 +26,7 @@ type NoOpMetrics struct{}
 
 func (m *NoOpMetrics) IncScenarioCreationRequestsTotal(_ string) {}
 func (m *NoOpMetrics) ObserveScenarioCreationDurationSeconds(_ float64) {}
+func (m *NoOpMetrics) IncScenarioExecutionRequestsTotal(_ string) {}
 
 func TestCreateScenarioIntegration(t *testing.T) {
 	// Initialize logger and metrics for tests
@@ -33,7 +34,7 @@ func TestCreateScenarioIntegration(t *testing.T) {
 	testMetrics := &NoOpMetrics{}
 
 	// Initialize service and handler with dummy logger and metrics
-	scenarioService := scenario.NewService(testLogger)
+	scenarioService := scenario.NewService(testLogger, nil)
 	scenarioHandler := handlers.NewScenarioHandler(scenarioService, testLogger, testMetrics)
 
 	// Create a test HTTP server
