@@ -92,18 +92,17 @@ func (e *Engine) Start() {
 			e.peersMutex.Unlock()
 
 			e.wg.Add(1) // Increment for this peer
-			go func(p *Peer) {
-				defer e.wg.Done()
-				e.logger.Info("Connecting peer", slog.String("peer_id", p.ID()))
-				// Use p.ID() instead of p itself
-				if err := e.adapter.Connect(p.ID()); err != nil {
-					e.logger.Error("Failed to connect peer", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
-					p.state = PeerStateFailed // Set peer state to failed
-				} else {
-					p.state = PeerStateConnected // Set peer state to connected
-				}
-			}(peer)
-
+			                        go func(p *Peer) {
+			                                defer e.wg.Done()
+			                                e.logger.Info("Connecting peer", slog.String("peer_id", p.ID()))
+			                                // Use p.ID() instead of p itself
+			                                if err := e.adapter.Connect(p.ID(), p); err != nil {
+			                                        e.logger.Error("Failed to connect peer", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
+			                                        p.state = PeerStateFailed // Set peer state to failed
+			                                } else {
+			                                        p.state = PeerStateConnected // Set peer state to connected
+			                                }
+			                        }(peer)
 			if rampUpInterval > 0 && i < e.testPlan.Participants-1 {
 				time.Sleep(rampUpInterval)
 			}

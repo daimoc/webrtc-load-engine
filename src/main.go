@@ -50,6 +50,11 @@ var (
 	)
 )
 
+var (
+	executeScenarioRegex = regexp.MustCompile(`^/api/v1/scenarios/([a-zA-Z0-9-]+)/_execute$`)
+	getScenarioRegex     = regexp.MustCompile(`^/api/v1/scenarios/([a-zA-Z0-9-]+)$`)
+)
+
 func init() {
 	// Register metrics with Prometheus's default registry
 	prometheus.MustRegister(scenarioCreationRequestsTotal)
@@ -93,9 +98,18 @@ func main() {
 	)
 	scenarioHandler := handlers.NewScenarioHandler(scenarioService, logger, handlerMetrics) // Pass logger and metrics to handler
 
-)
+	mux := http.NewServeMux()
 
-	http.HandleFunc("/api/v1/scenarios/", func(w http.ResponseWriter, r *http.Request) {
+	// Register handlers
+	mux.HandleFunc("/api/v1/scenarios", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			scenarioHandler.CreateScenario(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
+	mux.HandleFunc("/api/v1/scenarios/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			if executeScenarioRegex.MatchString(r.URL.Path) {
 				scenarioHandler.ExecuteScenario(w, r)
@@ -107,8 +121,6 @@ func main() {
 				return
 			}
 		}
-		// Handle other /api/v1/scenarios/{id} routes or return 404
-		// For now, only POST /api/v1/scenarios, POST /api/v1/scenarios/{id}/_execute, and GET /api/v1/scenarios/{id} are supported
 		http.NotFound(w, r)
 	})
 

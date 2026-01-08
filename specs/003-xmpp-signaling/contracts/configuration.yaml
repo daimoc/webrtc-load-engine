@@ -1,0 +1,33 @@
+# Jitsi Platform Adapter Configuration
+# This defines the structure expected in the TestPlan.PlatformConfig map for Jitsi.
+
+type: object
+required:
+  - xmpp_domain
+  - room_name
+properties:
+  xmpp_domain:
+    type: string
+    description: "The XMPP server domain (e.g., meet.jit.si)"
+    example: "meet.jit.si"
+  muc_domain:
+    type: string
+    description: "The MUC component subdomain. Defaults to 'conference.<xmpp_domain>' if not provided."
+    example: "conference.meet.jit.si"
+  room_name:
+    type: string
+    description: "The target conference room name"
+    example: "LoadTestRoom"
+  websocket_url:
+    type: string
+    description: "Override for WebSocket URL. If empty, derived from xmpp_domain."
+    example: "wss://meet.jit.si/xmpp-websocket"
+  connect_timeout:
+    type: string
+    description: "Timeout for XMPP connection"
+    default: "10s"
+    example: "10s"
+  debug:
+    type: boolean
+    description: "Enable verbose XMPP stanza logging"
+    default: false
