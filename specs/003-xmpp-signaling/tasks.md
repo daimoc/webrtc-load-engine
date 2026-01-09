@@ -53,8 +53,8 @@
 - [x] T018 [US2] Create `HandleIQ` dispatcher in `src/platform/jitsi/signaling.go` to route `jingle` action stanzas
 - [x] T019 [US2] Implement `handleSessionInitiate` in `src/platform/jitsi/jingle.go` to parse incoming offer and create `JingleSession`
 - [x] T020 [US2] Implement helper `convertJingleToSDP` in `src/platform/jitsi/jingle.go` to map XML to `pion/webrtc.SessionDescription`
-- [ ] T021 [US2] Implement helper `convertSDPToJingle` in `src/platform/jitsi/jingle.go` to map `pion/webrtc.SessionDescription` to XML
-- [ ] T022 [US2] Implement `SendSessionAccept` in `src/platform/jitsi/jingle.go` to send `session-accept` stanza with local SDP
+- [x] T021 [US2] Implement helper `convertSDPToJingle` in `src/platform/jitsi/jingle.go` to map `pion/webrtc.SessionDescription` to XML
+- [x] T022 [US2] Implement `SendSessionAccept` in `src/platform/jitsi/jingle.go` to send `session-accept` stanza with local SDP
 - [x] T023 [US2] Integrate with `platform.Adapter` interface: Call `peer.SetRemoteDescription` and `peer.CreateAnswer` in `handleSessionInitiate` flow
 - [x] T024 [US2] Implement `HandleTransportInfo` in `src/platform/jitsi/jingle.go` to process incoming Trickle ICE candidates
 - [x] T025 [US2] Implement `SendTransportInfo` in `src/platform/jitsi/jingle.go` to send local ICE candidates
