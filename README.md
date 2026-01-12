@@ -171,6 +171,12 @@ Initial priorities:
 3. Core metrics collection
 
 ---
+### CMD
+
+export GOPATH=/home/agent/go && export GOCACHE=/home/agent/.cache/go-build && go run
+     cmd/jitsi-connect/main.go --log-xmpp
+
+---
 
 ## AI-assisted development
 
