@@ -9,7 +9,10 @@ require (
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/webrtc/v3 v3.3.6
 	github.com/prometheus/client_golang v1.23.2
-	gosrc.io/xmpp v0.5.1
+	mellium.im/sasl v0.3.2
+	mellium.im/xmlstream v0.15.4
+	mellium.im/xmpp v0.22.0
+	nhooyr.io/websocket v1.8.17
 )
 
 require (
@@ -39,10 +42,13 @@ require (
 	github.com/wlynxg/anet v0.0.3 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/mod v0.26.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
+	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	nhooyr.io/websocket v1.6.5 // indirect
+	mellium.im/reader v0.1.0 // indirect
 )

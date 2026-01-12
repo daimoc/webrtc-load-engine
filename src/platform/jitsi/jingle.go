@@ -10,7 +10,6 @@ import (
 
 	"github.com/pion/sdp/v3"
 	"github.com/pion/webrtc/v3"
-	"gosrc.io/xmpp/stanza"
 )
 
 // SessionState represents the state of a Jingle session.
@@ -45,7 +44,7 @@ type JingleSession struct {
 }
 
 // HandleSessionInitiate processes a session-initiate Jingle request.
-func (s *SignalingClient) HandleSessionInitiate(iq stanza.IQ, jingle *JingleIQ) error {
+func (s *SignalingClient) HandleSessionInitiate(fromJID string, jingle *JingleIQ) error {
 	s.logger.Info("Handling session-initiate", slog.String("sid", jingle.SID), slog.String("initiator", jingle.Initiator))
 
 	s.mu.Lock()
@@ -58,7 +57,7 @@ func (s *SignalingClient) HandleSessionInitiate(iq stanza.IQ, jingle *JingleIQ) 
 	// Create new session
 	session := &JingleSession{
 		ID:      jingle.SID,
-		PeerJID: iq.From, // Or jingle.Initiator? Usually From is the focus.
+		PeerJID: fromJID, // Usually From is the focus.
 		State:   SessionStatePending,
 	}
 	s.sessions[jingle.SID] = session
@@ -185,8 +184,6 @@ type JingleIQWrapper struct {
 	Jingle  *JingleIQ
 }
 
-func (w JingleIQWrapper) Name() string { return "iq" }
-
 // SendSessionAccept sends a session-accept Jingle stanza with the local SDP.
 func (s *SignalingClient) SendSessionAccept(ctx context.Context, sid string, localSDP *webrtc.SessionDescription) error {
 	s.mu.Lock()
@@ -215,11 +212,12 @@ func (s *SignalingClient) SendSessionAccept(ctx context.Context, sid string, loc
 		Jingle: jingle,
 	}
 	
-	return s.client.Send(wrapper)
+	// Use session.Encode to send the wrapper struct
+	return s.session.Encode(ctx, wrapper)
 }
 
 // HandleTransportInfo processes a transport-info Jingle request.
-func (s *SignalingClient) HandleTransportInfo(iq stanza.IQ, jingle *JingleIQ) error {
+func (s *SignalingClient) HandleTransportInfo(fromJID string, jingle *JingleIQ) error {
 	s.logger.Info("Handling transport-info", slog.String("sid", jingle.SID))
 
 	// Iterate candidates and pass to handler
@@ -277,8 +275,7 @@ func (s *SignalingClient) SendSessionTerminate(ctx context.Context, sid string) 
 		Jingle: jingle,
 	}
 	
-	// Fire and forget usually for terminate
-	return s.client.Send(wrapper)
+	return s.session.Encode(ctx, wrapper)
 }
 
 // TerminateSessions terminates all active sessions.
@@ -381,5 +378,6 @@ func convertSDPToJingle(desc *webrtc.SessionDescription, sid string, action stri
 		jingle.Content = append(jingle.Content, content)
 	}
 
-	return jingle, nil
+	return jingle,
+nil
 }

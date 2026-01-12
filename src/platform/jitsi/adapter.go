@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	// "gosrc.io/xmpp" // Not directly used here anymore, used in signaling.go
 	//"webrtc-load-engine/src/execution" // Removed to break import cycle
 	"webrtc-load-engine/src/platform"
 )
@@ -31,6 +30,7 @@ type JingleConfig struct {
 	WebSocketURL   string `json:"websocket_url"`
 	ConnectTimeout string `json:"connect_timeout"`
 	Debug          bool   `json:"debug"`
+	LogXMPP        bool   `json:"log_xmpp"`
 }
 
 // NewAdapter creates a new Jitsi adapter.
