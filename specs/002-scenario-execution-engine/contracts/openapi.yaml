@@ -93,6 +93,53 @@ components:
           type: integer
           minimum: 1
           example: 300
+        platform_config:
+          type: object
+          additionalProperties: true
+          description: >-
+            Adapter-specific settings, validated when the scenario is executed.
+            Schema per platform: specs/003-xmpp-signaling/contracts/configuration.yaml for jitsi.
+          example:
+            xmpp_domain: meet.jit.si
+            room_name: LoadTestRoom
+        media:
+          $ref: '#/components/schemas/MediaConfig'
+
+    MediaConfig:
+      type: object
+      description: >-
+        What each bot sends (specs/004-synthetic-media). Platform-independent.
+        When absent, bots only receive. Invalid values are rejected with 400.
+      properties:
+        profile:
+          type: string
+          enum: [receive_only, audio, audio_video]
+          default: receive_only
+          description: >-
+            receive_only: no media sent. audio: one Opus stream.
+            audio_video: one Opus stream and one VP8 stream (640x360, 30 fps,
+            about 500 kbit/s), looped from content built into the engine.
+        stall_timeout_seconds:
+          type: integer
+          minimum: 1
+          default: 10
+          description: >-
+            A bot that has received a media kind and then receives nothing of
+            it for this long, while its connection is up, counts one stall.
+        max_received_streams:
+          type: integer
+          minimum: 0
+          default: 0
+          description: >-
+            Maximum number of remote streams each bot receives per media
+            kind (0: no cap). Extra streams are ignored by the bot; with a
+            bridge channel (005) the bot also subscribes to its received
+            streams only, so the server stops sending the others. When a
+            received stream ends, the oldest waiting one takes its place.
+      example:
+        profile: audio_video
+        stall_timeout_seconds: 10
+        max_received_streams: 10
 
     ScenarioResponse:
       type: object

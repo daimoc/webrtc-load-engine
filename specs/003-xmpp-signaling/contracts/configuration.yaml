@@ -22,12 +22,21 @@ properties:
     type: string
     description: "Override for WebSocket URL. If empty, derived from xmpp_domain."
     example: "wss://meet.jit.si/xmpp-websocket"
+  focus_jid:
+    type: string
+    description: "JID of the Jicofo focus component that receives the conference request. Defaults to 'focus.<xmpp_domain>' if not provided."
+    example: "focus.meet.jit.si"
   connect_timeout:
     type: string
-    description: "Timeout for XMPP connection"
+    description: "Go duration bounding the whole join (WebSocket dial, SASL, conference request, MUC join). Must be positive."
     default: "10s"
     example: "10s"
+  keepalive_interval:
+    type: string
+    description: "Go duration between XEP-0199 pings to the server. An unanswered ping marks the peer's signaling as lost. Must be positive."
+    default: "30s"
+    example: "30s"
   debug:
     type: boolean
-    description: "Enable verbose XMPP stanza logging"
+    description: "Log all XMPP stanzas to stdout (colour-coded; the CLI's --log-xmpp flag sets it)"
     default: false

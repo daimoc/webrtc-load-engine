@@ -5,46 +5,29 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/google/uuid"
-	"webrtc-load-engine/src/platform"
+	"webrtc-load-engine/src/execution"
 	"webrtc-load-engine/src/platform/jitsi"
+	"webrtc-load-engine/src/scenario"
 )
 
-// DummyHandler implements platform.SignalingHandler for testing.
-type DummyHandler struct {
-	logger *slog.Logger
-}
-
-// Ensure DummyHandler implements platform.SignalingHandler
-var _ platform.SignalingHandler = &DummyHandler{}
-
-func (h *DummyHandler) OnOffer(sdp string) (string, error) {
-	h.logger.Info("Received Offer", slog.String("sdp_preview", sdp[:min(len(sdp), 50)]+"..."))
-	// In a real scenario, we would generate an Answer here.
-	return "", nil
-}
-
-func (h *DummyHandler) OnICECandidate(candidate string) error {
-	h.logger.Info("Received ICE Candidate", slog.String("candidate", candidate))
-	return nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
+// jitsi-connect joins a Jitsi room with --participants bots (one by default),
+// negotiates the Jingle session with the bridge and stays in the room until
+// interrupted or until --duration elapses. With --media the bots also send
+// audio (and video). It runs the same execution engine as the HTTP API.
 func main() {
 	// Parse flags
 	xmppDomain := flag.String("domain", "meet.jit.si", "XMPP Domain")
-	mucDomain := flag.String("muc", "conference.meet.jit.si", "MUC Domain")
-	roomName := flag.String("room", "testroom-" + uuid.New().String()[:8], "Room Name")
-	wsURL := flag.String("ws", "wss://meet.jit.si/xmpp-websocket", "WebSocket URL")
+	mucDomain := flag.String("muc", "", "MUC Domain (default conference.<domain>)")
+	roomName := flag.String("room", "testroom-"+uuid.New().String()[:8], "Room Name")
+	wsURL := flag.String("ws", "", "WebSocket URL (default wss://<domain>/xmpp-websocket)")
+	focusJID := flag.String("focus", "", "Focus component JID (default focus.<domain>)")
+	duration := flag.Int("duration", 3600, "Seconds to stay in the room")
+	participants := flag.Int("participants", 1, "Number of bots")
+	mediaProfile := flag.String("media", scenario.MediaProfileReceiveOnly, "What each bot sends: receive_only, audio or audio_video")
+	maxReceived := flag.Int("max-received", 0, "Remote streams each bot receives per media kind (0: no cap)")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	logXMPP := flag.Bool("log-xmpp", false, "Log all XMPP traffic to stdout")
 
@@ -58,66 +41,52 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
-	logger.Info("Starting Jitsi Connect Test", 
+	logger.Info("Starting Jitsi Connect Test",
 		slog.String("domain", *xmppDomain),
-		slog.String("room", *roomName),
-		slog.String("ws", *wsURL))
+		slog.String("room", *roomName))
 
-	// Create Adapter
 	adapter := jitsi.NewAdapter(logger)
-
-	// Configure Adapter
 	config := map[string]interface{}{
 		"xmpp_domain":   *xmppDomain,
 		"muc_domain":    *mucDomain,
 		"room_name":     *roomName,
 		"websocket_url": *wsURL,
-		"debug":         *debug,
-		"log_xmpp":      *logXMPP,
+		"focus_jid":     *focusJID,
+		"debug":         *logXMPP,
 	}
-
-	// The Adapter interface doesn't expose ParseConfig directly in the interface definition 
-	// (it's on the concrete struct or via some other mechanism in the real app usually),
-	// but looking at src/platform/jitsi/adapter.go, ParseConfig IS a method on *Adapter.
-	jitsiAdapter, ok := adapter.(*jitsi.Adapter)
-	if !ok {
-		logger.Error("Failed to type assert adapter to *jitsi.Adapter")
-		os.Exit(1)
-	}
-
-	if err := jitsiAdapter.ParseConfig(config); err != nil {
+	if err := adapter.ParseConfig(config); err != nil {
 		logger.Error("Failed to parse config", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	// Connect
-	peerID := "user-" + uuid.New().String()[:8]
-	handler := &DummyHandler{logger: logger}
-
-	if err := adapter.Connect(peerID, handler); err != nil {
-		logger.Error("Failed to connect", slog.String("error", err.Error()))
-		
-		// Check for common error
-		if strings.Contains(err.Error(), "no matching authentication") && strings.Contains(err.Error(), "ANONYMOUS") {
-			logger.Warn("NOTE: The connection failed because the server requires SASL ANONYMOUS authentication, but the current XMPP library configuration is attempting PLAIN authentication. The gosrc.io/xmpp library v0.5.1 does not natively support ANONYMOUS auth easily.")
-		}
-		
+	// NewScenario validates the plan and applies the media defaults.
+	sc, err := scenario.NewScenario("jitsi-connect", "jitsi", scenario.TestPlan{
+		Participants:    *participants,
+		DurationSeconds: *duration,
+		Media:           &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived},
+	})
+	if err != nil {
+		logger.Error("Invalid flags", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	logger.Info("Connected! Press Ctrl+C to exit.")
+	done := make(chan string, 1)
+	engine := execution.NewEngine("cli-"+uuid.New().String()[:8], sc.TestPlan, adapter, logger, func(_ string, status string) {
+		done <- status
+	})
+	go engine.Start()
 
-	// Wait for interrupt
+	logger.Info("Bots launched. Press Ctrl+C to exit.", slog.Int("participants", *participants), slog.String("media", *mediaProfile))
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-
-	logger.Info("Disconnecting...")
-	
-	// Disconnect
-	if err := adapter.Disconnect(peerID); err != nil {
-		logger.Error("Failed to disconnect", slog.String("error", err.Error()))
+	select {
+	case <-stop:
+		logger.Info("Disconnecting...")
+		engine.Stop()
+		<-done
+	case status := <-done:
+		logger.Info("Run finished", slog.String("status", status))
 	}
-	
 	logger.Info("Exited.")
 }

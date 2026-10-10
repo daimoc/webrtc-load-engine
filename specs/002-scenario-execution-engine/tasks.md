@@ -40,6 +40,9 @@
 
 - [x] T012 [US1] Write unit tests for the `Engine` in `tests/unit/execution/engine_test.go`. This should test the ramp-up and stop logic.
 - [x] T013 [US1] Write an integration test in `tests/integration/execution/scenario_execution_test.go` that creates a scenario, executes it, and polls for the status to change to `completed`.
+- [x] T014 [US1] Report `stopped` (not `failed`) when the engine is stopped before the test duration elapses, and allow re-executing a stopped scenario, in `src/execution/engine.go` and `src/scenario/service.go` per FR-008/FR-010
+- [x] T015 [US1] Return scenario snapshots from `Service.CreateScenario`/`GetScenario` in `src/scenario/service.go` so API reads do not race with status updates from running engines
+- [x] T016 [US1] Verify SC-002 against a local docker-jitsi-meet with `tests/live` (feature 003): 100 bots established with the bridge in 2.0 s and held 30 s (≈100 MB RSS, 7% CPU); 200 bots in 4.2 s (≈170 MB RSS). Bots receive only, so this measures signaling and transport, not media load
 
 ---
 

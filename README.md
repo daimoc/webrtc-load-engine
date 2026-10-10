@@ -171,10 +171,42 @@ Initial priorities:
 3. Core metrics collection
 
 ---
-### CMD
+### Development
 
-export GOPATH=/home/agent/go && export GOCACHE=/home/agent/.cache/go-build && go run
-     cmd/jitsi-connect/main.go --log-xmpp
+```bash
+go build ./...
+go vet ./... && go test -race ./...
+
+# HTTP API on :8080
+go run ./src
+
+# Manual single-bot Jitsi join (colour-coded XMPP trace with --log-xmpp)
+go run ./cmd/jitsi-connect --domain meet.example.org --room test --log-xmpp
+
+# Several bots sending looped audio and video (receive_only, audio, audio_video)
+go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video
+```
+
+Bots send pre-encoded Opus audio and VP8 video (640x360, 30 fps, about
+500 kbit/s) built into the binary, selected per scenario with
+`"media": {"profile": "audio_video"}` in the test plan; without it they only
+receive. `"max_received_streams": N` (or `--max-received N`) caps the remote
+streams each bot receives per kind, to keep large rooms within one load
+machine's budget. Per-scenario media metrics (`webrtc_media_*` on `/metrics`: volumes,
+loss, jitter, round trip, remote streams, stalls, send lateness) are described
+in `specs/004-synthetic-media/contracts/metrics.md`.
+
+On Jitsi, each bot tells the bridge what it receives over the bridge channel,
+as browsers do: it asks for the video of the streams it receives (up to 360
+lines), and with a cap it subscribes to its received audio only, so the
+bridge stops sending the other streams. The bots acknowledge every packet
+that arrives in their congestion control feedback, so the bridge's bandwidth
+estimate reflects the real link. `webrtc_data_channels_open` shows how many
+bots have the bridge channel open, and the ratio of
+`webrtc_transport_bytes_received_total` to the `webrtc_media_bytes_received_total`
+of both kinds (about 1.03 when the bridge sends only the received streams)
+shows whether the bridge honours the subscriptions; see
+`specs/005-bridge-channel-subscriptions/contracts/`.
 
 ---
 

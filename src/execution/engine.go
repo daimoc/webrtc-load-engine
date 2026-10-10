@@ -2,11 +2,12 @@ package execution
 
 import (
 	"context"
-	"fmt" // Add fmt import
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
+	"webrtc-load-engine/src/media"
 	"webrtc-load-engine/src/platform"
 	"webrtc-load-engine/src/scenario"
 )
@@ -21,11 +22,15 @@ type Engine struct {
 	peers      map[string]*Peer
 	peersMutex sync.RWMutex
 
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup // For waiting on all peers to finish
-	
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup // Tracks in-flight peer connect goroutines
+	stopOnce sync.Once
+
 	onComplete func(scenarioID string, status string)
+
+	sources       map[string]*media.Source // By kind; one per sent kind, shared by all peers
+	collectorDone chan struct{}            // Closed when the media collector has finished (or never started)
 }
 
 // NewEngine creates a new execution engine.
@@ -43,13 +48,15 @@ func NewEngine(scenarioID string, testPlan scenario.TestPlan, adapter platform.P
 		ctx:        ctx,
 		cancel:     cancel,
 		onComplete: onComplete,
+
+		collectorDone: make(chan struct{}),
 	}
 }
 
 // Start begins the scenario execution.
 func (e *Engine) Start() {
 	e.logger.Info("Starting scenario execution", slog.String("scenario_id", e.scenarioID))
-	
+
 	finalStatus := "completed" // Default status
 
 	defer func() {
@@ -57,13 +64,19 @@ func (e *Engine) Start() {
 		e.onComplete(e.scenarioID, finalStatus)
 	}()
 
-	// Ramp-up phase
-	
+	if err := e.startMedia(); err != nil {
+		e.logger.Error("Failed to start media", slog.String("scenario_id", e.scenarioID), slog.String("error", err.Error()))
+		finalStatus = "failed"
+		close(e.collectorDone)
+		e.Stop()
+		return
+	}
+	go e.runMediaCollector()
+
+	// Ramp-up phase: peers are spread evenly over RampUpSeconds.
 	rampUpInterval := time.Duration(0)
 	if e.testPlan.Participants > 1 && e.testPlan.RampUpSeconds > 0 {
 		rampUpInterval = time.Duration(e.testPlan.RampUpSeconds*1000/e.testPlan.Participants) * time.Millisecond
-	} else if e.testPlan.Participants > 0 {
-		rampUpInterval = time.Duration(0) // Connect immediately if 1 participant or no ramp up
 	}
 
 	e.logger.Info("Ramp-up phase starting",
@@ -73,39 +86,16 @@ func (e *Engine) Start() {
 	)
 
 	for i := 0; i < e.testPlan.Participants; i++ {
-		select {
-		case <-e.ctx.Done():
-			e.logger.Info("Engine context cancelled during ramp-up", slog.String("scenario_id", e.scenarioID))
-			finalStatus = "failed"
+		if i > 0 && rampUpInterval > 0 {
+			select {
+			case <-time.After(rampUpInterval):
+			case <-e.ctx.Done():
+			}
+		}
+		if !e.launchPeer(i) {
+			e.logger.Info("Engine stopped during ramp-up", slog.String("scenario_id", e.scenarioID))
+			finalStatus = "stopped"
 			return
-		default:
-			peerID := fmt.Sprintf("peer-%s-%d", e.scenarioID, i)
-			// Pass logger to NewPeer
-			peer, err := NewPeer(peerID, e.logger)
-			if err != nil {
-				e.logger.Error("Failed to create peer", slog.String("peer_id", peerID), slog.String("error", err.Error()))
-				continue
-			}
-
-			e.peersMutex.Lock()
-			e.peers[peerID] = peer
-			e.peersMutex.Unlock()
-
-			e.wg.Add(1) // Increment for this peer
-			                        go func(p *Peer) {
-			                                defer e.wg.Done()
-			                                e.logger.Info("Connecting peer", slog.String("peer_id", p.ID()))
-			                                // Use p.ID() instead of p itself
-			                                if err := e.adapter.Connect(p.ID(), p); err != nil {
-			                                        e.logger.Error("Failed to connect peer", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
-			                                        p.state = PeerStateFailed // Set peer state to failed
-			                                } else {
-			                                        p.state = PeerStateConnected // Set peer state to connected
-			                                }
-			                        }(peer)
-			if rampUpInterval > 0 && i < e.testPlan.Participants-1 {
-				time.Sleep(rampUpInterval)
-			}
 		}
 	}
 
@@ -119,34 +109,184 @@ func (e *Engine) Start() {
 	case <-time.After(time.Duration(e.testPlan.DurationSeconds) * time.Second):
 		e.logger.Info("Test duration completed", slog.String("scenario_id", e.scenarioID))
 	case <-e.ctx.Done():
-		e.logger.Info("Engine context cancelled during test duration", slog.String("scenario_id", e.scenarioID))
-		finalStatus = "failed"
+		e.logger.Info("Engine stopped during test duration", slog.String("scenario_id", e.scenarioID))
+		finalStatus = "stopped"
 		return
 	}
 
-	// Wait for all peers to disconnect (graceful shutdown handled by Stop)
 	e.Stop()
 }
 
-// Stop gracefully stops the scenario execution and disconnects all peers.
-func (e *Engine) Stop() {
-	e.logger.Info("Stopping scenario execution", slog.String("scenario_id", e.scenarioID))
-	e.cancel() // Signal all goroutines to stop
-
-	// Disconnect all peers
-	e.peersMutex.RLock()
-	for _, peer := range e.peers {
-		// Use peer.ID() instead of peer itself
-		e.logger.Info("Simulating peer disconnect", slog.String("peer_id", peer.ID()))
-		e.adapter.Disconnect(peer.ID()) // Call Disconnect with peer ID
-		peer.state = PeerStateDisconnected
+// startMedia starts one media source per kind the bots send; they run until
+// the engine stops. Peers subscribe once their transport is established.
+func (e *Engine) startMedia() error {
+	e.sources = map[string]*media.Source{}
+	for _, kind := range e.testPlan.Media.Kinds() {
+		content, err := media.LoadContent(kind)
+		if err != nil {
+			return err
+		}
+		src := media.NewSource(e.scenarioID, content)
+		e.sources[kind] = src
+		go src.Run(e.ctx)
 	}
-	e.peersMutex.RUnlock()
-
-	e.wg.Wait() // Wait for all peer goroutines to finish
-	e.logger.Info("All peers disconnected, engine stopped", slog.String("scenario_id", e.scenarioID))
+	if len(e.sources) > 0 {
+		e.logger.Info("Media sources started", slog.String("scenario_id", e.scenarioID), slog.Any("kinds", e.testPlan.Media.Kinds()))
+	}
+	return nil
 }
 
+// runMediaCollector updates the scenario's media metrics every
+// mediaCollectInterval until the engine stops, then once more.
+func (e *Engine) runMediaCollector() {
+	defer close(e.collectorDone)
+	stall := 10 * time.Second
+	if m := e.testPlan.Media; m != nil && m.StallTimeoutSeconds > 0 {
+		stall = time.Duration(m.StallTimeoutSeconds) * time.Second
+	}
+	c := newMediaCollector(e.scenarioID, stall, e.logger)
+	defer c.finish()
 
+	ticker := time.NewTicker(mediaCollectInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case now := <-ticker.C:
+			c.collect(now, e.mediaPeers())
+		case <-e.ctx.Done():
+			c.collect(time.Now(), e.mediaPeers())
+			return
+		}
+	}
+}
 
+// mediaPeers returns the scenario's peers for the media collector.
+func (e *Engine) mediaPeers() []mediaPeer {
+	e.peersMutex.RLock()
+	defer e.peersMutex.RUnlock()
+	out := make([]mediaPeer, 0, len(e.peers))
+	for _, p := range e.peers {
+		out = append(out, p)
+	}
+	return out
+}
 
+// onPeerState subscribes a peer's tracks to the media sources when its
+// transport is established, and unsubscribes them when it ends.
+func (e *Engine) onPeerState(p *Peer, to PeerState) {
+	for kind, track := range p.LocalTracks() {
+		src := e.sources[kind]
+		if src == nil {
+			continue
+		}
+		switch to {
+		case PeerStateEstablished:
+			src.Subscribe(track)
+		case PeerStateFailed, PeerStateDisconnected:
+			src.Unsubscribe(track)
+		}
+	}
+}
+
+// peerMedia returns what each peer of the scenario sends and receives.
+func (e *Engine) peerMedia() PeerMedia {
+	m := PeerMedia{Kinds: e.testPlan.Media.Kinds()}
+	if e.testPlan.Media != nil {
+		m.ReceiveLimit = e.testPlan.Media.MaxReceivedStreams
+	}
+	return m
+}
+
+// launchPeer creates peer number i and starts connecting it. It reports false
+// if the engine is stopping.
+func (e *Engine) launchPeer(i int) bool {
+	peerID := fmt.Sprintf("peer-%s-%d", e.scenarioID, i)
+
+	// Registering the peer and wg.Add under peersMutex, after checking ctx,
+	// guarantees that Stop (which cancels ctx and then takes the lock) never
+	// races a new peer against wg.Wait.
+	e.peersMutex.Lock()
+	defer e.peersMutex.Unlock()
+	if e.ctx.Err() != nil {
+		return false
+	}
+
+	peer, err := NewPeer(peerID, e.scenarioID, e.peerMedia(), e.logger)
+	if err != nil {
+		e.logger.Error("Failed to create peer", slog.String("peer_id", peerID), slog.String("error", err.Error()))
+		return true
+	}
+	peer.OnStateChange(func(to PeerState) { e.onPeerState(peer, to) })
+	e.peers[peerID] = peer
+	e.wg.Add(1)
+	go e.connectPeer(peer)
+	return true
+}
+
+func (e *Engine) connectPeer(p *Peer) {
+	defer e.wg.Done()
+
+	e.logger.Info("Connecting peer", slog.String("peer_id", p.ID()))
+	e.mustTransition(p, PeerStateConnecting)
+
+	start := time.Now()
+	if err := e.adapter.Connect(e.ctx, p.ID(), p); err != nil {
+		if e.ctx.Err() != nil {
+			e.logger.Info("Peer connect cancelled", slog.String("peer_id", p.ID()))
+			e.mustTransition(p, PeerStateFailed)
+			return
+		}
+		p.fail(stageSignaling, err)
+		return
+	}
+	signalingConnectSeconds.WithLabelValues(e.scenarioID).Observe(time.Since(start).Seconds())
+
+	// ICE may already have moved the peer to Established (or Failed).
+	if _, err := p.transitionIf(PeerStateConnecting, PeerStateConnected); err != nil {
+		e.logger.Error("Peer lifecycle error", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
+	}
+}
+
+// mustTransition applies a lifecycle transition, surfacing illegal ones as errors.
+func (e *Engine) mustTransition(p *Peer, to PeerState) {
+	if err := p.transition(to); err != nil {
+		e.logger.Error("Peer lifecycle error", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
+	}
+}
+
+// Stop gracefully stops the scenario execution and disconnects all peers.
+// It is idempotent and safe to call concurrently.
+func (e *Engine) Stop() {
+	e.stopOnce.Do(e.stop)
+}
+
+func (e *Engine) stop() {
+	e.logger.Info("Stopping scenario execution", slog.String("scenario_id", e.scenarioID))
+	e.cancel() // Abort ramp-up and in-flight connects
+
+	// Barrier: after this no new peer can be launched (see launchPeer).
+	e.peersMutex.Lock()
+	e.peersMutex.Unlock()
+
+	e.wg.Wait()       // In-flight connects return promptly once ctx is cancelled
+	<-e.collectorDone // Last media collection while the peers are still up
+
+	e.peersMutex.RLock()
+	var disconnects sync.WaitGroup
+	for _, peer := range e.peers {
+		disconnects.Add(1)
+		go func(p *Peer) {
+			defer disconnects.Done()
+			if err := e.adapter.Disconnect(p.ID()); err != nil {
+				e.logger.Warn("Failed to disconnect peer", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
+			}
+			if err := p.Close(); err != nil {
+				e.logger.Warn("Failed to close peer connection", slog.String("peer_id", p.ID()), slog.String("error", err.Error()))
+			}
+			e.mustTransition(p, PeerStateDisconnected)
+		}(peer)
+	}
+	disconnects.Wait()
+	e.peersMutex.RUnlock()
+	e.logger.Info("All peers disconnected, engine stopped", slog.String("scenario_id", e.scenarioID))
+}

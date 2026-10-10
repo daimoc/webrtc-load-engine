@@ -17,7 +17,7 @@ type ExecutionEngine interface {
 
 // ExecutionStarter defines the interface for starting a scenario execution.
 type ExecutionStarter interface {
-	StartExecution(scenarioID string, testPlan TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) ExecutionEngine
+	StartExecution(scenarioID string, testPlan TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) (ExecutionEngine, error)
 }
 
 // Service provides scenario-related operations.
@@ -72,7 +72,7 @@ func (s *Service) CreateScenario(name, platform string, testPlan TestPlan) (*Sce
 	scenario.ID = fmt.Sprintf("scenario-%s", uuid.New().String())
 	s.scenarios[scenario.ID] = scenario
 	s.logger.Info("Scenario created successfully", slog.String("scenario_id", scenario.ID))
-	return scenario, nil
+	return scenario.snapshot(), nil
 }
 
 // ExecuteScenario retrieves a scenario by ID and starts its execution.
@@ -89,16 +89,9 @@ func (s *Service) ExecuteScenario(id string) error {
 		return fmt.Errorf("scenario is already running: %s", id)
 	}
 
-	if sc.Status != "created" && sc.Status != "completed" && sc.Status != "failed" {
+	if sc.Status != "created" && sc.Status != "completed" && sc.Status != "stopped" && sc.Status != "failed" {
 		return fmt.Errorf("scenario cannot be executed in current status '%s'", sc.Status)
 	}
-
-	sc.Status = "running"
-	s.logger.Info("Scenario status updated to running", slog.String("scenario_id", sc.ID))
-
-	// Create a platform adapter (currently hardcoded to Jitsi placeholder)
-	// TODO: Dynamically select adapter based on sc.Platform
-	// adapter := jitsi.NewAdapter(s.logger) // Removed direct import
 
 	onComplete := func(scenarioID string, status string) {
 		s.mu.Lock()
@@ -115,10 +108,18 @@ func (s *Service) ExecuteScenario(id string) error {
 		s.engineMu.Unlock()
 	}
 
-	// Delegate engine creation and start to the starter
-	// The adapter will also need to be created by the starter to avoid import cycles here.
-	engine := s.executionStarter.StartExecution(sc.ID, sc.TestPlan, nil, onComplete) // Pass nil adapter for now.
-	
+	// Delegate engine and adapter creation to the starter (avoids an import cycle
+	// on the platform packages here). A nil adapter lets the starter pick one from
+	// sc.TestPlan.PlatformConfig.
+	engine, err := s.executionStarter.StartExecution(sc.ID, sc.TestPlan, nil, onComplete)
+	if err != nil {
+		s.logger.Error("Failed to start scenario execution", slog.String("scenario_id", sc.ID), slog.String("error", err.Error()))
+		return fmt.Errorf("failed to start scenario %s: %w", sc.ID, err)
+	}
+
+	sc.Status = "running"
+	s.logger.Info("Scenario status updated to running", slog.String("scenario_id", sc.ID))
+
 	s.engineMu.Lock()
 	s.runningEngines[sc.ID] = engine
 	s.engineMu.Unlock()
@@ -128,7 +129,8 @@ func (s *Service) ExecuteScenario(id string) error {
 	return nil
 }
 
-// GetScenario retrieves a scenario by ID.
+// GetScenario retrieves a scenario by ID. It returns a snapshot: the stored
+// scenario keeps being updated by its execution.
 func (s *Service) GetScenario(id string) (*Scenario, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -137,7 +139,7 @@ func (s *Service) GetScenario(id string) (*Scenario, error) {
 	if !ok {
 		return nil, fmt.Errorf("scenario not found: %s", id)
 	}
-	return sc, nil
+	return sc.snapshot(), nil
 }
 
 // Shutdown stops all running scenario engines.

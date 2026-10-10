@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"regexp"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,22 +22,22 @@ import (
 
 // IntegrationMockPlatformAdapter for integration tests.
 type IntegrationMockPlatformAdapter struct {
-	connectCount int
+	connectCount atomic.Int32 // Peers connect concurrently
 	t            *testing.T
 	connectDelay time.Duration // Simulate connection delay
-	disconnectWG sync.WaitGroup // To wait for disconnects
 }
 
-func (m *IntegrationMockPlatformAdapter) Connect(peerID string) error {
+var _ platform.PlatformAdapter = (*IntegrationMockPlatformAdapter)(nil)
+
+func (m *IntegrationMockPlatformAdapter) Connect(_ context.Context, peerID string, _ platform.SignalingHandler) error {
 	m.t.Logf("IntegrationMockPlatformAdapter: Connecting peer %s", peerID)
 	time.Sleep(m.connectDelay) // Simulate connection time
-	m.connectCount++
+	m.connectCount.Add(1)
 	return nil
 }
 
 func (m *IntegrationMockPlatformAdapter) Disconnect(peerID string) error {
 	m.t.Logf("IntegrationMockPlatformAdapter: Disconnecting peer %s", peerID)
-	// m.disconnectWG.Done() // Removed waitgroup logic for simplicity in this pass, unless we explicitly wait for disconnects
 	return nil
 }
 
@@ -52,9 +53,9 @@ func NewTestEngineStarter(logger *slog.Logger, adapter platform.PlatformAdapter)
 }
 
 // StartExecution creates and returns a new execution.Engine.
-func (es *TestEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) scenario.ExecutionEngine {
+func (es *TestEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) (scenario.ExecutionEngine, error) {
 	// Use the injected mock adapter
-	return execution.NewEngine(scenarioID, testPlan, es.adapter, es.logger, onComplete)
+	return execution.NewEngine(scenarioID, testPlan, es.adapter, es.logger, onComplete), nil
 }
 
 // NoOpMetrics is a dummy implementation of handlers.Metrics that does nothing.

@@ -11,4 +11,5 @@ The `status` field of the `Scenario` entity will transition through the followin
 | `created` | The initial state of a scenario after being successfully created. | `POST /api/v1/scenarios` |
 | `running` | The scenario is actively being executed by the engine. | `POST /api/v1/scenarios/{id}/_execute` |
 | `completed` | The scenario execution finished successfully. | The execution engine completes the test duration. |
-| `failed` | The scenario execution was terminated due to an error. | An unrecoverable error occurs during execution, or the process is terminated. |
+| `stopped` | The scenario execution was ended on request before its duration elapsed. | The engine is stopped (e.g. `SIGINT`/`SIGTERM` shutdown). |
+| `failed` | The scenario execution was terminated due to an error. | An unrecoverable error occurs during execution. |

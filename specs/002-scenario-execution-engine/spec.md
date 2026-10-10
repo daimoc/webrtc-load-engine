@@ -45,13 +45,13 @@ As a user, I want to trigger the execution of a pre-defined load test scenario v
 - **FR-005**: The engine MUST simulate the number of `participants` over the `ramp_up_seconds` period as defined in the `TestPlan`.
 - **FR-006**: The test MUST run for the `duration_seconds` after all participants have joined.
 - **FR-007**: Upon completion of the test duration, the engine MUST gracefully disconnect all simulated participants.
-- **FR-008**: The system MUST update the scenario's status to `completed` on successful completion, or `failed` if it terminates unexpectedly.
+- **FR-008**: The system MUST update the scenario's status to `completed` on successful completion, `stopped` if the execution is ended on request before its duration elapses (e.g. process shutdown), or `failed` if it terminates unexpectedly.
 - **FR-009**: The execution status and progress can be monitored by polling the `GET /api/v1/scenarios/{id}` endpoint to retrieve the scenario's current status. No active real-time monitoring is planned for this iteration.
-- **FR-010**: The engine should handle graceful shutdown by trapping `SIGINT`/`SIGTERM` signals to attempt to update the scenario status to `failed` for any active executions.
+- **FR-010**: The engine should handle graceful shutdown by trapping `SIGINT`/`SIGTERM` signals to attempt to update the scenario status to `stopped` for any active executions.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Scenario**: The existing entity will be used. Its `status` field will be updated to reflect the execution lifecycle (`running`, `completed`, `failed`).
+- **Scenario**: The existing entity will be used. Its `status` field will be updated to reflect the execution lifecycle (`running`, `completed`, `stopped`, `failed`).
 
 ## Success Criteria *(mandatory)*
 

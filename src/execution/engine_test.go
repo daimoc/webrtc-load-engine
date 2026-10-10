@@ -1,26 +1,36 @@
 package execution
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	//"webrtc-load-engine/src/platform" // Removed unused import
+	"github.com/google/uuid"
+	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"webrtc-load-engine/src/media"
+	"webrtc-load-engine/src/platform"
 	"webrtc-load-engine/src/scenario"
 )
 
 // MockPlatformAdapter is a mock implementation of the PlatformAdapter interface for testing.
 type MockPlatformAdapter struct {
-	connectCount int
+	connectCount atomic.Int32 // Peers connect concurrently
 	t            *testing.T
 	connectDelay time.Duration // Simulate connection delay
 }
 
-func (m *MockPlatformAdapter) Connect(peerID string) error {
+var _ platform.PlatformAdapter = (*MockPlatformAdapter)(nil)
+
+func (m *MockPlatformAdapter) Connect(_ context.Context, peerID string, _ platform.SignalingHandler) error {
 	m.t.Logf("MockPlatformAdapter: Connecting peer %s", peerID)
 	time.Sleep(m.connectDelay) // Simulate connection time
-	m.connectCount++
+	m.connectCount.Add(1)
 	return nil
 }
 
@@ -73,8 +83,8 @@ func TestEngine_StartStop(t *testing.T) {
 	}
 
 	// Assertions
-	if mockAdapter.connectCount != testPlan.Participants {
-		t.Errorf("Expected %d peers to connect, got %d", testPlan.Participants, mockAdapter.connectCount)
+	if got := int(mockAdapter.connectCount.Load()); got != testPlan.Participants {
+		t.Errorf("Expected %d peers to connect, got %d", testPlan.Participants, got)
 	}
 
 	if finalStatus != "completed" {
@@ -83,8 +93,8 @@ func TestEngine_StartStop(t *testing.T) {
 
 	engine.peersMutex.RLock()
 	for _, peer := range engine.peers {
-		if peer.state != PeerStateDisconnected {
-			t.Errorf("Expected peer %s to be disconnected, but got state %s", peer.ID(), peer.state)
+		if peer.State() != PeerStateDisconnected {
+			t.Errorf("Expected peer %s to be disconnected, but got state %s", peer.ID(), peer.State())
 		}
 	}
 	engine.peersMutex.RUnlock()
@@ -126,15 +136,154 @@ func TestEngine_StopDuringRampUp(t *testing.T) {
 		t.Fatal("onComplete callback not received after early stop within timeout")
 	}
 
-	if finalStatus != "failed" { // Should be failed because it was stopped prematurely
-		t.Errorf("Expected final status 'failed', got %s", finalStatus)
+	if finalStatus != "stopped" { // Stopped on request before the duration elapsed
+		t.Errorf("Expected final status 'stopped', got %s", finalStatus)
 	}
 
 	engine.peersMutex.RLock()
 	for _, peer := range engine.peers {
-		if peer.state != PeerStateDisconnected {
-			t.Errorf("Expected peer %s to be disconnected, but got state %s", peer.ID(), peer.state)
+		if peer.State() != PeerStateDisconnected {
+			t.Errorf("Expected peer %s to be disconnected, but got state %s", peer.ID(), peer.State())
 		}
 	}
 	engine.peersMutex.RUnlock()
+}
+
+// blockingAdapter blocks Connect until the engine cancels it.
+type blockingAdapter struct {
+	disconnects atomic.Int32
+}
+
+func (b *blockingAdapter) Connect(ctx context.Context, _ string, _ platform.SignalingHandler) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (b *blockingAdapter) Disconnect(string) error {
+	b.disconnects.Add(1)
+	return nil
+}
+
+func TestEngine_StopCancelsInFlightConnects(t *testing.T) {
+	adapter := &blockingAdapter{}
+	done := make(chan string, 1)
+	plan := scenario.TestPlan{Participants: 3, DurationSeconds: 60}
+	engine := NewEngine("test-scenario-789", plan, adapter, quietLogger, func(_ string, status string) { done <- status })
+
+	go engine.Start()
+	time.Sleep(100 * time.Millisecond) // All peers are stuck connecting
+
+	stopped := make(chan struct{})
+	go func() {
+		engine.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not cancel the in-flight connects")
+	}
+	engine.Stop() // Idempotent
+
+	if status := <-done; status != "stopped" {
+		t.Errorf("expected status stopped, got %s", status)
+	}
+	if got := adapter.disconnects.Load(); got != 3 {
+		t.Errorf("expected 3 disconnects, got %d", got)
+	}
+	engine.peersMutex.RLock()
+	defer engine.peersMutex.RUnlock()
+	for _, p := range engine.peers {
+		if p.State() != PeerStateDisconnected {
+			t.Errorf("peer %s: expected disconnected, got %s", p.ID(), p.State())
+		}
+	}
+}
+
+// mediaServerAdapter stands in for a platform whose media server offers an
+// audio, a video and a data section to each peer on Connect, and records the
+// media kinds it receives from each peer.
+type mediaServerAdapter struct {
+	t        *testing.T
+	mu       sync.Mutex
+	received map[string]map[string]bool // peer ID -> kinds received
+}
+
+func (a *mediaServerAdapter) Connect(_ context.Context, peerID string, h platform.SignalingHandler) error {
+	server := newOfferer(a.t)
+	server.OnTrack(func(tr *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		if _, _, err := tr.ReadRTP(); err != nil {
+			return
+		}
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.received[peerID] == nil {
+			a.received[peerID] = map[string]bool{}
+		}
+		a.received[peerID][tr.Kind().String()] = true
+	})
+	offer, err := server.CreateOffer(nil)
+	if err != nil {
+		return err
+	}
+	gathered := webrtc.GatheringCompletePromise(server)
+	if err := server.SetLocalDescription(offer); err != nil {
+		return err
+	}
+	<-gathered
+	answer, err := h.OnOffer(server.LocalDescription().SDP, func(string, string) {})
+	if err != nil {
+		return err
+	}
+	return server.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: answer})
+}
+
+func (a *mediaServerAdapter) Disconnect(string) error { return nil }
+
+func (a *mediaServerAdapter) receivedAll(peers int, kinds ...string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.received) < peers {
+		return false
+	}
+	for _, got := range a.received {
+		for _, k := range kinds {
+			if !got[k] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func TestEngine_SendsMediaOnceEstablished(t *testing.T) {
+	adapter := &mediaServerAdapter{t: t, received: map[string]map[string]bool{}}
+	plan := scenario.TestPlan{Participants: 2, DurationSeconds: 60, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo}}
+	done := make(chan string, 1)
+	id := "engine-media-" + uuid.NewString()
+	engine := NewEngine(id, plan, adapter, quietLogger, func(_, status string) { done <- status })
+	go engine.Start()
+
+	deadline := time.Now().Add(15 * time.Second)
+	for !adapter.receivedAll(2, "audio", "video") {
+		if time.Now().After(deadline) {
+			t.Fatalf("media server did not receive audio and video from both peers: %v", adapter.received)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	engine.Stop()
+	if status := <-done; status != "stopped" {
+		t.Fatalf("expected stopped, got %s", status)
+	}
+	for _, kind := range []string{"audio", "video"} {
+		if n := testutil.ToFloat64(media.PacketsSent.WithLabelValues(id, kind)); n == 0 {
+			t.Errorf("expected %s packets counted as sent", kind)
+		}
+	}
+	sent := testutil.ToFloat64(media.PacketsSent.WithLabelValues(id, "video"))
+	time.Sleep(200 * time.Millisecond)
+	if after := testutil.ToFloat64(media.PacketsSent.WithLabelValues(id, "video")); after != sent {
+		t.Errorf("media still sent after stop: %v -> %v", sent, after)
+	}
 }

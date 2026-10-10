@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	//"webrtc-load-engine/src/execution" // Removed to break import cycle
 	"webrtc-load-engine/src/platform"
 )
 
@@ -16,7 +15,7 @@ import (
 type Adapter struct {
 	logger *slog.Logger
 	config JingleConfig
-	
+
 	clients map[string]*SignalingClient
 	mu      sync.Mutex
 }
@@ -24,17 +23,24 @@ type Adapter struct {
 // JingleConfig holds the configuration for the Jitsi adapter.
 // It matches the schema defined in specs/003-xmpp-signaling/contracts/configuration.yaml.
 type JingleConfig struct {
-	XMPPDomain     string `json:"xmpp_domain"`
-	MUCDomain      string `json:"muc_domain"`
-	RoomName       string `json:"room_name"`
-	WebSocketURL   string `json:"websocket_url"`
-	ConnectTimeout string `json:"connect_timeout"`
-	Debug          bool   `json:"debug"`
-	LogXMPP        bool   `json:"log_xmpp"`
+	XMPPDomain        string `json:"xmpp_domain"`
+	MUCDomain         string `json:"muc_domain"`
+	RoomName          string `json:"room_name"`
+	WebSocketURL      string `json:"websocket_url"`
+	FocusJID          string `json:"focus_jid"`
+	ConnectTimeout    string `json:"connect_timeout"`
+	KeepaliveInterval string `json:"keepalive_interval"`
+	Debug             bool   `json:"debug"` // Log all XMPP traffic to stdout
+
+	connectTimeout    time.Duration // Parsed ConnectTimeout
+	keepaliveInterval time.Duration // Parsed KeepaliveInterval
 }
 
-// NewAdapter creates a new Jitsi adapter.
-func NewAdapter(logger *slog.Logger) platform.PlatformAdapter {
+// Adapter implements platform.PlatformAdapter.
+var _ platform.PlatformAdapter = (*Adapter)(nil)
+
+// NewAdapter creates a new Jitsi adapter. Call ParseConfig before Connect.
+func NewAdapter(logger *slog.Logger) *Adapter {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -72,59 +78,109 @@ func (a *Adapter) ParseConfig(config map[string]interface{}) error {
 	if a.config.WebSocketURL == "" {
 		a.config.WebSocketURL = fmt.Sprintf("wss://%s/xmpp-websocket", a.config.XMPPDomain)
 	}
+	if a.config.FocusJID == "" {
+		a.config.FocusJID = fmt.Sprintf("focus.%s", a.config.XMPPDomain)
+	}
 	if a.config.ConnectTimeout == "" {
 		a.config.ConnectTimeout = "10s"
+	}
+	if a.config.KeepaliveInterval == "" {
+		a.config.KeepaliveInterval = "30s"
+	}
+
+	if a.config.connectTimeout, err = parsePositiveDuration("connect_timeout", a.config.ConnectTimeout); err != nil {
+		return err
+	}
+	if a.config.keepaliveInterval, err = parsePositiveDuration("keepalive_interval", a.config.KeepaliveInterval); err != nil {
+		return err
 	}
 
 	a.logger.Info("Jitsi configuration parsed successfully",
 		slog.String("xmpp_domain", a.config.XMPPDomain),
 		slog.String("room", a.config.RoomName),
 		slog.String("muc_domain", a.config.MUCDomain),
-		slog.String("websocket_url", a.config.WebSocketURL))
+		slog.String("websocket_url", a.config.WebSocketURL),
+		slog.String("focus_jid", a.config.FocusJID))
 
 	return nil
 }
 
-// Connect simulates connecting a peer to a Jitsi meeting.
-func (a *Adapter) Connect(peerID string, handler platform.SignalingHandler) error {
-	a.logger.Info("Jitsi adapter: Connecting peer", slog.String("peer_id", peerID))
+func parsePositiveDuration(name, value string) (time.Duration, error) {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q: %w", name, value, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("%s must be positive, got %q", name, value)
+	}
+	return d, nil
+}
 
-	client := NewSignalingClient(a.logger, a.config)
-	client.SetHandler(handler)
-	
-	// Create context with timeout for connection
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second) // TODO: Use config timeout
+// Connect connects a peer to the Jitsi meeting: XMPP connection, conference
+// request to the focus, and MUC join. It blocks until the room is joined, the
+// join fails, connect_timeout elapses, or ctx is cancelled. On error the
+// client is closed and forgotten.
+func (a *Adapter) Connect(ctx context.Context, peerID string, handler platform.SignalingHandler) error {
+	logger := a.logger.With(slog.String("peer_id", peerID))
+	logger.Info("Jitsi adapter: Connecting peer")
+
+	ctx, cancel := context.WithTimeout(ctx, a.config.connectTimeout)
 	defer cancel()
 
-	if err := client.Connect(ctx); err != nil {
-		return fmt.Errorf("failed to connect XMPP: %w", err)
-	}
+	client := NewSignalingClient(logger, a.config)
+	// A concurrent Disconnect aborts the join (pending IQs are not failed
+	// by mellium when the stream closes).
+	stop := context.AfterFunc(client.closedCtx, cancel)
+	defer stop()
+	client.SetHandler(handler)
+	client.SetOnLost(func(err error) {
+		if a.forget(peerID, client) {
+			client.Disconnect()
+		}
+		handler.OnSignalingLost(err)
+	})
 
-	if err := client.JoinMUC(ctx, peerID); err != nil {
-		// Cleanup if join fails
-		// client.Close() // TODO: Implement Close
-		return fmt.Errorf("failed to join MUC: %w", err)
-	}
-
-	// Store client
+	// Register before connecting so that a concurrent Disconnect closes it.
 	a.mu.Lock()
+	if _, exists := a.clients[peerID]; exists {
+		a.mu.Unlock()
+		return fmt.Errorf("peer %s is already connected", peerID)
+	}
 	a.clients[peerID] = client
 	a.mu.Unlock()
-	
-	// Wait for Join to complete (optional but good for 'Connected' state)
-	// We run this in background or block? Adapter.Connect is expected to block until connected?
-	// Usually Connect returns when 'Connected'.
-	if err := client.WaitJoined(ctx); err != nil {
-		return fmt.Errorf("timed out waiting for MUC join: %w", err)
-	}
 
+	err := client.Connect(ctx)
+	if err == nil {
+		err = client.JoinMUC(ctx, peerID)
+	}
+	if err == nil {
+		err = client.WaitJoined(ctx)
+	}
+	if err != nil {
+		a.forget(peerID, client)
+		client.Disconnect()
+		return fmt.Errorf("jitsi join failed: %w", err)
+	}
 	return nil
 }
 
-// Disconnect simulates disconnecting a peer from a Jitsi meeting.
+// forget removes client from the registry if it is still registered for
+// peerID, and reports whether it did.
+func (a *Adapter) forget(peerID string, client *SignalingClient) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.clients[peerID] != client {
+		return false
+	}
+	delete(a.clients, peerID)
+	return true
+}
+
+// Disconnect terminates the peer's Jingle sessions, leaves the room and
+// closes the connection.
 func (a *Adapter) Disconnect(peerID string) error {
 	a.logger.Info("Jitsi adapter: Disconnecting peer", slog.String("peer_id", peerID))
-	
+
 	a.mu.Lock()
 	client, ok := a.clients[peerID]
 	delete(a.clients, peerID)
@@ -134,17 +190,13 @@ func (a *Adapter) Disconnect(peerID string) error {
 		return nil // Already disconnected
 	}
 
-	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
 	client.TerminateSessions(ctx)
-	
+
 	if err := client.Disconnect(); err != nil {
-		a.logger.Error("Failed to disconnect XMPP client", slog.String("error", err.Error()))
+		a.logger.Error("Failed to disconnect XMPP client", slog.String("peer_id", peerID), slog.String("error", err.Error()))
 		return err
 	}
-	
 	return nil
 }
-

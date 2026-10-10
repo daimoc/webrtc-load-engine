@@ -1,0 +1,49 @@
+# Addition to the TestPlan schema of
+# specs/002-scenario-execution-engine/contracts/openapi.yaml
+# (components.schemas.TestPlan.properties.media).
+components:
+  schemas:
+    TestPlan:
+      properties:
+        media:
+          $ref: '#/components/schemas/MediaConfig'
+
+    MediaConfig:
+      type: object
+      description: >-
+        What each bot sends. Platform-independent. When absent, bots only
+        receive (behavior before feature 004).
+      properties:
+        profile:
+          type: string
+          enum: [receive_only, audio, audio_video]
+          default: receive_only
+          description: >-
+            receive_only: no media sent. audio: one Opus stream.
+            audio_video: one Opus stream and one VP8 stream (640x360, 30 fps,
+            about 500 kbit/s), looped from content built into the engine.
+        stall_timeout_seconds:
+          type: integer
+          minimum: 1
+          default: 10
+          description: >-
+            A bot that has received a media kind and then receives nothing of
+            it for this long, while its connection is up, counts one stall.
+        max_received_streams:
+          type: integer
+          minimum: 0
+          default: 0
+          description: >-
+            Maximum number of remote streams each bot receives per media
+            kind (0: no cap). Extra streams are ignored by the bot; with a
+            bridge channel (005) the bot also subscribes to its received
+            streams only, so the server stops sending the others. When a
+            received stream ends, the oldest waiting one takes its place.
+      example:
+        profile: audio_video
+        stall_timeout_seconds: 10
+        max_received_streams: 10
+
+# Errors: POST /api/v1/scenarios returns 400 with an error message when
+# media.profile is not one of the values above, stall_timeout_seconds < 1
+# or max_received_streams < 0.

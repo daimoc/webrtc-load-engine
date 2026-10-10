@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -73,13 +74,17 @@ func NewMainEngineStarter(logger *slog.Logger) *MainEngineStarter {
 }
 
 // StartExecution creates and returns a new execution.Engine.
-func (es *MainEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) scenario.ExecutionEngine {
-	// In a real implementation, the adapter would be dynamically selected based on testPlan.Platform
-	// For now, we hardcode jitsi.NewAdapter
-	if adapter == nil { // Provide a default if nil is passed
-		adapter = jitsi.NewAdapter(es.logger)
+// When no adapter is supplied, a Jitsi adapter is built from testPlan.PlatformConfig.
+// TODO: select the adapter from the scenario's Platform once more adapters exist.
+func (es *MainEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) (scenario.ExecutionEngine, error) {
+	if adapter == nil {
+		jitsiAdapter := jitsi.NewAdapter(es.logger)
+		if err := jitsiAdapter.ParseConfig(testPlan.PlatformConfig); err != nil {
+			return nil, fmt.Errorf("invalid platform_config: %w", err)
+		}
+		adapter = jitsiAdapter
 	}
-	return execution.NewEngine(scenarioID, testPlan, adapter, es.logger, onComplete)
+	return execution.NewEngine(scenarioID, testPlan, adapter, es.logger, onComplete), nil
 }
 
 func main() {

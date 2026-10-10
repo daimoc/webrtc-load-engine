@@ -5,12 +5,12 @@
 
 ## Summary
 
-Implement the Jitsi platform adapter using `gosrc.io/xmpp` to handle XMPP signaling. The adapter will support anonymous SASL authentication, join MUC rooms, and negotiate Jingle (XEP-0166) sessions by acting as a responder to Jicofo's `session-initiate` requests. It will translate Jingle XML to standard SDP for the core media engine.
+Implement the Jitsi platform adapter using `mellium.im/xmpp` (over `nhooyr.io/websocket`) to handle XMPP signaling. The adapter will support anonymous SASL authentication, join MUC rooms, and negotiate Jingle (XEP-0166) sessions by acting as a responder to Jicofo's `session-initiate` requests. It will translate Jingle XML to standard SDP for the core media engine.
 
 ## Technical Context
 
 **Language/Version**: Go 1.23.0
-**Primary Dependencies**: `gosrc.io/xmpp` (Fluux), `pion/webrtc/v3`
+**Primary Dependencies**: `mellium.im/xmpp`, `nhooyr.io/websocket`, `pion/webrtc/v3`
 **Storage**: N/A (In-memory session state)
 **Testing**: Unit tests with mock XMPP server/stanzas, Integration against live Jitsi
 **Target Platform**: Jitsi Meet (XMPP WebSocket)
