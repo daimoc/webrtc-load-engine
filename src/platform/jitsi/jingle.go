@@ -108,12 +108,15 @@ func (s *SignalingClient) HandleSessionInitiate(fromJID string, jingle *JingleIQ
 
 	s.mu.Lock()
 	limit, height := 0, 0
+	var layers []int
 	if s.handler != nil {
 		limit = s.handler.ReceiveLimit()
 		height = s.handler.RequestedVideoHeight()
+		layers = s.handler.VideoLayerHeights()
 	}
 	s.mu.Unlock()
 	sources := newSessionSources(jingle, limit, height)
+	sources.layers = layers
 	offer, err := sources.offer()
 	if err != nil {
 		return fmt.Errorf("invalid session-initiate: %w", err)

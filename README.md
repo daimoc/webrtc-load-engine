@@ -173,7 +173,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 003 XMPP signaling | Jitsi adapter: bots join a room like the web client (XMPP over WebSocket, Jingle) and connect audio and video to the bridge |
 | 004 Synthetic media | Bots send looped audio and video; per‑kind cap on received streams; media metrics |
 | 005 Bridge channel subscriptions | Bots request video from the bridge and subscribe only to the streams they keep |
-| 006 Media quality | Quality of what each bot receives (frame rate, freezes, resolution, audio gaps, estimated MOS), end‑to‑end latency between bots, end‑of‑run quality summary; simulcast sending (implemented, not yet working with the Jitsi bridge) |
+| 006 Media quality | Quality of what each bot receives (frame rate, freezes, resolution, audio gaps, estimated MOS), end‑to‑end latency between bots, end‑of‑run quality summary; simulcast (three layers, each bot asks for its height) |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -197,7 +197,7 @@ Details: `specs/005-bridge-channel-subscriptions/validation-report.md`,
 Not done yet:
 
 * adapters for other platforms (Janus, mediasoup, LiveKit),
-* simulcast with the Jitsi bridge (the bots send three layers but the bridge forwards only the lowest one) and SVC,
+* SVC, and simulcast at 100 bots with a bridge sized for it (the local bridge's default 3 GB heap is not enough),
 * load distribution across several agents,
 * bandwidth limits and network instability,
 * topologies other than everyone sends to everyone (1→N, single speaker).
@@ -278,8 +278,11 @@ bots, totals, and the worst bots by score, freezes and latency
 `"simulcast": {"max_height": 360}` (or 720) in the media part of the test
 plan makes the bots send three layers. `"requested_heights": [{"height": 360,
 "share": 0.5}, {"height": 90, "share": 0.5}]` sets the height each bot asks
-for. With the Jitsi bridge these do not work yet: every bot receives the
-lowest layer (`specs/006-media-quality/tasks.md` T057).
+for. On Jitsi each bot then gets the layer it asks for (at 10 bots, 100% of
+the time with 360/90 requests). The bridge rewrites the timestamps of
+simulcast video, so video latency is not available with simulcast. At 100
+bots the bots stay at 1.50 cores, but the local bridge with its default 3 GB
+heap is overloaded (`specs/006-media-quality/validation-report.md`).
 
 ---
 

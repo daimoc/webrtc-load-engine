@@ -89,7 +89,10 @@ func NewLayeredSource(scenarioID string, layers []*Content) *Source {
 	}
 	for _, c := range layers {
 		var payload rtp.Payloader = &codecs.OpusPayloader{}
-		if c.Kind == KindVideo {
+		switch {
+		case c.Kind == KindVideo && len(layers) > 1:
+			payload = &vp8LayerPayloader{}
+		case c.Kind == KindVideo:
 			payload = &codecs.VP8Payloader{EnablePictureID: true}
 		}
 		s.layers = append(s.layers, sourceLayer{content: c, payload: payload})
@@ -194,7 +197,7 @@ func (s *Source) packetize(layer sourceLayer, frame []byte, seq *uint16, ts uint
 }
 
 // fanOut writes each layer's packets to every subscription's track for that
-// layer. A failing track (e.g. a closed connection) does not affect the
+// layer, highest layer first. A failing track (e.g. a closed connection) does not affect the
 // others.
 func (s *Source) fanOut(layers [][]*rtp.Packet) {
 	s.mu.Lock()
@@ -203,7 +206,12 @@ func (s *Source) fanOut(layers [][]*rtp.Packet) {
 
 	var sent, bytes int
 	for _, sub := range subs {
-		for l, t := range sub {
+		// Highest layer first: the layers' keyframes come together, and the
+		// Jitsi bridge switches to the first keyframe of such a group, then
+		// up to the layer it forwards; low first, every receiver would get
+		// the lower keyframes too (006 T057).
+		for l := len(sub) - 1; l >= 0; l-- {
+			t := sub[l]
 			for _, p := range layers[l] {
 				if err := t.WriteRTP(p); err != nil {
 					break // The rest of this frame would fail too

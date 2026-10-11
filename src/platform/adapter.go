@@ -56,6 +56,11 @@ type SignalingHandler interface {
 	// server for it with their platform's mechanism; the server may send
 	// less.
 	RequestedVideoHeight() int
+	// VideoLayerHeights returns the heights, low to high, of the simulcast
+	// layers the scenario's peers send; nil without simulcast. Adapters
+	// whose media server assumes other layer heights translate the
+	// requested height to the server's.
+	VideoLayerHeights() []int
 	// OnSignalingLost reports that the signaling connection was lost after
 	// Connect returned (server gone, kicked from the room, keepalive timeout).
 	OnSignalingLost(err error)

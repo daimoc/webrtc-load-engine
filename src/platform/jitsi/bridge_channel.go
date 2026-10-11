@@ -40,6 +40,29 @@ type receivePrefs struct {
 	video        []string // Names of the received remote video sources
 	videoUnnamed bool     // A received video source has no name
 	height       int      // Video height asked for (handler's RequestedVideoHeight); 0: defaultVideoHeight
+	layers       []int    // Heights of the simulcast layers received (handler's VideoLayerHeights); nil without
+}
+
+// bridgeLayerHeights are the heights the bridge assumes for three simulcast
+// layers, whatever their real size: those of Jitsi web (Jicofo signals no
+// height). It picks the layer to forward by these.
+var bridgeLayerHeights = []int{180, 360, 720}
+
+// bridgeHeight returns the height to ask the bridge for so that it forwards
+// the highest of layers (real heights, low to high) at most height lines
+// high, or the lowest layer when none is. Without three layers it returns
+// height.
+func bridgeHeight(height int, layers []int) int {
+	if len(layers) != len(bridgeLayerHeights) {
+		return height
+	}
+	i := 0
+	for j, h := range layers {
+		if h <= height {
+			i = j
+		}
+	}
+	return bridgeLayerHeights[i]
 }
 
 type videoConstraints struct {
@@ -53,10 +76,20 @@ func videoConstraintsMessage(p receivePrefs) string {
 		LastN       int                          `json:"lastN"`
 		Default     videoConstraints             `json:"defaultConstraints"`
 		Constraints *map[string]videoConstraints `json:"constraints,omitempty"` // Nil: omitted; empty: {}
+		OnStage     []string                     `json:"onStageSources,omitempty"`
 	}{Class: "ReceiverVideoConstraints", LastN: -1}
 	height := p.height
 	if height <= 0 {
 		height = defaultVideoHeight
+	}
+	if len(p.layers) > 0 {
+		// Simulcast: the bridge keeps sources neither on stage nor
+		// selected at their lowest layer, so every received source is on
+		// stage (006 T057).
+		height = bridgeHeight(height, p.layers)
+		if !p.videoUnnamed {
+			m.OnStage = p.video
+		}
 	}
 	m.Default.MaxHeight = height
 	if p.capped && !p.videoUnnamed {

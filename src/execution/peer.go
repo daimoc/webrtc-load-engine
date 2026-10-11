@@ -62,6 +62,7 @@ type Peer struct {
 	videoHeight   int                                    // Video height asked for each received video
 	localTracks   map[string]*webrtc.TrackLocalStaticRTP // By kind; written by the scenario's media sources
 	simulcast     bool                                   // Video sent as simulcastLayers layers
+	layerHeights  []int                                  // Heights of the scenario's simulcast layers; nil without
 	layerTracks   []*webrtc.TrackLocalStaticRTP          // Video layers, low to high, when simulcast
 	layerSSRCs    []uint32                               // Their SSRCs, for the SIM group of the answer
 	layerReaders  sync.WaitGroup                         // RTCP readers of the non-base layers
@@ -120,6 +121,9 @@ type PeerMedia struct {
 	// Simulcast sends the video as three layers (RIDs l, m, h), announced
 	// in the answer as an SSRC SIM group (006 research R6).
 	Simulcast bool
+	// LayerHeights are the heights of the simulcast layers, low to high,
+	// the same for every peer of the scenario; nil without simulcast.
+	LayerHeights []int
 }
 
 // NewPeer creates a new Peer in the "new" state.
@@ -139,6 +143,7 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 		sendTimes:     m.SendTimes,
 		videoHeight:   m.RequestedHeight,
 		simulcast:     m.Simulcast && slices.Contains(m.Kinds, media.KindVideo),
+		layerHeights:  m.LayerHeights,
 		offered:       map[string]int{},
 		rttSamps:      map[string][]time.Duration{},
 		logger:        logger.With(slog.String("scenario_id", scenarioID), slog.String("peer_id", id)),
@@ -794,6 +799,11 @@ func (p *Peer) ReceiveLimit() int {
 // RequestedVideoHeight implements platform.SignalingHandler.
 func (p *Peer) RequestedVideoHeight() int {
 	return p.videoHeight
+}
+
+// VideoLayerHeights implements platform.SignalingHandler.
+func (p *Peer) VideoLayerHeights() []int {
+	return p.layerHeights
 }
 
 // Renegotiate applies an updated remote offer (remote sources added or

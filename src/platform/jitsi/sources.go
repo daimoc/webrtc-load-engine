@@ -38,6 +38,7 @@ type sessionSources struct {
 	// no cap); sources beyond it wait, oldest first, for an active one to go.
 	limit   int
 	height  int                        // Video height asked for each received video (0: default)
+	layers  []int                      // Heights of the simulcast layers the remote bots send; nil without
 	active  map[string]int             // Content -> sections with a source
 	waiting map[string][]*remoteSource // Content -> sources beyond the cap
 	queued  map[string]bool            // Primary SSRCs in waiting
@@ -218,7 +219,7 @@ func (ss *sessionSources) receivedNames(content string) (names []string, unnamed
 func (ss *sessionSources) receivePrefs() receivePrefs {
 	audio, audioUnnamed := ss.receivedNames("audio")
 	video, videoUnnamed := ss.receivedNames("video")
-	return receivePrefs{capped: ss.limit > 0, audio: audio, audioUnnamed: audioUnnamed, video: video, videoUnnamed: videoUnnamed, height: ss.height}
+	return receivePrefs{capped: ss.limit > 0, audio: audio, audioUnnamed: audioUnnamed, video: video, videoUnnamed: videoUnnamed, height: ss.height, layers: ss.layers}
 }
 
 // offer renders the current state as an SDP offer, with a new session

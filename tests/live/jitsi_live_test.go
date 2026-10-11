@@ -225,7 +225,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	// bots join, so video starts below the requested volume. Wait for it to
 	// settle before the measured window.
 	if checkVideo {
-		waitVideoSettled(t, scenarioID, participants, want)
+		waitVideoSettled(t, scenarioID, participants, want, plan.Media.Simulcast != nil)
 	}
 
 	// Hold, checking that no transport drops.
@@ -305,8 +305,10 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 				t.Error("bots received no video")
 			}
 			// Each bot receives the video of `want` others: within 10% of
-			// what one bot sends (SC-001 of 005).
-			if checkVideo {
+			// what one bot sends (SC-001 of 005). With simulcast a bot
+			// receives one of the layers sent, by the height it asked
+			// for: the quality checks cover it.
+			if checkVideo && plan.Media.Simulcast == nil {
 				sent := counter(t, "webrtc_media_packets_sent_total", scenarioID, "video") - videoSentBefore
 				sentPerBot := sent / float64(participants) / window
 				recvPerBot := recv / float64(participants) / window
@@ -429,9 +431,11 @@ func requestedHeights(t *testing.T) []scenario.RequestedHeight {
 
 // waitVideoSettled waits, up to 30 s, until the video the bots receive over
 // one collection period (2 s) is at least 90% of `want` times what one bot
-// sends, and logs how long it took. It does not fail: the measured window
-// that follows does.
-func waitVideoSettled(t *testing.T, scenarioID string, participants, want int) {
+// sends, and logs how long it took. With simulcast, where each bot receives
+// only some of the layers sent, it waits until the received volume is
+// within 5% of the previous period's instead. It does not fail: the
+// measured window that follows does.
+func waitVideoSettled(t *testing.T, scenarioID string, participants, want int, simulcast bool) {
 	t.Helper()
 	const step = 2 * time.Second
 	start := time.Now()
@@ -440,15 +444,23 @@ func waitVideoSettled(t *testing.T, scenarioID string, participants, want int) {
 			counter(t, "webrtc_media_packets_received_total", scenarioID, "video")
 	}
 	sent, recv := sample()
-	ratio := 0.0
+	ratio, prev := 0.0, 0.0
 	for time.Since(start) < 30*time.Second {
 		time.Sleep(step)
 		s, r := sample()
-		if s > sent {
+		settled := false
+		if simulcast {
+			if prev > 0 {
+				ratio = (r - recv) / prev
+				settled = ratio >= 0.95 && ratio <= 1.05
+			}
+			prev = r - recv
+		} else if s > sent {
 			ratio = (r - recv) / (float64(want) * (s - sent))
+			settled = ratio >= 0.9
 		}
 		sent, recv = s, r
-		if ratio >= 0.9 {
+		if settled {
 			t.Logf("video settled at %.2f of the expected volume after %s", ratio, time.Since(start).Round(time.Second))
 			return
 		}

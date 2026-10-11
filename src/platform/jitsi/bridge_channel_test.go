@@ -66,6 +66,16 @@ func TestVideoConstraintsMessage(t *testing.T) {
 			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":90}}`},
 		{"cap, height 720", receivePrefs{capped: true, video: []string{"a-v0"}, height: 720},
 			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":0},"constraints":{"a-v0":{"maxHeight":720}}}`},
+		// Simulcast: received sources on stage, height translated to the
+		// bridge's assumed layer heights.
+		{"simulcast 360, height 360", receivePrefs{video: []string{"a-v0"}, height: 360, layers: []int{90, 180, 360}},
+			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":720},"onStageSources":["a-v0"]}`},
+		{"simulcast 360, cap, height 90", receivePrefs{capped: true, video: []string{"a-v0", "b-v0"}, height: 90, layers: []int{90, 180, 360}},
+			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":0},"constraints":{"a-v0":{"maxHeight":180},"b-v0":{"maxHeight":180}},"onStageSources":["a-v0","b-v0"]}`},
+		{"simulcast 720, height 360", receivePrefs{video: []string{"a-v0"}, height: 360, layers: []int{180, 360, 720}},
+			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":360},"onStageSources":["a-v0"]}`},
+		{"simulcast, unnamed source", receivePrefs{video: []string{"a-v0"}, videoUnnamed: true, height: 180, layers: []int{90, 180, 360}},
+			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":360}}`},
 		{"cap, unnamed source", receivePrefs{capped: true, video: []string{"a-v0"}, videoUnnamed: true},
 			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":360}}`},
 	} {
@@ -317,4 +327,27 @@ func TestBridgeChannel_NoAudioWithoutCap(t *testing.T) {
 	}
 	b.update(receivePrefs{audio: []string{"a-a0", "b-a0"}})
 	expectNothingSent(t, c)
+}
+
+func TestBridgeHeight(t *testing.T) {
+	for _, tc := range []struct {
+		height int
+		layers []int
+		want   int
+	}{
+		{360, nil, 360},
+		{90, []int{90, 180, 360}, 180},
+		{180, []int{90, 180, 360}, 360},
+		{360, []int{90, 180, 360}, 720},
+		{1080, []int{90, 180, 360}, 720},
+		{45, []int{90, 180, 360}, 180},  // Below the lowest: the lowest layer
+		{200, []int{90, 180, 360}, 360}, // Between layers: the one below
+		{720, []int{180, 360, 720}, 720},
+		{180, []int{180, 360, 720}, 180},
+		{360, []int{180, 360}, 360}, // Not three layers: unchanged
+	} {
+		if got := bridgeHeight(tc.height, tc.layers); got != tc.want {
+			t.Errorf("bridgeHeight(%d, %v) = %d, want %d", tc.height, tc.layers, got, tc.want)
+		}
+	}
 }

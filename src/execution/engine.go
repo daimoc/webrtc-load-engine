@@ -264,7 +264,10 @@ func (e *Engine) peerMedia(i int) PeerMedia {
 	if mc := e.testPlan.Media; mc != nil {
 		m.ReceiveLimit = mc.MaxReceivedStreams
 		m.StallTimeout = time.Duration(mc.StallTimeoutSeconds) * time.Second
-		m.Simulcast = mc.Simulcast != nil
+		if mc.Simulcast != nil && slices.Contains(m.Kinds, media.KindVideo) {
+			m.Simulcast = true
+			m.LayerHeights, _ = media.LayerHeights(mc.Simulcast.MaxHeight) // Validated by the scenario
+		}
 		m.RequestedHeight = mc.HeightFor(i, e.testPlan.Participants)
 	}
 	for kind, src := range e.sources {

@@ -64,3 +64,43 @@ func keyframeSize(h []byte) (width, height int) {
 	}
 	return int(h[6]) | int(h[7]&0x3f)<<8, int(h[8]) | int(h[9]&0x3f)<<8
 }
+
+// vp8LayerPayloader packetizes VP8 frames with the payload descriptor
+// browsers send for simulcast (RFC 7741 4.2): a 15-bit picture ID, a
+// TL0PICIDX and a temporal layer index on every packet. Every frame is in
+// temporal layer 0 (the content has no temporal layers), so TL0PICIDX
+// counts frames.
+type vp8LayerPayloader struct {
+	pictureID uint16 // 15 bits
+	tl0PicIdx uint8
+}
+
+const vp8LayerDescriptorSize = 6
+
+// Payload implements rtp.Payloader.
+func (p *vp8LayerPayloader) Payload(mtu uint16, frame []byte) [][]byte {
+	max := int(mtu) - vp8LayerDescriptorSize
+	if max <= 0 || len(frame) == 0 {
+		return nil
+	}
+	out := make([][]byte, 0, (len(frame)+max-1)/max)
+	for first := true; len(frame) > 0; first = false {
+		n := min(max, len(frame))
+		b := make([]byte, vp8LayerDescriptorSize+n)
+		b[0] = 0x80 // X
+		if first {
+			b[0] |= 0x10 // S, partition 0
+		}
+		b[1] = 0xe0                        // I, L, T
+		b[2] = 0x80 | byte(p.pictureID>>8) // M: 15-bit picture ID
+		b[3] = byte(p.pictureID)
+		b[4] = p.tl0PicIdx
+		b[5] = 0x20 // TID 0, Y: frame depends only on temporal layer 0
+		copy(b[vp8LayerDescriptorSize:], frame[:n])
+		out = append(out, b)
+		frame = frame[n:]
+	}
+	p.pictureID = (p.pictureID + 1) & 0x7fff
+	p.tl0PicIdx++
+	return out
+}

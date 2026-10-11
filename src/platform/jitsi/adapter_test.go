@@ -122,6 +122,8 @@ func (h *pionHandler) RequestedVideoHeight() int {
 	return h.height
 }
 
+func (h *pionHandler) VideoLayerHeights() []int { return nil }
+
 func (h *pionHandler) Renegotiate(sdp string) (string, error) {
 	if err := h.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: sdp}); err != nil {
 		return "", err

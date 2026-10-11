@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/pion/rtp/codecs"
@@ -108,5 +109,39 @@ func TestParseVP8_PionPackets(t *testing.T) {
 				t.Fatal("second frame parsed as a keyframe")
 			}
 		}
+	}
+}
+
+func TestVP8LayerPayloader(t *testing.T) {
+	p := &vp8LayerPayloader{pictureID: 0x7fff, tl0PicIdx: 255}
+	key := make([]byte, 2500)
+	key[3], key[4], key[5] = 0x9d, 0x01, 0x2a // Keyframe start code, 640x360
+	key[6], key[7], key[8], key[9] = 0x80, 0x02, 0x68, 0x01
+	packets := p.Payload(1200, key)
+	if len(packets) != 3 {
+		t.Fatalf("%d packets, want 3", len(packets))
+	}
+	for i, pkt := range packets {
+		// X, S on the first packet only; I, L, T; 15-bit picture ID
+		// 0x7fff; TL0PICIDX 255; TID 0 with Y.
+		want := []byte{0x80, 0xe0, 0xff, 0xff, 255, 0x20}
+		if i == 0 {
+			want[0] |= 0x10
+		}
+		if !bytes.Equal(pkt[:6], want) {
+			t.Errorf("packet %d descriptor % x, want % x", i, pkt[:6], want)
+		}
+		info, ok := parseVP8(pkt)
+		if !ok || info.frameStart != (i == 0) {
+			t.Errorf("packet %d parsed as %+v, %v", i, info, ok)
+		}
+		if i == 0 && (!info.keyframe || info.width != 640 || info.height != 360) {
+			t.Errorf("first packet: %+v, want a 640x360 keyframe", info)
+		}
+	}
+	// The next frame: picture ID wraps to 0, TL0PICIDX to 0.
+	next := p.Payload(1200, []byte{1, 2, 3})
+	if len(next) != 1 || next[0][2] != 0x80 || next[0][3] != 0 || next[0][4] != 0 {
+		t.Errorf("next frame descriptor % x", next[0][:6])
 	}
 }
