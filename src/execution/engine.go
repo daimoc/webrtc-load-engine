@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -27,14 +28,15 @@ type Engine struct {
 	wg       sync.WaitGroup // Tracks in-flight peer connect goroutines
 	stopOnce sync.Once
 
-	onComplete func(scenarioID string, status string)
+	onComplete func(scenarioID, status string, quality *scenario.QualitySummary)
 
 	sources       map[string]*media.Source // By kind; one per sent kind, shared by all peers
 	collectorDone chan struct{}            // Closed when the media collector has finished (or never started)
+	quality       *scenario.QualitySummary // Built by the media collector before collectorDone is closed
 }
 
 // NewEngine creates a new execution engine.
-func NewEngine(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, logger *slog.Logger, onComplete func(scenarioID string, status string)) *Engine {
+func NewEngine(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, logger *slog.Logger, onComplete func(scenarioID, status string, quality *scenario.QualitySummary)) *Engine {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -61,7 +63,10 @@ func (e *Engine) Start() {
 
 	defer func() {
 		e.logger.Info("Scenario execution finished", slog.String("scenario_id", e.scenarioID), slog.String("status", finalStatus))
-		e.onComplete(e.scenarioID, finalStatus)
+		// The summary is built after the last collection, during Stop
+		// (which another goroutine may be running).
+		<-e.collectorDone
+		e.onComplete(e.scenarioID, finalStatus, e.quality)
 	}()
 
 	if err := e.startMedia(); err != nil {
@@ -121,12 +126,31 @@ func (e *Engine) Start() {
 // the engine stops. Peers subscribe once their transport is established.
 func (e *Engine) startMedia() error {
 	e.sources = map[string]*media.Source{}
-	for _, kind := range e.testPlan.Media.Kinds() {
-		content, err := media.LoadContent(kind)
-		if err != nil {
-			return err
+	m := e.testPlan.Media
+	file, err := e.loadSourceFile()
+	if err != nil {
+		return err
+	}
+	for _, kind := range m.Kinds() {
+		var src *media.Source
+		switch {
+		case file != nil && kind == media.KindAudio:
+			src = media.NewSource(e.scenarioID, file.Audio)
+		case file != nil:
+			src = media.NewLayeredSource(e.scenarioID, file.Video)
+		case kind == media.KindVideo && m.Simulcast != nil:
+			layers, err := media.LoadLayers(m.Simulcast.MaxHeight)
+			if err != nil {
+				return err
+			}
+			src = media.NewLayeredSource(e.scenarioID, layers)
+		default:
+			content, err := media.LoadContent(kind)
+			if err != nil {
+				return err
+			}
+			src = media.NewSource(e.scenarioID, content)
 		}
-		src := media.NewSource(e.scenarioID, content)
 		e.sources[kind] = src
 		go src.Run(e.ctx)
 	}
@@ -134,6 +158,37 @@ func (e *Engine) startMedia() error {
 		e.logger.Info("Media sources started", slog.String("scenario_id", e.scenarioID), slog.Any("kinds", e.testPlan.Media.Kinds()))
 	}
 	return nil
+}
+
+// loadSourceFile transcodes media.source_file for the kinds the bots send,
+// with the simulcast layers when simulcast is on; nil without a file.
+func (e *Engine) loadSourceFile() (*media.FileContent, error) {
+	m := e.testPlan.Media
+	if m == nil || m.SourceFile == "" {
+		return nil, nil
+	}
+	var heights []int
+	if slices.Contains(m.Kinds(), media.KindVideo) {
+		heights = []int{360}
+		if m.Simulcast != nil {
+			var err error
+			if heights, err = media.LayerHeights(m.Simulcast.MaxHeight); err != nil {
+				return nil, err
+			}
+		}
+	}
+	start := time.Now()
+	file, err := media.LoadFile(e.ctx, m.SourceFile, true, heights)
+	if err != nil {
+		return nil, err
+	}
+	e.logger.Info("Media file loaded",
+		slog.String("scenario_id", e.scenarioID),
+		slog.String("file", m.SourceFile),
+		slog.Duration("audio_loop", file.Audio.LoopDuration),
+		slog.Any("video_heights", heights),
+		slog.Duration("took", time.Since(start)))
+	return file, nil
 }
 
 // runMediaCollector updates the scenario's media metrics every
@@ -154,7 +209,9 @@ func (e *Engine) runMediaCollector() {
 		case now := <-ticker.C:
 			c.collect(now, e.mediaPeers())
 		case <-e.ctx.Done():
-			c.collect(time.Now(), e.mediaPeers())
+			now := time.Now()
+			c.collect(now, e.mediaPeers())
+			e.quality = c.summary(now)
 			return
 		}
 	}
@@ -174,6 +231,19 @@ func (e *Engine) mediaPeers() []mediaPeer {
 // onPeerState subscribes a peer's tracks to the media sources when its
 // transport is established, and unsubscribes them when it ends.
 func (e *Engine) onPeerState(p *Peer, to PeerState) {
+	if layers := p.LocalLayerTracks(); len(layers) > 0 && e.sources[media.KindVideo] != nil {
+		src := e.sources[media.KindVideo]
+		switch to {
+		case PeerStateEstablished:
+			writers := make([]media.TrackWriter, len(layers))
+			for i, l := range layers {
+				writers[i] = l
+			}
+			src.SubscribeLayers(writers)
+		case PeerStateFailed, PeerStateDisconnected:
+			src.Unsubscribe(layers[0])
+		}
+	}
 	for kind, track := range p.LocalTracks() {
 		src := e.sources[kind]
 		if src == nil {
@@ -188,11 +258,20 @@ func (e *Engine) onPeerState(p *Peer, to PeerState) {
 	}
 }
 
-// peerMedia returns what each peer of the scenario sends and receives.
-func (e *Engine) peerMedia() PeerMedia {
+// peerMedia returns what peer number i of the scenario sends and receives.
+func (e *Engine) peerMedia(i int) PeerMedia {
 	m := PeerMedia{Kinds: e.testPlan.Media.Kinds()}
-	if e.testPlan.Media != nil {
-		m.ReceiveLimit = e.testPlan.Media.MaxReceivedStreams
+	if mc := e.testPlan.Media; mc != nil {
+		m.ReceiveLimit = mc.MaxReceivedStreams
+		m.StallTimeout = time.Duration(mc.StallTimeoutSeconds) * time.Second
+		m.Simulcast = mc.Simulcast != nil
+		m.RequestedHeight = mc.HeightFor(i, e.testPlan.Participants)
+	}
+	for kind, src := range e.sources {
+		if m.SendTimes == nil {
+			m.SendTimes = map[string]*media.SendTimes{}
+		}
+		m.SendTimes[kind] = src.SendTimes()
 	}
 	return m
 }
@@ -211,7 +290,7 @@ func (e *Engine) launchPeer(i int) bool {
 		return false
 	}
 
-	peer, err := NewPeer(peerID, e.scenarioID, e.peerMedia(), e.logger)
+	peer, err := NewPeer(peerID, e.scenarioID, e.peerMedia(i), e.logger)
 	if err != nil {
 		e.logger.Error("Failed to create peer", slog.String("peer_id", peerID), slog.String("error", err.Error()))
 		return true

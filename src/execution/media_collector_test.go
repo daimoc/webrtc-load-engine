@@ -15,9 +15,16 @@ type fakeMediaPeer struct {
 	state     PeerState
 	snap      map[string]KindMediaSnapshot
 	transport uint64 // Transport bytes received
+	height    int    // Requested video height (0: 360)
 }
 
 func (f *fakeMediaPeer) TransportBytesReceived() uint64 { return f.transport }
+func (f *fakeMediaPeer) RequestedVideoHeight() int {
+	if f.height == 0 {
+		return 360
+	}
+	return f.height
+}
 
 func (f *fakeMediaPeer) ID() string                                           { return f.id }
 func (f *fakeMediaPeer) State() PeerState                                     { return f.state }

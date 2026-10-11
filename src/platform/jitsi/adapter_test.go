@@ -58,6 +58,7 @@ type pionHandler struct {
 	dataChannels chan [2]string // label, protocol
 	kinds        []string       // Media kinds the handler reports sending
 	limit        int            // Receive limit the handler reports
+	height       int            // Requested video height the handler reports (0: 360)
 	renegotiated chan string    // Offers passed to Renegotiate
 	channel      *fakeDataChannel
 }
@@ -113,6 +114,13 @@ func newSendingPionHandler(t *testing.T, kinds ...string) *pionHandler {
 func (h *pionHandler) LocalMediaKinds() []string { return h.kinds }
 
 func (h *pionHandler) ReceiveLimit() int { return h.limit }
+
+func (h *pionHandler) RequestedVideoHeight() int {
+	if h.height == 0 {
+		return 360
+	}
+	return h.height
+}
 
 func (h *pionHandler) Renegotiate(sdp string) (string, error) {
 	if err := h.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: sdp}); err != nil {
@@ -856,10 +864,10 @@ func TestAdapter_RenegotiatesOnSourceChanges(t *testing.T) {
 
 // startBridgeSession connects a peer with h, sends the fixture's
 // session-initiate (with an SCTP content unless noSCTP) and accepts it.
-func startBridgeSession(t *testing.T, h *pionHandler, noSCTP bool) (*fakeConn, *logBuffer, func(id, action string, j *JingleIQ) string) {
+func startBridgeSession(t *testing.T, h *pionHandler, noSCTP bool, overrides map[string]any) (*fakeConn, *logBuffer, func(id, action string, j *JingleIQ) string) {
 	t.Helper()
 	srv := newFakeXMPPServer(t)
-	a := newTestAdapter(t, srv, nil)
+	a := newTestAdapter(t, srv, overrides)
 	logs, logger := newLogBuffer()
 	a.logger = logger
 	c := connectPeer(t, srv, a, "peer1", h)
@@ -921,10 +929,20 @@ func expectClass(t *testing.T, ch *fakeDataChannel, class string) string {
 // channel opens.
 func TestAdapter_BridgeChannel_RequestsVideo(t *testing.T) {
 	h := newPionHandler(t)
-	startBridgeSession(t, h, false)
+	startBridgeSession(t, h, false, nil)
 	h.channel.open(t)
 	jsonEqual(t, expectClass(t, h.channel, "ReceiverVideoConstraints"),
 		`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":360}}`)
+}
+
+// The height asked for is the handler's (006 contracts/signaling-handler.md).
+func TestAdapter_BridgeChannel_RequestsHandlerHeight(t *testing.T) {
+	h := newPionHandler(t)
+	h.height = 180
+	startBridgeSession(t, h, false, nil)
+	h.channel.open(t)
+	jsonEqual(t, expectClass(t, h.channel, "ReceiverVideoConstraints"),
+		`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":180}}`)
 }
 
 // With a cap, the video asked for follows the received sources: a source
@@ -932,7 +950,7 @@ func TestAdapter_BridgeChannel_RequestsVideo(t *testing.T) {
 func TestAdapter_BridgeChannel_FollowsReceivedVideo(t *testing.T) {
 	h := newPionHandler(t)
 	h.limit = 1
-	c, _, sourceIQ := startBridgeSession(t, h, false)
+	c, _, sourceIQ := startBridgeSession(t, h, false, nil)
 	h.channel.open(t)
 	jsonEqual(t, expectClass(t, h.channel, "ReceiverVideoConstraints"),
 		`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":0},"constraints":{}}`)
@@ -963,7 +981,7 @@ func TestAdapter_BridgeChannel_FollowsReceivedVideo(t *testing.T) {
 // as before (FR-007, SC-005).
 func TestAdapter_NoBridgeChannel(t *testing.T) {
 	h := newPionHandler(t)
-	_, logs, _ := startBridgeSession(t, h, true)
+	_, logs, _ := startBridgeSession(t, h, true, nil)
 	select {
 	case dc := <-h.dataChannels:
 		t.Fatalf("no data channel expected without SCTP, got %v", dc)
@@ -974,12 +992,27 @@ func TestAdapter_NoBridgeChannel(t *testing.T) {
 	}
 }
 
+// With no_bridge_channel, the offered bridge channel is not opened: no
+// preferences are sent and the receive cap is enforced by the bot only.
+func TestAdapter_BridgeChannelDisabled(t *testing.T) {
+	h := newPionHandler(t)
+	_, logs, _ := startBridgeSession(t, h, false, map[string]any{"no_bridge_channel": true})
+	select {
+	case dc := <-h.dataChannels:
+		t.Fatalf("no data channel expected with no_bridge_channel, got %v", dc)
+	case <-time.After(200 * time.Millisecond):
+	}
+	if n := logs.count("Bridge channel disabled"); n != 1 {
+		t.Errorf("expected 'Bridge channel disabled' logged once, got %d", n)
+	}
+}
+
 // With a cap, the audio subscription names the received sources and follows
 // a promotion when a participant leaves (US2 scenario 2).
 func TestAdapter_BridgeChannel_SubscribesToReceivedAudio(t *testing.T) {
 	h := newPionHandler(t)
 	h.limit = 1
-	c, _, sourceIQ := startBridgeSession(t, h, false)
+	c, _, sourceIQ := startBridgeSession(t, h, false, nil)
 	h.channel.open(t)
 	jsonEqual(t, expectClass(t, h.channel, "ReceiverAudioSubscription"),
 		`{"colibriClass":"ReceiverAudioSubscription","mode":"Include","list":[]}`)

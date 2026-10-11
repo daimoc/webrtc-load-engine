@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -58,7 +60,7 @@ func TestEngine_StartStop(t *testing.T) {
 	onCompleteCalled := make(chan struct{})
 	var finalStatus string
 
-	onComplete := func(scenarioID string, status string) {
+	onComplete := func(scenarioID, status string, _ *scenario.QualitySummary) {
 		if scenarioID != testScenarioID {
 			t.Errorf("Expected scenarioID %s, got %s", testScenarioID, scenarioID)
 		}
@@ -115,7 +117,7 @@ func TestEngine_StopDuringRampUp(t *testing.T) {
 	onCompleteCalled := make(chan struct{})
 	var finalStatus string
 
-	onComplete := func(scenarioID string, status string) {
+	onComplete := func(scenarioID, status string, _ *scenario.QualitySummary) {
 		finalStatus = status
 		close(onCompleteCalled)
 	}
@@ -168,7 +170,7 @@ func TestEngine_StopCancelsInFlightConnects(t *testing.T) {
 	adapter := &blockingAdapter{}
 	done := make(chan string, 1)
 	plan := scenario.TestPlan{Participants: 3, DurationSeconds: 60}
-	engine := NewEngine("test-scenario-789", plan, adapter, quietLogger, func(_ string, status string) { done <- status })
+	engine := NewEngine("test-scenario-789", plan, adapter, quietLogger, func(_, status string, _ *scenario.QualitySummary) { done <- status })
 
 	go engine.Start()
 	time.Sleep(100 * time.Millisecond) // All peers are stuck connecting
@@ -260,8 +262,12 @@ func TestEngine_SendsMediaOnceEstablished(t *testing.T) {
 	adapter := &mediaServerAdapter{t: t, received: map[string]map[string]bool{}}
 	plan := scenario.TestPlan{Participants: 2, DurationSeconds: 60, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo}}
 	done := make(chan string, 1)
+	var quality *scenario.QualitySummary
 	id := "engine-media-" + uuid.NewString()
-	engine := NewEngine(id, plan, adapter, quietLogger, func(_, status string) { done <- status })
+	engine := NewEngine(id, plan, adapter, quietLogger, func(_, status string, q *scenario.QualitySummary) {
+		quality = q
+		done <- status
+	})
 	go engine.Start()
 
 	deadline := time.Now().Add(15 * time.Second)
@@ -276,6 +282,9 @@ func TestEngine_SendsMediaOnceEstablished(t *testing.T) {
 	if status := <-done; status != "stopped" {
 		t.Fatalf("expected stopped, got %s", status)
 	}
+	if quality == nil || quality.ScenarioID != id {
+		t.Fatalf("expected a quality summary for %s, got %+v", id, quality)
+	}
 	for _, kind := range []string{"audio", "video"} {
 		if n := testutil.ToFloat64(media.PacketsSent.WithLabelValues(id, kind)); n == 0 {
 			t.Errorf("expected %s packets counted as sent", kind)
@@ -285,5 +294,57 @@ func TestEngine_SendsMediaOnceEstablished(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if after := testutil.ToFloat64(media.PacketsSent.WithLabelValues(id, "video")); after != sent {
 		t.Errorf("media still sent after stop: %v -> %v", sent, after)
+	}
+}
+
+func TestEngine_SourceFileFailsScenario(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "clip.mp4")
+	if err := os.WriteFile(file, []byte("not a media file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan := scenario.TestPlan{Participants: 1, DurationSeconds: 60,
+		Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, SourceFile: file}}
+	done := make(chan string, 1)
+	engine := NewEngine("engine-file-"+uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger,
+		func(_, status string, _ *scenario.QualitySummary) { done <- status })
+	go engine.Start()
+	select {
+	case status := <-done:
+		if status != "failed" {
+			t.Fatalf("expected failed, got %s", status)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("scenario did not end")
+	}
+}
+
+func TestEngine_SourceFileLayers(t *testing.T) {
+	if _, err := exec.LookPath(media.FFmpeg); err != nil {
+		t.Skipf("ffmpeg not found: %v", err)
+	}
+	file := filepath.Join(t.TempDir(), "clip.mkv")
+	if out, err := exec.Command(media.FFmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30:duration=2",
+		"-f", "lavfi", "-i", "sine=duration=2", "-c:v", "mpeg4", "-c:a", "mp2", file).CombinedOutput(); err != nil {
+		t.Fatalf("making clip: %v: %s", err, out)
+	}
+	for _, tc := range []struct {
+		sim    *scenario.SimulcastConfig
+		layers int
+	}{{nil, 1}, {&scenario.SimulcastConfig{MaxHeight: 360}, 3}} {
+		plan := scenario.TestPlan{Participants: 1, DurationSeconds: 60,
+			Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, SourceFile: file, Simulcast: tc.sim}}
+		engine := NewEngine("engine-file-"+uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger, nil)
+		if err := engine.startMedia(); err != nil {
+			t.Fatal(err)
+		}
+		if n := engine.sources[media.KindVideo].Layers(); n != tc.layers {
+			t.Errorf("simulcast %v: %d video layers, want %d", tc.sim, n, tc.layers)
+		}
+		if engine.sources[media.KindAudio] == nil {
+			t.Error("no audio source")
+		}
+		engine.cancel() // Stops the sources; Stop needs Start's collector
+
 	}
 }

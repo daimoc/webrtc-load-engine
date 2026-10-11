@@ -2,6 +2,8 @@ package scenario
 
 import (
 	"fmt"
+	"math"
+	"os"
 	"time"
 )
 
@@ -13,6 +15,10 @@ type Scenario struct {
 	TestPlan  TestPlan  `json:"test_plan"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+
+	// quality is the summary of the last run, set when it ends (served on
+	// its own endpoint, not with the scenario).
+	quality *QualitySummary
 }
 
 // TestPlan defines the load test parameters.
@@ -45,6 +51,58 @@ type MediaConfig struct {
 	// MaxReceivedStreams caps the remote streams each bot receives per
 	// media kind; 0 means no cap.
 	MaxReceivedStreams int `json:"max_received_streams,omitempty"`
+	// Simulcast sends each bot's video as three resolutions at once
+	// (audio_video only); nil sends one 640x360 stream.
+	Simulcast *SimulcastConfig `json:"simulcast,omitempty"`
+	// RequestedHeights sets the video height each bot asks the media
+	// server for, as shares of the bots in launch order; nil: the highest
+	// height sent.
+	RequestedHeights []RequestedHeight `json:"requested_heights,omitempty"`
+	// SourceFile is the path, on the engine's host, of a media file the
+	// bots send instead of the built-in content: its first audio stream
+	// and, for audio_video, its first video stream. The engine transcodes
+	// it with ffmpeg when the scenario starts. Empty: built-in content.
+	SourceFile string `json:"source_file,omitempty"`
+}
+
+// SimulcastConfig is the media.simulcast part of a test plan
+// (specs/006-media-quality/contracts/test-plan-quality.yaml).
+type SimulcastConfig struct {
+	// MaxHeight is the highest layer: 360 (layers 90, 180, 360; the
+	// default) or 720 (180, 360, 720).
+	MaxHeight int `json:"max_height,omitempty"`
+}
+
+// RequestedHeight gives a share of the bots the video height they ask for.
+type RequestedHeight struct {
+	Height int     `json:"height"`
+	Share  float64 `json:"share"`
+}
+
+// defaultVideoHeight is the height sent without simulcast (004 content).
+const defaultVideoHeight = 360
+
+// HeightFor returns the video height bot i of n asks for: the first
+// share × n bots get the first height, and so on; by default the highest
+// height sent.
+func (m *MediaConfig) HeightFor(i, n int) int {
+	if m == nil {
+		return defaultVideoHeight
+	}
+	if len(m.RequestedHeights) == 0 || n <= 0 {
+		if m.Simulcast != nil && m.Simulcast.MaxHeight > 0 {
+			return m.Simulcast.MaxHeight
+		}
+		return defaultVideoHeight
+	}
+	cumulative := 0.0
+	for _, r := range m.RequestedHeights {
+		cumulative += r.Share
+		if float64(i) < math.Round(cumulative*float64(n)) {
+			return r.Height
+		}
+	}
+	return m.RequestedHeights[len(m.RequestedHeights)-1].Height
 }
 
 // Kinds returns the media kinds each bot sends, in a stable order; nil for
@@ -85,6 +143,50 @@ func (m *MediaConfig) withDefaults() (*MediaConfig, error) {
 	}
 	if c.MaxReceivedStreams < 0 {
 		return nil, fmt.Errorf("media.max_received_streams cannot be negative")
+	}
+	if c.Simulcast != nil {
+		if c.Profile != MediaProfileAudioVideo {
+			return nil, fmt.Errorf("media.simulcast needs profile %s, got %q", MediaProfileAudioVideo, c.Profile)
+		}
+		s := *c.Simulcast
+		switch s.MaxHeight {
+		case 0:
+			s.MaxHeight = defaultVideoHeight
+		case 360, 720:
+		default:
+			return nil, fmt.Errorf("media.simulcast.max_height must be 360 or 720, got %d", s.MaxHeight)
+		}
+		c.Simulcast = &s
+	}
+	if c.RequestedHeights != nil {
+		if len(c.RequestedHeights) == 0 {
+			return nil, fmt.Errorf("media.requested_heights cannot be empty")
+		}
+		sum := 0.0
+		for _, r := range c.RequestedHeights {
+			if r.Height < 1 {
+				return nil, fmt.Errorf("media.requested_heights: height must be at least 1, got %d", r.Height)
+			}
+			if r.Share <= 0 || r.Share > 1 {
+				return nil, fmt.Errorf("media.requested_heights: share must be in (0, 1], got %g", r.Share)
+			}
+			sum += r.Share
+		}
+		if math.Abs(sum-1) > 0.001 {
+			return nil, fmt.Errorf("media.requested_heights: shares must sum to 1, got %g", sum)
+		}
+	}
+	if c.SourceFile != "" {
+		if c.Profile == MediaProfileReceiveOnly {
+			return nil, fmt.Errorf("media.source_file needs profile %s or %s", MediaProfileAudio, MediaProfileAudioVideo)
+		}
+		info, err := os.Stat(c.SourceFile)
+		if err != nil {
+			return nil, fmt.Errorf("media.source_file: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("media.source_file: %s is not a regular file", c.SourceFile)
+		}
 	}
 	return &c, nil
 }

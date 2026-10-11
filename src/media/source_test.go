@@ -214,3 +214,72 @@ func TestSource_RunStopsOnCancel(t *testing.T) {
 		t.Fatal("Run did not return after cancel")
 	}
 }
+
+// Each frame's timestamp is recorded with the time its write started.
+func TestSource_RecordsSendTimes(t *testing.T) {
+	w := &recorder{}
+	s := runSource(t, "send-times-"+t.Name(), testContent(), 250*time.Millisecond, nil, w)
+	packets, at := w.snapshot()
+	if len(packets) == 0 {
+		t.Fatal("nothing sent")
+	}
+	for i, p := range packets {
+		sent, ok := s.SendTimes().Lookup(p.Timestamp)
+		if !ok || !sent.Equal(at[i]) {
+			t.Fatalf("packet %d (ts %d): send time %v %v, written at %v", i, p.Timestamp, sent, ok, at[i])
+		}
+	}
+}
+
+// Layers are sent in lockstep: frame i of every layer in the same write,
+// with the same timestamp and per-layer sequence numbers.
+func TestSource_LayersInLockstep(t *testing.T) {
+	low, high := testContent(), testContent()
+	low.Frames = append([]Frame(nil), low.Frames...)
+	low.Frames[1] = Frame{Data: []byte{0x10, 9}, Duration: low.Frames[1].Duration, Samples: low.Frames[1].Samples}
+	id := "layers-" + t.Name()
+	ctx, cancel := context.WithCancel(context.Background())
+	start := time.Unix(1000, 0)
+	clock := &fakeClock{now: start, limit: start.Add(250 * time.Millisecond), cancel: cancel}
+	s := NewLayeredSource(id, []*Content{low, high})
+	s.clock = clock
+	wl, wh := &recorder{clock: clock}, &recorder{clock: clock}
+	s.SubscribeLayers([]TrackWriter{wl, wh})
+	s.Subscribe(&recorder{clock: clock}) // Wrong number of layers: ignored
+	done := make(chan struct{})
+	go func() { defer close(done); s.Run(ctx) }()
+	<-done
+
+	pl, al := wl.snapshot()
+	ph, ah := wh.snapshot()
+	if len(pl) == 0 || len(ph) <= len(pl) {
+		t.Fatalf("low layer %d packets, high %d (high has a multi-packet frame)", len(pl), len(ph))
+	}
+	timestamps := func(ps []rtp.Packet, at []time.Time) map[uint32]time.Time {
+		m := map[uint32]time.Time{}
+		for i, p := range ps {
+			m[p.Timestamp] = at[i]
+		}
+		return m
+	}
+	tl, th := timestamps(pl, al), timestamps(ph, ah)
+	if len(tl) != len(th) {
+		t.Fatalf("frames: low %d, high %d", len(tl), len(th))
+	}
+	for ts, at := range tl {
+		if !th[ts].Equal(at) {
+			t.Fatalf("frame %d: low at %v, high at %v", ts, at, th[ts])
+		}
+		if _, ok := s.SendTimes().Lookup(ts); !ok {
+			t.Fatalf("frame %d: no send time", ts)
+		}
+	}
+	for i := 1; i < len(pl); i++ {
+		if pl[i].SequenceNumber != pl[i-1].SequenceNumber+1 {
+			t.Fatalf("low layer sequence gap at %d", i)
+		}
+	}
+	if got := testutil.ToFloat64(PacketsSent.WithLabelValues(id, KindVideo)); int(got) != len(pl)+len(ph) {
+		t.Fatalf("packets sent %v, want %d", got, len(pl)+len(ph))
+	}
+}

@@ -56,6 +56,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/v1/scenarios/{id}/quality:
+    get:
+      summary: Quality summary of a scenario's last run (added by 006)
+      operationId: getQuality
+      description: >-
+        Defined in specs/006-media-quality/contracts/quality-summary.yaml:
+        200 with the QualitySummary, 404 for an unknown scenario, 409 (with
+        the scenario status) before the first run ends or while it runs.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Summary of the last run (schema in 006 quality-summary.yaml)
+        '404':
+          description: Scenario not found
+        '409':
+          description: No summary yet
+
 components:
   schemas:
     ScenarioRequest:
@@ -136,6 +158,22 @@ components:
             bridge channel (005) the bot also subscribes to its received
             streams only, so the server stops sending the others. When a
             received stream ends, the oldest waiting one takes its place.
+        source_file:
+          type: string
+          description: >-
+            Path, on the engine's host, of a media file (any format ffmpeg
+            reads) that the bots send instead of the built-in content: its
+            first audio stream and, with audio_video, its first video stream.
+            Needs profile audio or audio_video. When the scenario starts, the
+            engine transcodes it with ffmpeg (which must be in its PATH) with
+            the built-in content's parameters: Opus 48 kHz mono in 20 ms
+            packets, 32 kbit/s; VP8 at 30 fps with a keyframe every 30
+            frames, 640x360 at 500 kbit/s, or the simulcast layers. The
+            picture is scaled to fit 16:9 and padded. The transcoded content
+            is kept in memory for the process (about 63 kB per second of
+            video at 360 lines), while the file's size and modification time
+            stay the same. If the file cannot be transcoded, the scenario
+            fails.
       example:
         profile: audio_video
         stall_timeout_seconds: 10

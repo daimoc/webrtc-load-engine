@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt" // Add fmt import
 	"log/slog"
 	"net/http"
+	"strings"
 	"time" // Import time for Prometheus duration tracking
 
 	"github.com/prometheus/client_golang/prometheus" // Import prometheus
@@ -196,3 +198,37 @@ func (h *ScenarioHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ScenarioResponse{ID: scenario.ID, Status: scenario.Status})
 }
 
+
+// QualityConflictResponse is the 409 body of GetQuality: no summary yet.
+type QualityConflictResponse struct {
+	Error  string `json:"error"`
+	Status string `json:"status"`
+}
+
+// GetQuality handles GET /api/v1/scenarios/{id}/quality: the quality
+// summary of the scenario's last run
+// (specs/006-media-quality/contracts/quality-summary.yaml).
+func (h *ScenarioHandler) GetQuality(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	scenarioID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1/scenarios/"), "/quality")
+
+	w.Header().Set("Content-Type", "application/json")
+	summary, status, err := h.scenarioService.GetQuality(scenarioID)
+	switch {
+	case errors.Is(err, scenario.ErrScenarioNotFound):
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+	case errors.Is(err, scenario.ErrNoQualitySummary):
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(QualityConflictResponse{Error: err.Error(), Status: status})
+	case err != nil:
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: err.Error()})
+	default:
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(summary)
+	}
+}

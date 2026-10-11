@@ -53,7 +53,7 @@ func NewTestEngineStarter(logger *slog.Logger, adapter platform.PlatformAdapter)
 }
 
 // StartExecution creates and returns a new execution.Engine.
-func (es *TestEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) (scenario.ExecutionEngine, error) {
+func (es *TestEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID, status string, quality *scenario.QualitySummary)) (scenario.ExecutionEngine, error) {
 	// Use the injected mock adapter
 	return execution.NewEngine(scenarioID, testPlan, es.adapter, es.logger, onComplete), nil
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -85,7 +86,7 @@ func BenchmarkSourceFanOut(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		f := c.Frames[i%len(c.Frames)]
-		s.fanOut(s.packetize(f.Data, &seq, ts))
+		s.fanOut([][]*rtp.Packet{s.packetize(s.layers[0], f.Data, &seq, ts)})
 		ts += f.Samples
 	}
 }

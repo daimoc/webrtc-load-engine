@@ -1,6 +1,7 @@
 package scenario
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -17,8 +18,14 @@ type ExecutionEngine interface {
 
 // ExecutionStarter defines the interface for starting a scenario execution.
 type ExecutionStarter interface {
-	StartExecution(scenarioID string, testPlan TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) (ExecutionEngine, error)
+	StartExecution(scenarioID string, testPlan TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID, status string, quality *QualitySummary)) (ExecutionEngine, error)
 }
+
+// Errors of GetQuality.
+var (
+	ErrScenarioNotFound = errors.New("scenario not found")
+	ErrNoQualitySummary = errors.New("no quality summary yet: the scenario has not run, or is running")
+)
 
 // Service provides scenario-related operations.
 type Service struct {
@@ -93,11 +100,12 @@ func (s *Service) ExecuteScenario(id string) error {
 		return fmt.Errorf("scenario cannot be executed in current status '%s'", sc.Status)
 	}
 
-	onComplete := func(scenarioID string, status string) {
+	onComplete := func(scenarioID, status string, quality *QualitySummary) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		if completedSc, ok := s.scenarios[scenarioID]; ok {
 			completedSc.Status = status
+			completedSc.quality = quality
 			s.logger.Info("Scenario execution completed",
 				slog.String("scenario_id", scenarioID),
 				slog.String("final_status", status))
@@ -118,6 +126,7 @@ func (s *Service) ExecuteScenario(id string) error {
 	}
 
 	sc.Status = "running"
+	sc.quality = nil
 	s.logger.Info("Scenario status updated to running", slog.String("scenario_id", sc.ID))
 
 	s.engineMu.Lock()
@@ -140,6 +149,22 @@ func (s *Service) GetScenario(id string) (*Scenario, error) {
 		return nil, fmt.Errorf("scenario not found: %s", id)
 	}
 	return sc.snapshot(), nil
+}
+
+// GetQuality returns the quality summary of the scenario's last run, with
+// the scenario's status. It fails with ErrScenarioNotFound, or with
+// ErrNoQualitySummary while the scenario has not run or is running.
+func (s *Service) GetQuality(id string) (*QualitySummary, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sc, ok := s.scenarios[id]
+	if !ok {
+		return nil, "", fmt.Errorf("%w: %s", ErrScenarioNotFound, id)
+	}
+	if sc.Status == "running" || sc.quality == nil {
+		return nil, sc.Status, ErrNoQualitySummary
+	}
+	return sc.quality, sc.Status, nil
 }
 
 // Shutdown stops all running scenario engines.

@@ -31,6 +31,10 @@ type JingleConfig struct {
 	ConnectTimeout    string `json:"connect_timeout"`
 	KeepaliveInterval string `json:"keepalive_interval"`
 	Debug             bool   `json:"debug"` // Log all XMPP traffic to stdout
+	// NoBridgeChannel leaves the bridge channel closed, so no receive
+	// preferences are sent (the behavior before feature 005); for comparison
+	// runs.
+	NoBridgeChannel bool `json:"no_bridge_channel"`
 
 	connectTimeout    time.Duration // Parsed ConnectTimeout
 	keepaliveInterval time.Duration // Parsed KeepaliveInterval

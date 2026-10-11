@@ -1,0 +1,49 @@
+# Addition to MediaConfig
+# (specs/004-synthetic-media/contracts/test-plan-media.yaml). Quality
+# measurement itself has no setting: it is always on (FR-018).
+components:
+  schemas:
+    MediaConfig:
+      properties:
+        simulcast:
+          type: object
+          description: >-
+            Send each bot's video as three resolutions at once (US3). Only
+            with profile audio_video. When absent, one 640x360 stream (004).
+          properties:
+            max_height:
+              type: integer
+              enum: [360, 720]
+              default: 360
+              description: >-
+                360: layers 160x90 (60 kbit/s), 320x180 (150 kbit/s),
+                640x360 (500 kbit/s). 720: layers 320x180, 640x360,
+                1280x720 (1.5 Mbit/s). All 30 fps, keyframes aligned.
+        requested_heights:
+          type: array
+          description: >-
+            Height of the video each bot asks the media server for, as shares
+            of the bots, assigned in launch order (the first share × N bots
+            get the first height). When absent, every bot asks for the
+            highest height sent (360 without simulcast). The server may send
+            less; the bots report what they receive.
+          minItems: 1
+          items:
+            type: object
+            required: [height, share]
+            properties:
+              height:
+                type: integer
+                minimum: 1
+              share:
+                type: number
+                exclusiveMinimum: 0
+                maximum: 1
+          example:
+            - { height: 360, share: 0.5 }
+            - { height: 90, share: 0.5 }
+
+# Validation (at scenario creation, 400 with a message):
+# - simulcast with a profile other than audio_video;
+# - max_height not 360 or 720;
+# - requested_heights empty, a share <= 0, or shares not summing to 1 (±0.001).

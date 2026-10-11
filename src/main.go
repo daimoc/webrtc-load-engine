@@ -54,6 +54,7 @@ var (
 var (
 	executeScenarioRegex = regexp.MustCompile(`^/api/v1/scenarios/([a-zA-Z0-9-]+)/_execute$`)
 	getScenarioRegex     = regexp.MustCompile(`^/api/v1/scenarios/([a-zA-Z0-9-]+)$`)
+	getQualityRegex      = regexp.MustCompile(`^/api/v1/scenarios/([a-zA-Z0-9-]+)/quality$`)
 )
 
 func init() {
@@ -76,7 +77,7 @@ func NewMainEngineStarter(logger *slog.Logger) *MainEngineStarter {
 // StartExecution creates and returns a new execution.Engine.
 // When no adapter is supplied, a Jitsi adapter is built from testPlan.PlatformConfig.
 // TODO: select the adapter from the scenario's Platform once more adapters exist.
-func (es *MainEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, status string)) (scenario.ExecutionEngine, error) {
+func (es *MainEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID, status string, quality *scenario.QualitySummary)) (scenario.ExecutionEngine, error) {
 	if adapter == nil {
 		jitsiAdapter := jitsi.NewAdapter(es.logger)
 		if err := jitsiAdapter.ParseConfig(testPlan.PlatformConfig); err != nil {
@@ -103,37 +104,7 @@ func main() {
 	)
 	scenarioHandler := handlers.NewScenarioHandler(scenarioService, logger, handlerMetrics) // Pass logger and metrics to handler
 
-	mux := http.NewServeMux()
-
-	// Register handlers
-	mux.HandleFunc("/api/v1/scenarios", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			scenarioHandler.CreateScenario(w, r)
-			return
-		}
-		http.NotFound(w, r)
-	})
-
-	mux.HandleFunc("/api/v1/scenarios/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			if executeScenarioRegex.MatchString(r.URL.Path) {
-				scenarioHandler.ExecuteScenario(w, r)
-				return
-			}
-		} else if r.Method == http.MethodGet {
-			if getScenarioRegex.MatchString(r.URL.Path) {
-				scenarioHandler.GetScenario(w, r)
-				return
-			}
-		}
-		http.NotFound(w, r)
-	})
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("WebRTC Load Engine API is running"))
-	})
-	mux.Handle("/metrics", promhttp.Handler())
+	mux := newRouter(scenarioHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -173,4 +144,42 @@ func main() {
 	slog.Info("Scenario service shutdown complete.")
 
 	slog.Info("Application exited.")
+}
+
+// newRouter returns the HTTP API's routes.
+func newRouter(scenarioHandler *handlers.ScenarioHandler) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/scenarios", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			scenarioHandler.CreateScenario(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
+	mux.HandleFunc("/api/v1/scenarios/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if executeScenarioRegex.MatchString(r.URL.Path) {
+				scenarioHandler.ExecuteScenario(w, r)
+				return
+			}
+		} else if r.Method == http.MethodGet {
+			if getQualityRegex.MatchString(r.URL.Path) {
+				scenarioHandler.GetQuality(w, r)
+				return
+			}
+			if getScenarioRegex.MatchString(r.URL.Path) {
+				scenarioHandler.GetScenario(w, r)
+				return
+			}
+		}
+		http.NotFound(w, r)
+	})
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("WebRTC Load Engine API is running"))
+	})
+	mux.Handle("/metrics", promhttp.Handler())
+	return mux
 }

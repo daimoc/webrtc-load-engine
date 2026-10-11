@@ -56,7 +56,7 @@ func TestSessionSources_InitialOfferSplitsSourcesPerSection(t *testing.T) {
 		}
 	}
 
-	ss := newSessionSources(j, 0)
+	ss := newSessionSources(j, 0, 0)
 	offer, err := ss.offer()
 	if err != nil {
 		t.Fatalf("offer: %v", err)
@@ -125,7 +125,7 @@ func TestSessionSources_InitialOfferSplitsSourcesPerSection(t *testing.T) {
 }
 
 func TestSessionSources_AddAndRemove(t *testing.T) {
-	ss := newSessionSources(loadSessionInitiate(t), 0)
+	ss := newSessionSources(loadSessionInitiate(t), 0, 0)
 	first, _ := ss.offer()
 	if got := strings.Join(mids(parseOffer(t, first)), ","); got != "audio,video,data" {
 		t.Fatalf("expected only the contents, got %s", got)
@@ -187,7 +187,7 @@ func TestSessionSources_SimulcastKeepsFirstLayer(t *testing.T) {
 			{Semantics: "FID", Sources: []SSRCGroupID{{SSRC: "2"}, {SSRC: "5"}}},
 			{Semantics: "FID", Sources: []SSRCGroupID{{SSRC: "3"}, {SSRC: "6"}}},
 		}}}}}
-	ss := newSessionSources(loadSessionInitiate(t), 0)
+	ss := newSessionSources(loadSessionInitiate(t), 0, 0)
 	if n := ss.add(j); n != 1 {
 		t.Fatalf("a simulcast source is one stream, got %d", n)
 	}
@@ -210,7 +210,7 @@ func sessionVersion(offer *webrtc.SessionDescription) uint64 {
 }
 
 func TestSessionSources_RemoveOwner(t *testing.T) {
-	ss := newSessionSources(loadSessionInitiate(t), 0)
+	ss := newSessionSources(loadSessionInitiate(t), 0, 0)
 	ss.add(participantSources("aaaa1111", "11", "12", "13"))
 	ss.add(participantSources("bbbb2222", "21", "22", "23"))
 	ss.offer()
@@ -256,7 +256,7 @@ func TestSessionSources_ReceiveLimit(t *testing.T) {
 	for _, p := range []*JingleIQ{audioOnly("aaaa1111", "11"), audioOnly("bbbb2222", "21"), audioOnly("cccc3333", "31")} {
 		j.Content[0].Description.Sources = append(j.Content[0].Description.Sources, p.Content[0].Description.Sources...)
 	}
-	ss := newSessionSources(j, 2)
+	ss := newSessionSources(j, 2, 0)
 	if got := strings.Join(audioSSRCs(t, ss), ","); got != "11,21" {
 		t.Fatalf("expected the first 2 audio sources offered, got %s", got)
 	}
@@ -289,7 +289,7 @@ func TestSessionSources_ReceiveLimit(t *testing.T) {
 }
 
 func TestSessionSources_NoLimit(t *testing.T) {
-	ss := newSessionSources(loadSessionInitiate(t), 0)
+	ss := newSessionSources(loadSessionInitiate(t), 0, 0)
 	for i, owner := range []string{"aaaa1111", "bbbb2222", "cccc3333"} {
 		ss.add(audioOnly(owner, fmt.Sprint(11+10*i)))
 	}
@@ -299,7 +299,7 @@ func TestSessionSources_NoLimit(t *testing.T) {
 }
 
 func TestSessionSources_ReceivedNames(t *testing.T) {
-	ss := newSessionSources(loadSessionInitiate(t), 2)
+	ss := newSessionSources(loadSessionInitiate(t), 2, 0)
 	for i, owner := range []string{"aaaa1111", "bbbb2222", "cccc3333"} {
 		ss.add(participantSources(owner, fmt.Sprint(11+10*i), fmt.Sprint(12+10*i), fmt.Sprint(13+10*i)))
 	}

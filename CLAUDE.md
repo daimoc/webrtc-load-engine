@@ -24,6 +24,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - N/A (In-memory session state) (003-xmpp-signaling)
 - Go 1.23.0 + `pion/webrtc/v3` (TrackLocalStaticRTP, ivf/ogg readers), `pion/rtp`, `pion/rtcp`; media content embedded with `go:embed` (004-synthetic-media)
 - Go 1.23.0 + `pion/webrtc/v3` (DataChannel), `pion/interceptor/pkg/twcc` (own TWCC feedback); Jitsi Colibri bridge channel messages (`ReceiverVideoConstraints`, `ReceiverAudioSubscription`) in the Jitsi adapter (005-bridge-channel-subscriptions)
+- Go 1.23.0 + `pion/webrtc/v3` (RID simulcast encodings, RTCP PLI), `pion/rtp` (VP8 payload descriptor); E-model score; `pion/transport/v2/vnet` in tests (006-media-quality)
 
 - (001-create-scenario-api)
 
@@ -42,6 +43,7 @@ go vet ./... && go test -race ./...   # lint + tests (keep this green)
 go run ./src                   # HTTP API on :8080 (/api/v1/scenarios, /metrics)
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --log-xmpp   # manual Jitsi join
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video   # bots sending audio+video
+go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video --media-file clip.mp4   # bots sending a file's audio+video (needs ffmpeg)
 ```
 
 ## Code Style

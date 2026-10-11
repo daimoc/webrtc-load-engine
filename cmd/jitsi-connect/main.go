@@ -16,7 +16,7 @@ import (
 // jitsi-connect joins a Jitsi room with --participants bots (one by default),
 // negotiates the Jingle session with the bridge and stays in the room until
 // interrupted or until --duration elapses. With --media the bots also send
-// audio (and video). It runs the same execution engine as the HTTP API.
+// audio (and video), from --media-file when set. It runs the same execution engine as the HTTP API.
 func main() {
 	// Parse flags
 	xmppDomain := flag.String("domain", "meet.jit.si", "XMPP Domain")
@@ -28,6 +28,7 @@ func main() {
 	participants := flag.Int("participants", 1, "Number of bots")
 	mediaProfile := flag.String("media", scenario.MediaProfileReceiveOnly, "What each bot sends: receive_only, audio or audio_video")
 	maxReceived := flag.Int("max-received", 0, "Remote streams each bot receives per media kind (0: no cap)")
+	mediaFile := flag.String("media-file", "", "Media file the bots send instead of the built-in content (needs ffmpeg)")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	logXMPP := flag.Bool("log-xmpp", false, "Log all XMPP traffic to stdout")
 
@@ -63,7 +64,7 @@ func main() {
 	sc, err := scenario.NewScenario("jitsi-connect", "jitsi", scenario.TestPlan{
 		Participants:    *participants,
 		DurationSeconds: *duration,
-		Media:           &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived},
+		Media:           &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived, SourceFile: *mediaFile},
 	})
 	if err != nil {
 		logger.Error("Invalid flags", slog.String("error", err.Error()))
@@ -71,7 +72,7 @@ func main() {
 	}
 
 	done := make(chan string, 1)
-	engine := execution.NewEngine("cli-"+uuid.New().String()[:8], sc.TestPlan, adapter, logger, func(_ string, status string) {
+	engine := execution.NewEngine("cli-"+uuid.New().String()[:8], sc.TestPlan, adapter, logger, func(_, status string, _ *scenario.QualitySummary) {
 		done <- status
 	})
 	go engine.Start()

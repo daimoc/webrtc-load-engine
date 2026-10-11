@@ -20,13 +20,15 @@ and [contracts/colibri-messages.md](contracts/colibri-messages.md).
 ## 1. Video reaches the bots (US1, SC-001)
 
 ```bash
-JITSI_MEDIA=audio_video JITSI_PARTICIPANTS=10 JITSI_EXPECT_VIDEO=1 \
+JITSI_MEDIA=audio_video JITSI_PARTICIPANTS=10 JITSI_EXPECT_VIDEO=1 JITSI_HOLD=30s \
   go test -tags live -run TestJitsiLive -v ./tests/live/
 ```
 
 Expected: every bot reports `webrtc_data_channels_open` = 10; received video
 packets per bot within 10% of 9 × the video packets one bot sends (the live
-test's video check, now enabled by `JITSI_EXPECT_VIDEO`). With
+test's video check, now enabled by `JITSI_EXPECT_VIDEO`). The test first waits
+(up to 30 s, logged as "video settled") for the bridge's bandwidth estimate to
+ramp up, then measures over the 30 s hold (`JITSI_HOLD=30s`). With
 `JITSI_LOG_XMPP=1` (debug logs) the adapter logs the `ReceiverVideoConstraints` sent on
 open.
 

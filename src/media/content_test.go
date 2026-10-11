@@ -50,3 +50,32 @@ func TestContent_UnknownKind(t *testing.T) {
 		t.Fatal("expected an error for an unknown kind")
 	}
 }
+
+func TestLoadLayers(t *testing.T) {
+	for maxHeight, want := range map[int][]int{360: {90, 180, 360}, 720: {180, 360, 720}} {
+		layers, err := LoadLayers(maxHeight)
+		if err != nil {
+			t.Fatalf("LoadLayers(%d): %v", maxHeight, err)
+		}
+		if len(layers) != 3 {
+			t.Fatalf("LoadLayers(%d): %d layers", maxHeight, len(layers))
+		}
+		for i, c := range layers {
+			_, h := keyframeSize(c.Frames[0].Data)
+			if h != want[i] {
+				t.Errorf("LoadLayers(%d) layer %d: height %d, want %d", maxHeight, i, h, want[i])
+			}
+			for j, f := range c.Frames {
+				if f.Samples != layers[0].Frames[j].Samples {
+					t.Fatalf("layer %d frame %d: %d ticks, base %d", i, j, f.Samples, layers[0].Frames[j].Samples)
+				}
+				if key := isVP8Keyframe(f.Data); key != (j%30 == 0) {
+					t.Fatalf("layer %d frame %d: keyframe %v", i, j, key)
+				}
+			}
+		}
+	}
+	if _, err := LoadLayers(480); err == nil {
+		t.Fatal("LoadLayers(480) succeeded")
+	}
+}

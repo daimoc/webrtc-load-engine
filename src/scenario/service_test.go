@@ -227,7 +227,7 @@ func TestTestPlan_PlatformConfigJSONRoundTrip(t *testing.T) {
 // failingStarter is an ExecutionStarter that always refuses to start.
 type failingStarter struct{ err error }
 
-func (f *failingStarter) StartExecution(_ string, _ TestPlan, _ platform.PlatformAdapter, _ func(string, string)) (ExecutionEngine, error) {
+func (f *failingStarter) StartExecution(_ string, _ TestPlan, _ platform.PlatformAdapter, _ func(string, string, *QualitySummary)) (ExecutionEngine, error) {
 	return nil, f.err
 }
 
@@ -259,13 +259,13 @@ type completingStarter struct{}
 
 type completingEngine struct {
 	id         string
-	onComplete func(string, string)
+	onComplete func(string, string, *QualitySummary)
 }
 
-func (e *completingEngine) Start() { e.onComplete(e.id, "completed") }
+func (e *completingEngine) Start() { e.onComplete(e.id, "completed", nil) }
 func (e *completingEngine) Stop()  {}
 
-func (completingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string)) (ExecutionEngine, error) {
+func (completingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *QualitySummary)) (ExecutionEngine, error) {
 	return &completingEngine{id: id, onComplete: onComplete}, nil
 }
 
@@ -314,16 +314,16 @@ func TestService_ScenarioReadsDoNotRaceWithExecution(t *testing.T) {
 // stoppingStarter starts engines that report being stopped on request.
 type stoppingStarter struct{}
 
-func (stoppingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string)) (ExecutionEngine, error) {
+func (stoppingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *QualitySummary)) (ExecutionEngine, error) {
 	return &stoppedEngine{id: id, onComplete: onComplete}, nil
 }
 
 type stoppedEngine struct {
 	id         string
-	onComplete func(string, string)
+	onComplete func(string, string, *QualitySummary)
 }
 
-func (e *stoppedEngine) Start() { e.onComplete(e.id, "stopped") }
+func (e *stoppedEngine) Start() { e.onComplete(e.id, "stopped", nil) }
 func (e *stoppedEngine) Stop()  {}
 
 func TestService_StoppedScenarioCanBeExecutedAgain(t *testing.T) {
@@ -348,5 +348,84 @@ func TestService_StoppedScenarioCanBeExecutedAgain(t *testing.T) {
 	}
 	if err := service.ExecuteScenario(sc.ID); err != nil {
 		t.Errorf("a stopped scenario must be executable again, got %v", err)
+	}
+}
+
+// summaryStarter starts engines that complete at once with a summary
+// naming the run.
+type summaryStarter struct{ runs *int }
+
+type summaryEngine struct {
+	id         string
+	run        int
+	onComplete func(string, string, *QualitySummary)
+}
+
+func (e *summaryEngine) Start() {
+	e.onComplete(e.id, "completed", &QualitySummary{ScenarioID: e.id, Bots: e.run})
+}
+func (e *summaryEngine) Stop() {}
+
+func (s summaryStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *QualitySummary)) (ExecutionEngine, error) {
+	*s.runs++
+	return &summaryEngine{id: id, run: *s.runs, onComplete: onComplete}, nil
+}
+
+// waitStatus waits for the scenario to reach status.
+func waitStatus(t *testing.T, s *Service, id, status string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		sc, err := s.GetScenario(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sc.Status == status {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status %q, want %q", sc.Status, status)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestService_KeepsQualitySummary(t *testing.T) {
+	runs := 0
+	service := NewService(slog.New(&NoOpLogger{}), summaryStarter{runs: &runs})
+	created, err := service.CreateScenario("q", "jitsi", TestPlan{Participants: 1, DurationSeconds: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, status, err := service.GetQuality(created.ID); !errors.Is(err, ErrNoQualitySummary) || status != "created" {
+		t.Fatalf("before a run: status %q, err %v", status, err)
+	}
+	if _, _, err := service.GetQuality("unknown"); !errors.Is(err, ErrScenarioNotFound) {
+		t.Fatalf("unknown scenario: %v", err)
+	}
+
+	if err := service.ExecuteScenario(created.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, service, created.ID, "completed")
+	q, status, err := service.GetQuality(created.ID)
+	if err != nil || status != "completed" || q.ScenarioID != created.ID || q.Bots != 1 {
+		t.Fatalf("after the run: %+v, %q, %v", q, status, err)
+	}
+
+	// The next run replaces it.
+	if err := service.ExecuteScenario(created.ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if q, _, err := service.GetQuality(created.ID); err == nil && q.Bots == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("summary not replaced by the second run")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

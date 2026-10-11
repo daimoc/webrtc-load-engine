@@ -15,6 +15,7 @@ type mediaPeer interface {
 	ID() string
 	State() PeerState
 	MediaSnapshot(now time.Time) map[string]KindMediaSnapshot
+	RequestedVideoHeight() int
 	TransportBytesReceived() uint64
 }
 
@@ -31,6 +32,7 @@ type mediaCollector struct {
 	prev      map[string]map[string]KindMediaSnapshot // Peer ID -> kind -> last snapshot
 	stalled   map[string]map[string]bool              // Peer ID -> kind -> stall counted
 	transport map[string]uint64                       // Peer ID -> transport bytes received at the last collection
+	bots      map[string]*botQuality                  // Peer ID -> quality record, kept after the peer leaves
 }
 
 func newMediaCollector(scenarioID string, stallTimeout time.Duration, logger *slog.Logger) *mediaCollector {
@@ -41,6 +43,7 @@ func newMediaCollector(scenarioID string, stallTimeout time.Duration, logger *sl
 		prev:         map[string]map[string]KindMediaSnapshot{},
 		stalled:      map[string]map[string]bool{},
 		transport:    map[string]uint64{},
+		bots:         map[string]*botQuality{},
 	}
 }
 
@@ -84,6 +87,10 @@ func (c *mediaCollector) collect(now time.Time, peers []mediaPeer) {
 			}
 			streams[kind] += k.Offered
 			c.checkStall(p.ID(), kind, k, now)
+		}
+		c.collectQuality(p.ID(), snap, now)
+		if b := c.bots[p.ID()]; b != nil {
+			b.requested = p.RequestedVideoHeight()
 		}
 	}
 	for _, kind := range mediaKinds {

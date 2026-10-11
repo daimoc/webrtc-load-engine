@@ -13,7 +13,20 @@
 //
 // JITSI_MEDIA (receive_only, audio or audio_video; default receive_only) sets
 // what the bots send; when they send, the media metrics must show it.
+// JITSI_MEDIA_FILE is a media file the bots send instead of the built-in
+// content (transcoded with ffmpeg at the start).
 // JITSI_MAX_RECEIVED caps the remote streams each bot receives per kind.
+// JITSI_NO_BRIDGE_CHANNEL=1 leaves the bridge channel closed (no video
+// requested, no audio subscription), as before feature 005.
+// The quality summary of the run (feature 006) is logged at the end; with
+// media, the audio quality must meet 006 SC-001 (concealed p95 under 1%,
+// median MOS at least 4.0), and with JITSI_EXPECT_VIDEO also the video
+// quality (median frame rate 27–33, height 360, no freezes during the hold).
+// JITSI_SIMULCAST (360 or 720) makes the bots send three video layers up to
+// that height; JITSI_REQUESTED_HEIGHTS ("360:0.5,90:0.5") sets the heights
+// they ask for, by shares in launch order. With either and
+// JITSI_EXPECT_VIDEO, every bot must receive its height at least 95% of
+// the time (006 SC-005).
 // JITSI_METRICS_ADDR (e.g. 127.0.0.1:9100) serves /metrics and
 // /debug/pprof/ during the run.
 //
@@ -30,6 +43,7 @@
 package live
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
@@ -103,14 +117,16 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		level = slog.LevelDebug
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	noBridgeChannel := os.Getenv("JITSI_NO_BRIDGE_CHANNEL") != ""
 	adapter := jitsi.NewAdapter(logger)
 	if err := adapter.ParseConfig(map[string]interface{}{
-		"xmpp_domain":     domain,
-		"muc_domain":      mucDomain,
-		"room_name":       room,
-		"websocket_url":   wsURL,
-		"connect_timeout": "20s",
-		"debug":           os.Getenv("JITSI_LOG_XMPP") != "",
+		"xmpp_domain":       domain,
+		"muc_domain":        mucDomain,
+		"room_name":         room,
+		"websocket_url":     wsURL,
+		"connect_timeout":   "20s",
+		"debug":             os.Getenv("JITSI_LOG_XMPP") != "",
+		"no_bridge_channel": noBridgeChannel,
 	}); err != nil {
 		t.Fatalf("ParseConfig: %v", err)
 	}
@@ -122,6 +138,9 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		Media: &scenario.MediaConfig{
 			Profile:            envOr("JITSI_MEDIA", scenario.MediaProfileReceiveOnly),
 			MaxReceivedStreams: envInt(t, "JITSI_MAX_RECEIVED", 0),
+			Simulcast:          simulcastConfig(t),
+			RequestedHeights:   requestedHeights(t),
+			SourceFile:         os.Getenv("JITSI_MEDIA_FILE"),
 		},
 	})
 	if err != nil {
@@ -130,7 +149,14 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	plan := sc.TestPlan
 	kinds := plan.Media.Kinds()
 	done := make(chan string, 1)
-	engine := execution.NewEngine(scenarioID, plan, adapter, logger, func(_ string, status string) { done <- status })
+	var quality *scenario.QualitySummary
+	engine := execution.NewEngine(scenarioID, plan, adapter, logger, func(_, status string, q *scenario.QualitySummary) {
+		quality = q
+		done <- status
+	})
+	// checkQuality is set once the run's expectations are known; it checks
+	// the quality summary after the run.
+	checkQuality := func(*scenario.QualitySummary) {}
 	start := time.Now()
 	go engine.Start()
 	defer func() {
@@ -138,6 +164,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		if status := <-done; status != "stopped" {
 			t.Errorf("expected the run to end stopped, got %s", status)
 		}
+		checkQuality(quality)
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)
 		}
@@ -164,7 +191,10 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	// Each bot opens the bridge channel, which carries its receive
 	// preferences (feature 005).
 	expectVideo := os.Getenv("JITSI_EXPECT_VIDEO") != ""
-	for until := time.Now().Add(10 * time.Second); ; time.Sleep(200 * time.Millisecond) {
+	if noBridgeChannel && expectVideo {
+		t.Fatal("JITSI_EXPECT_VIDEO needs the bridge channel: unset JITSI_NO_BRIDGE_CHANNEL")
+	}
+	for until := time.Now().Add(10 * time.Second); !noBridgeChannel; time.Sleep(200 * time.Millisecond) {
 		open := counter(t, "webrtc_data_channels_open", scenarioID, "")
 		if int(open) == participants || time.Now().After(until) {
 			t.Logf("%.0f/%d bots with an open bridge channel", open, participants)
@@ -173,6 +203,29 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 			}
 			break
 		}
+	}
+
+	// Bots receive the video of `want` others: at least the other bots
+	// (more if others are in the room), up to the receive cap.
+	want := participants - 1
+	if limit := plan.Media.MaxReceivedStreams; limit > 0 && limit < want {
+		want = limit
+	}
+	checkVideo := expectVideo && participants > 1 && slices.Contains(kinds, "video")
+	holdFreezes := -1.0 // Video freezes counted during the hold
+	checkQuality = func(q *scenario.QualitySummary) {
+		single := plan.Media.Simulcast == nil && plan.Media.RequestedHeights == nil
+		qualityChecks(t, q, participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
+		if checkVideo && !single {
+			requestedHeightChecks(t, q)
+		}
+	}
+
+	// The bridge raises its bandwidth estimate for a few seconds after the
+	// bots join, so video starts below the requested volume. Wait for it to
+	// settle before the measured window.
+	if checkVideo {
+		waitVideoSettled(t, scenarioID, participants, want)
 	}
 
 	// Hold, checking that no transport drops.
@@ -188,6 +241,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	if slices.Contains(kinds, "video") {
 		videoSentBefore = sentBefore["video"]
 	}
+	freezesBefore := counter(t, "webrtc_media_freezes_total", scenarioID, "")
 	holdStart := time.Now()
 	for end := time.Now().Add(hold); time.Now().Before(end); time.Sleep(time.Second) {
 		if n := int(peers(t, scenarioID, execution.PeerStateEstablished)); n != participants {
@@ -208,6 +262,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	// What the bots received (media metrics, updated every 2 s).
 	time.Sleep(2500 * time.Millisecond)
 	window := time.Since(holdStart).Seconds()
+	holdFreezes = counter(t, "webrtc_media_freezes_total", scenarioID, "") - freezesBefore
 	for _, kind := range []string{"audio", "video"} {
 		recv := counter(t, "webrtc_media_packets_received_total", scenarioID, kind) - recvBefore[kind]
 		lost := counter(t, "webrtc_media_packets_lost_total", scenarioID, kind)
@@ -234,12 +289,6 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	// receiver sends its constraints over the bridge channel, which not every
 	// deployment allows (JITSI_EXPECT_VIDEO=1 to require it).
 	if participants > 1 && len(kinds) > 0 {
-		// At least the other bots (more if others are in the room), up to
-		// the receive cap.
-		want := participants - 1
-		if limit := plan.Media.MaxReceivedStreams; limit > 0 && limit < want {
-			want = limit
-		}
 		streams := counter(t, "webrtc_media_remote_streams", scenarioID, "audio")
 		if int(streams) < participants*want {
 			t.Errorf("expected at least %d remote audio streams per bot, got %.1f", want, streams/float64(participants))
@@ -257,7 +306,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 			}
 			// Each bot receives the video of `want` others: within 10% of
 			// what one bot sends (SC-001 of 005).
-			if slices.Contains(kinds, "video") {
+			if checkVideo {
 				sent := counter(t, "webrtc_media_packets_sent_total", scenarioID, "video") - videoSentBefore
 				sentPerBot := sent / float64(participants) / window
 				recvPerBot := recv / float64(participants) / window
@@ -269,6 +318,142 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 			}
 		}
 	}
+}
+
+// qualityChecks logs the quality summary of the run and checks it (006
+// SC-001): audio when the bots receive audio, video when checkVideo.
+//
+// Freezes are checked over the hold (holdFreezes), after video settled: when
+// many bots join at once, the bridge forwards the first keyframe of some
+// streams and holds them until its bandwidth estimate allows them, which
+// the summary counts as freezes of the start-up.
+//
+// single: the bots send and ask for one 360-line stream, so all received
+// video must be at 360.
+func qualityChecks(t *testing.T, q *scenario.QualitySummary, checkAudio, checkVideo, single bool, holdFreezes float64) {
+	t.Helper()
+	if q == nil {
+		t.Error("no quality summary")
+		return
+	}
+	raw, _ := json.MarshalIndent(q, "", "  ")
+	t.Logf("quality summary:\n%s", raw)
+	if checkAudio {
+		a := q.Audio
+		switch {
+		case !a.Available || a.ConcealedRatio == nil || a.MOS == nil:
+			t.Errorf("no audio quality: %+v", a)
+		default:
+			if a.ConcealedRatio.P95 >= 0.01 {
+				t.Errorf("audio concealed ratio p95 %.4f, want under 1%%", a.ConcealedRatio.P95)
+			}
+			if a.MOS.P50 < 4.0 {
+				t.Errorf("median MOS %.2f, want at least 4.0", a.MOS.P50)
+			}
+		}
+	}
+	if checkVideo {
+		v := q.Video
+		switch {
+		case !v.Available || v.FrameRate == nil:
+			t.Errorf("no video quality: %+v", v)
+		default:
+			if v.FrameRate.P50 < 27 || v.FrameRate.P50 > 33 {
+				t.Errorf("median frame rate %.1f, want 27–33", v.FrameRate.P50)
+			}
+			if single && v.HeightShare["360"] < 0.99 {
+				t.Errorf("height 360 for %.1f%% of the received time, want 100%%", 100*v.HeightShare["360"])
+			}
+			t.Logf("video freezes: %.0f during the hold, %d over the whole run", holdFreezes, v.FreezesTotal)
+			if holdFreezes != 0 {
+				t.Errorf("%.0f freezes during the hold, want none", holdFreezes)
+			}
+		}
+	}
+}
+
+// requestedHeightChecks checks that every bot received the video height it
+// asked for at least 95% of its received video time (006 SC-005).
+func requestedHeightChecks(t *testing.T, q *scenario.QualitySummary) {
+	t.Helper()
+	v := q.Video
+	if v.RequestedHeightShare == nil {
+		t.Error("no requested height share in the summary")
+		return
+	}
+	t.Logf("received video time per height %v, %d switches; share at the requested height p50 %.3f",
+		v.HeightShare, v.ResolutionSwitchesTotal, v.RequestedHeightShare.P50)
+	for _, b := range q.Worst.LowestRequestedHeight {
+		t.Logf("  %s: %.3f of its video at the height it asked for", b.PeerID, b.Value)
+		if b.Value < 0.95 {
+			t.Errorf("%s received the height it asked for %.1f%% of the time, want at least 95%%", b.PeerID, 100*b.Value)
+		}
+	}
+}
+
+// simulcastConfig returns the simulcast setting from JITSI_SIMULCAST (360
+// or 720: the highest layer), nil when unset.
+func simulcastConfig(t *testing.T) *scenario.SimulcastConfig {
+	t.Helper()
+	v := os.Getenv("JITSI_SIMULCAST")
+	if v == "" {
+		return nil
+	}
+	h, err := strconv.Atoi(v)
+	if err != nil {
+		t.Fatalf("JITSI_SIMULCAST must be 360 or 720, got %q", v)
+	}
+	return &scenario.SimulcastConfig{MaxHeight: h}
+}
+
+// requestedHeights parses JITSI_REQUESTED_HEIGHTS ("height:share,..."),
+// nil when unset.
+func requestedHeights(t *testing.T) []scenario.RequestedHeight {
+	t.Helper()
+	v := os.Getenv("JITSI_REQUESTED_HEIGHTS")
+	if v == "" {
+		return nil
+	}
+	var out []scenario.RequestedHeight
+	for _, part := range strings.Split(v, ",") {
+		hs, ss, ok := strings.Cut(part, ":")
+		h, err1 := strconv.Atoi(hs)
+		s, err2 := strconv.ParseFloat(ss, 64)
+		if !ok || err1 != nil || err2 != nil {
+			t.Fatalf("JITSI_REQUESTED_HEIGHTS: expected height:share,..., got %q", v)
+		}
+		out = append(out, scenario.RequestedHeight{Height: h, Share: s})
+	}
+	return out
+}
+
+// waitVideoSettled waits, up to 30 s, until the video the bots receive over
+// one collection period (2 s) is at least 90% of `want` times what one bot
+// sends, and logs how long it took. It does not fail: the measured window
+// that follows does.
+func waitVideoSettled(t *testing.T, scenarioID string, participants, want int) {
+	t.Helper()
+	const step = 2 * time.Second
+	start := time.Now()
+	sample := func() (sent, recv float64) {
+		return counter(t, "webrtc_media_packets_sent_total", scenarioID, "video"),
+			counter(t, "webrtc_media_packets_received_total", scenarioID, "video")
+	}
+	sent, recv := sample()
+	ratio := 0.0
+	for time.Since(start) < 30*time.Second {
+		time.Sleep(step)
+		s, r := sample()
+		if s > sent {
+			ratio = (r - recv) / (float64(want) * (s - sent))
+		}
+		sent, recv = s, r
+		if ratio >= 0.9 {
+			t.Logf("video settled at %.2f of the expected volume after %s", ratio, time.Since(start).Round(time.Second))
+			return
+		}
+	}
+	t.Logf("video not settled after %s (%.2f of the expected volume)", time.Since(start).Round(time.Second), ratio)
 }
 
 func envInt(t *testing.T, key string, fallback int) int {

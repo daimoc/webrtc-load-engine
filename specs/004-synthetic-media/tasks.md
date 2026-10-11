@@ -157,6 +157,7 @@ description: "Task list for 004 synthetic media sending and media metrics"
   - 2026-10-10, same host and deployment as T038, 100 bots `audio_video`, `max_received_streams` 10, ramp-up 20 s, 10 min hold: all established in 21.3 s and held, 0 failed, 0 stalls, no WARN/ERROR log. Each bot offered 10 audio + 10 video streams, received 499 audio packets/s (10 × 50), 672 lost out of 30.1 M.
   - SC-003 met: 99.97% of audio frames and 99.90% of video frames written within 20 ms (99.5% / 99.0% within 5 ms).
   - SC-004 not met: 2.60 cores on average (1237 s user + 389 s system over 624 s; was 3.85 without the cap), max RSS 723 MB (was 3.25 GB). The bridge still sends all 99 audio streams to each bot (495,000 packets/s): the profile shows the remaining cost is spent before a packet can be dropped (receive system calls and ICE/mux about 45%, SRTP decryption about 24%); the 10 received streams cost about 5%. The bridge itself used about 10 cores on the same host. Going lower needs the bridge to stop sending the streams a bot does not receive (Jitsi's receiver audio subscription / last-N over the bridge channel; the channel is available since 003 T056, the messages are feature 005).
+  - 2026-10-10, rerun after 005 (005 T029): the bots now acknowledge every packet the bridge sends them (005 research R9); with the bridge channel closed, as here, 2.32 cores and 725 MB. The 0.3 core difference with the run above comes from that fix; the bridge channel subscriptions of 005 bring it to 1.05 cores.
 
 ---
 

@@ -107,12 +107,13 @@ func (s *SignalingClient) HandleSessionInitiate(fromJID string, jingle *JingleIQ
 	}
 
 	s.mu.Lock()
-	limit := 0
+	limit, height := 0, 0
 	if s.handler != nil {
 		limit = s.handler.ReceiveLimit()
+		height = s.handler.RequestedVideoHeight()
 	}
 	s.mu.Unlock()
-	sources := newSessionSources(jingle, limit)
+	sources := newSessionSources(jingle, limit, height)
 	offer, err := sources.offer()
 	if err != nil {
 		return fmt.Errorf("invalid session-initiate: %w", err)
@@ -134,7 +135,7 @@ func (s *SignalingClient) HandleSessionInitiate(fromJID string, jingle *JingleIQ
 		RemoteSDP: offer,
 		sources:   sources,
 	}
-	if offersSCTP(jingle) {
+	if offersSCTP(jingle) && !s.config.NoBridgeChannel {
 		session.bridge = newBridgeChannel(s.logger.With(slog.String("sid", jingle.SID)))
 	}
 	s.sessions[jingle.SID] = session
@@ -142,7 +143,10 @@ func (s *SignalingClient) HandleSessionInitiate(fromJID string, jingle *JingleIQ
 	s.mu.Unlock()
 
 	s.logger.Debug("Parsed remote SDP", slog.String("sdp", offer.SDP))
-	if session.bridge == nil {
+	switch {
+	case s.config.NoBridgeChannel:
+		s.logger.Info("Bridge channel disabled by configuration: video not requested, receive cap enforced by the bot only", slog.String("sid", jingle.SID))
+	case session.bridge == nil:
 		s.logger.Info("Bridge channel not offered: video not requested, receive cap enforced by the bot only", slog.String("sid", jingle.SID))
 	}
 

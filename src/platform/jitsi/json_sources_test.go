@@ -56,7 +56,7 @@ func TestApplyJSONSources_SessionInitiate(t *testing.T) {
 	// The converted session splits like an XML one: the bridge's sources are
 	// skipped, abcd1234 gets one audio and two video sections (camera with
 	// its RTX, screen share).
-	ss := newSessionSources(&j, 0)
+	ss := newSessionSources(&j, 0, 0)
 	offer, err := ss.offer()
 	if err != nil {
 		t.Fatal(err)

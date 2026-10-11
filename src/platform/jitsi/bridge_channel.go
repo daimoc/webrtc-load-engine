@@ -23,9 +23,10 @@ import (
 // The bridge never acknowledges them; the bot keeps its own cap (004) so a
 // bridge that ignores them changes nothing else.
 
-// receivedVideoHeight is the height asked for each received video: the
-// height the bots send (004 research R1), so a higher one brings nothing.
-const receivedVideoHeight = 360
+// defaultVideoHeight is the height asked for each received video when the
+// handler gives none: the height the bots send without simulcast (004
+// research R1).
+const defaultVideoHeight = 360
 
 // defaultBridgeOpenTimeout is how long after opening the bridge channel a
 // bot waits before logging that it is not open.
@@ -38,6 +39,7 @@ type receivePrefs struct {
 	audioUnnamed bool     // A received audio source has no name
 	video        []string // Names of the received remote video sources
 	videoUnnamed bool     // A received video source has no name
+	height       int      // Video height asked for (handler's RequestedVideoHeight); 0: defaultVideoHeight
 }
 
 type videoConstraints struct {
@@ -51,13 +53,18 @@ func videoConstraintsMessage(p receivePrefs) string {
 		LastN       int                          `json:"lastN"`
 		Default     videoConstraints             `json:"defaultConstraints"`
 		Constraints *map[string]videoConstraints `json:"constraints,omitempty"` // Nil: omitted; empty: {}
-	}{Class: "ReceiverVideoConstraints", LastN: -1, Default: videoConstraints{MaxHeight: receivedVideoHeight}}
+	}{Class: "ReceiverVideoConstraints", LastN: -1}
+	height := p.height
+	if height <= 0 {
+		height = defaultVideoHeight
+	}
+	m.Default.MaxHeight = height
 	if p.capped && !p.videoUnnamed {
 		// Only the listed sources: the others get maxHeight 0, i.e. nothing.
 		m.Default.MaxHeight = 0
 		constraints := make(map[string]videoConstraints, len(p.video))
 		for _, name := range p.video {
-			constraints[name] = videoConstraints{MaxHeight: receivedVideoHeight}
+			constraints[name] = videoConstraints{MaxHeight: height}
 		}
 		m.Constraints = &constraints
 	}

@@ -51,6 +51,11 @@ type SignalingHandler interface {
 	// receives per media kind (0: no limit). Adapters subscribe to (or
 	// offer) at most that many and replace an ended one by a waiting one.
 	ReceiveLimit() int
+	// RequestedVideoHeight returns the video height, in lines, the peer
+	// wants to receive for each remote video stream. Adapters ask the media
+	// server for it with their platform's mechanism; the server may send
+	// less.
+	RequestedVideoHeight() int
 	// OnSignalingLost reports that the signaling connection was lost after
 	// Connect returned (server gone, kicked from the room, keepalive timeout).
 	OnSignalingLost(err error)

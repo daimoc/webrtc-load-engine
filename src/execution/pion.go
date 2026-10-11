@@ -25,6 +25,10 @@ const (
 // offer does not list.
 var errNotOffered = errors.New("ssrc not offered")
 
+// settingEngineHook, when set (tests only), adjusts the settings of every
+// new peer, e.g. to put it on a virtual network.
+var settingEngineHook func(*webrtc.SettingEngine)
+
 // newPeerConnection creates the peer's PeerConnection with Pion's default
 // codecs and interceptors, plus two settings (research R12):
 //   - incoming streams whose SSRC is neither in the applied offer nor one of
@@ -64,6 +68,9 @@ func newPeerConnection(p *Peer) (*webrtc.PeerConnection, error) {
 		buf := packetio.NewBuffer()
 		buf.SetLimitSize(limit)
 		return &gatedBuffer{peer: p, ssrc: ssrc, rtp: packetType == packetio.RTPBufferPacket, buf: buf}
+	}
+	if settingEngineHook != nil {
+		settingEngineHook(&se)
 	}
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithInterceptorRegistry(registry), webrtc.WithSettingEngine(se))
 	return api.NewPeerConnection(webrtc.Configuration{})

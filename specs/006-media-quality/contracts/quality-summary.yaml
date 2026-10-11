@@ -1,0 +1,106 @@
+# Addition to specs/002-scenario-execution-engine/contracts/openapi.yaml.
+paths:
+  /api/v1/scenarios/{id}/quality:
+    get:
+      summary: Quality summary of a scenario's last run
+      description: >-
+        Built when the run ends (completed, stopped or failed) from every bot
+        that received media, including bots that left early. Kept with the
+        scenario; replaced by the next run.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Summary of the last run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QualitySummary' }
+        "404":
+          description: Unknown scenario
+        "409":
+          description: >-
+            No summary yet: the scenario has not run, or is running
+            (body gives the status).
+
+components:
+  schemas:
+    Percentiles:
+      type: object
+      properties:
+        p50: { type: number }
+        p95: { type: number }
+        p99: { type: number }
+
+    KindQuality:
+      type: object
+      required: [available]
+      properties:
+        available:
+          type: boolean
+        reason:
+          type: string
+          description: Why the measures are missing when available is false (e.g. "no bot received video")
+        bots:
+          type: integer
+          description: Bots that received this kind
+        latency_seconds:
+          $ref: '#/components/schemas/Percentiles'
+          description: Over bots, of each bot's median latency; absent when no latency was measured
+        latency_available:
+          type: boolean
+
+    VideoQuality:
+      allOf:
+        - $ref: '#/components/schemas/KindQuality'
+        - type: object
+          properties:
+            frame_rate: { $ref: '#/components/schemas/Percentiles' }
+            freeze_seconds: { $ref: '#/components/schemas/Percentiles' }
+            freezes_total: { type: integer }
+            resolution_switches_total: { type: integer }
+            keyframe_requests_sent_total: { type: integer }
+            keyframe_requests_received_total: { type: integer }
+            height_share:
+              type: object
+              additionalProperties: { type: number }
+              description: Share of received video time per height, keys are heights ("180", "360")
+            requested_height_share:
+              $ref: '#/components/schemas/Percentiles'
+              description: >-
+                Over bots, of the share of each bot's received video time at
+                the height it asked for (US3, SC-005). Added during
+                implementation (T056): SC-005 is per bot.
+
+    AudioQuality:
+      allOf:
+        - $ref: '#/components/schemas/KindQuality'
+        - type: object
+          properties:
+            concealed_ratio: { $ref: '#/components/schemas/Percentiles' }
+            mos: { $ref: '#/components/schemas/Percentiles' }
+
+    BotValue:
+      type: object
+      properties:
+        peer_id: { type: string }
+        value: { type: number }
+
+    QualitySummary:
+      type: object
+      properties:
+        scenario_id: { type: string }
+        generated_at: { type: string, format: date-time }
+        bots: { type: integer }
+        video: { $ref: '#/components/schemas/VideoQuality' }
+        audio: { $ref: '#/components/schemas/AudioQuality' }
+        worst:
+          type: object
+          description: Up to 10 bots per ranking, worst first
+          properties:
+            lowest_mos: { type: array, items: { $ref: '#/components/schemas/BotValue' } }
+            most_freeze_seconds: { type: array, items: { $ref: '#/components/schemas/BotValue' } }
+            highest_latency_p95_seconds: { type: array, items: { $ref: '#/components/schemas/BotValue' } }
+            lowest_requested_height_share: { type: array, items: { $ref: '#/components/schemas/BotValue' } }

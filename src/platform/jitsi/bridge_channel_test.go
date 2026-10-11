@@ -62,6 +62,10 @@ func TestVideoConstraintsMessage(t *testing.T) {
 			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":0},"constraints":{"a-v0":{"maxHeight":360},"b-v0":{"maxHeight":360}}}`},
 		{"cap, nothing received", receivePrefs{capped: true},
 			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":0},"constraints":{}}`},
+		{"no cap, height 90", receivePrefs{video: []string{"a-v0"}, height: 90},
+			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":90}}`},
+		{"cap, height 720", receivePrefs{capped: true, video: []string{"a-v0"}, height: 720},
+			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":0},"constraints":{"a-v0":{"maxHeight":720}}}`},
 		{"cap, unnamed source", receivePrefs{capped: true, video: []string{"a-v0"}, videoUnnamed: true},
 			`{"colibriClass":"ReceiverVideoConstraints","lastN":-1,"defaultConstraints":{"maxHeight":360}}`},
 	} {

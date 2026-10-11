@@ -40,3 +40,7 @@ properties:
     type: boolean
     description: "Log all XMPP stanzas to stdout (colour-coded; the CLI's --log-xmpp flag sets it)"
     default: false
+  no_bridge_channel:
+    type: boolean
+    description: "Do not open the bridge channel the media server offers, so the bots send no receive preferences (no video requested, no audio subscription; the receive cap is enforced by the bots only). For comparison runs against the behavior before feature 005."
+    default: false
