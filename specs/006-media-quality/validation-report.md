@@ -1,6 +1,6 @@
 # Validation Report: Media Quality (006)
 
-**Date**: 2026-10-11 | **Spec**: [spec.md](spec.md) | **Guide**: [quickstart.md](quickstart.md)
+**Date**: 2026-10-11, scale runs 2026-10-16 | **Spec**: [spec.md](spec.md) | **Guide**: [quickstart.md](quickstart.md)
 | **Detailed records**: [tasks.md](tasks.md) (T025, T027, T028, T032, T039, T041, T057, T058)
 
 ## Summary
@@ -14,7 +14,7 @@
 | SC-005 simulcast | each bot gets its requested height ≥ 95% of the time | 360 set: every bot 100% at its height, 0 switches; 720 set: every bot ≥ 99.2% in the last run, one earlier run below | Met at 360; 720 not stable (see below) |
 | SC-006 CPU with quality on | ≤ 2 cores and ≤ 20% over the same run without it | 1.72 cores against 1.71 the same day | Met |
 | SC-007 summary readable | quality and worst bots from the summary alone | percentiles, totals and worst-10 lists with peer IDs | Met |
-| SC-008 simulcast at scale | 360: ≤ 2 cores; 720: measured | 360: bots 1.50 cores, requested height p50 99.9% of the time; the local bridge overloaded (3 GB heap); 720 not run | Bot budget met; quality limited by the bridge, 720 open (T058) |
+| SC-008 simulcast at scale | 360: ≤ 2 cores; 720: measured | bridge with 8 GB heap: 360 bots 2.49 cores, MOS 4.10, height 360 99.7% of the time; 720 bots 2.51 cores, MOS 3.84, height 720 84% of the time (with the 3 GB default: 1.50 cores, bridge overloaded) | Not met at 360 on the shared laptop; 720 measured (see scenario 5) |
 
 ## Environment
 
@@ -153,6 +153,31 @@ JITSI_RAMP_UP=20 JITSI_HOLD=10m JITSI_SIMULCAST=360 \
   lost, MOS 2.82): with no conference, its old generation was still 67%
   full after a forced collection. Restart the bridge before scale runs.
 
-Open: the same run with a larger bridge heap (`VIDEOBRIDGE_MAX_MEMORY` in
-the docker-jitsi-meet `.env`), to separate the bots' load from the local
-bridge's limit, and the 720 set at 100 bots.
+Rerun on 2026-10-16 with an 8 GB bridge heap (`VIDEOBRIDGE_MAX_MEMORY=8192m`
+in `tests/platforms/docker-jitsi-meet/.env`), the bridge restarted before
+each run:
+
+| | 360, 3 GB heap (10-11) | 360, 8 GB heap | 720, 8 GB heap |
+|---|---|---|---|
+| Bots CPU | 1.50 cores | 2.49 cores | 2.51 cores |
+| Bots max RSS | 1.63 GB | 1.57 GB | 1.70 GB |
+| Received per bot (audio + video packets/s) | n/a | 501 + 659 | 498 + 1,538 |
+| Bridge CPU (`docker stats`, average) | about 9 threads | about 10.3 threads | about 10.6 threads (12.3 max) |
+| Bridge heap | 3 GB, 97.5% full, 98 full GCs | ≤ 6.2 GB used, 0 full GCs | 8 GB limit reached, 6 full GCs |
+| Height at the requested one | 99.5% (360) | 99.7% (360) | 84.3% (720), requested share p50 0.95 |
+| Freezes / freeze s p50 | 131,822 / n/a | 16,556 / 25.8 | 35,081 / 88.7 |
+| Keyframe requests sent | 126,115 | 3,122 | 60,810 |
+| Audio concealed p95 / MOS p50 | 10.3% / 3.48 | 2.7% / 4.10 | 5.4% / 3.84 |
+
+- The heap was the bridge's limit at 360: with 8 GB it no longer runs full
+  collections and quality recovers, though audio concealment stays above the
+  1% of SC-001 at 100 bots.
+- The bots then receive everything the bridge forwards, and their CPU rises
+  to 2.49 cores: the 1.50 cores of the first run came from a bridge that
+  delivered less. SC-008's 2 cores is not met in this setup.
+- The host is shared: the bridge alone takes about two thirds of the 16
+  threads (load average 26), and the same bot code has measured between
+  1.05 and 1.71 cores on it. Settling SC-008 needs the bridge on another
+  machine, or a CPU profile of the bots during the 360 run.
+- 720 at 100 bots is beyond the local bridge: heap at its limit, 84% of the
+  time at 720, many more freezes and keyframe requests.

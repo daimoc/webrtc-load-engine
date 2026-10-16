@@ -197,7 +197,7 @@ Details: `specs/005-bridge-channel-subscriptions/validation-report.md`,
 Not done yet:
 
 * adapters for other platforms (Janus, mediasoup, LiveKit),
-* SVC, and simulcast at 100 bots with a bridge sized for it (the local bridge's default 3 GB heap is not enough),
+* SVC, and simulcast at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
 * load distribution across several agents,
 * bandwidth limits and network instability,
 * topologies other than everyone sends to everyone (1→N, single speaker).
@@ -281,8 +281,9 @@ plan makes the bots send three layers. `"requested_heights": [{"height": 360,
 for. On Jitsi each bot then gets the layer it asks for (at 10 bots, 100% of
 the time with 360/90 requests). The bridge rewrites the timestamps of
 simulcast video, so video latency is not available with simulcast. At 100
-bots the bots stay at 1.50 cores, but the local bridge with its default 3 GB
-heap is overloaded (`specs/006-media-quality/validation-report.md`).
+bots the local bridge needs more than its default 3 GB heap; with 8 GB the
+bots take 2.49 cores at 360 (MOS 4.10) and 2.51 cores at 720 (MOS 3.84),
+sharing the laptop with the bridge (`specs/006-media-quality/validation-report.md`).
 
 ---
 
