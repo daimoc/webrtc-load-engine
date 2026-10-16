@@ -14,7 +14,7 @@
 | SC-005 simulcast | each bot gets its requested height ≥ 95% of the time | 360 set: every bot 100% at its height, 0 switches; 720 set: every bot ≥ 99.2% in the last run, one earlier run below | Met at 360; 720 not stable (see below) |
 | SC-006 CPU with quality on | ≤ 2 cores and ≤ 20% over the same run without it | 1.72 cores against 1.71 the same day | Met |
 | SC-007 summary readable | quality and worst bots from the summary alone | percentiles, totals and worst-10 lists with peer IDs | Met |
-| SC-008 simulcast at scale | 360: ≤ 2 cores; 720: measured | bridge with 8 GB heap: 360 bots 2.49 cores, MOS 4.10, height 360 99.7% of the time; 720 bots 2.51 cores, MOS 3.84, height 720 84% of the time (with the 3 GB default: 1.50 cores, bridge overloaded) | Not met at 360 on the shared laptop; 720 measured (see scenario 5) |
+| SC-008 simulcast at scale | 360: ≤ 2 cores; 720: measured | bridge with 8 GB heap: 360 bots 2.49 cores, MOS 4.10, height 360 99.7% of the time; 720 bots 2.51 cores, MOS 3.84, height 720 84% of the time (with the 3 GB default: 1.50 cores, bridge overloaded) | Not settled: same-day baseline without simulcast 2.93 cores (1.72 on 10-11), so the host sets the figure; 720 measured (see scenario 5) |
 
 ## Environment
 
@@ -174,10 +174,16 @@ each run:
   1% of SC-001 at 100 bots.
 - The bots then receive everything the bridge forwards, and their CPU rises
   to 2.49 cores: the 1.50 cores of the first run came from a bridge that
-  delivered less. SC-008's 2 cores is not met in this setup.
-- The host is shared: the bridge alone takes about two thirds of the 16
-  threads (load average 26), and the same bot code has measured between
-  1.05 and 1.71 cores on it. Settling SC-008 needs the bridge on another
-  machine, or a CPU profile of the bots during the 360 run.
+  delivered less.
+- The rise is the host's, not simulcast's. Same-day 4-minute runs, bridge
+  restarted before each: no simulcast 2.93 cores, simulcast 360 2.41 cores,
+  for the same received traffic (about 500 audio + 640-660 video packets/s
+  per bot). The no-simulcast code took 1.72 cores on 2026-10-11 (T028).
+  The bridge takes about 9 threads of the 16 (load average 26) and the test
+  process ran on 8 of them.
+- CPU profiles of both runs split the same way: Pion's receive path about
+  half, UDP `recvfrom`/`sendto` about 20%, scheduler and allocation about
+  12%, the quality accounting about 5% and the TWCC feedback about 4%.
+- SC-008 is therefore not settled: it needs the bridge on another machine.
 - 720 at 100 bots is beyond the local bridge: heap at its limit, 84% of the
   time at 720, many more freezes and keyframe requests.

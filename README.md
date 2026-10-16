@@ -283,7 +283,8 @@ the time with 360/90 requests). The bridge rewrites the timestamps of
 simulcast video, so video latency is not available with simulcast. At 100
 bots the local bridge needs more than its default 3 GB heap; with 8 GB the
 bots take 2.49 cores at 360 (MOS 4.10) and 2.51 cores at 720 (MOS 3.84),
-sharing the laptop with the bridge (`specs/006-media-quality/validation-report.md`).
+no more than without simulcast on the same day, but the laptop they share
+with the bridge sets that figure (`specs/006-media-quality/validation-report.md`).
 
 ---
 
