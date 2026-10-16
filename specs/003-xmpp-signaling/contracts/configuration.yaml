@@ -44,3 +44,27 @@ properties:
     type: boolean
     description: "Do not open the bridge channel the media server offers, so the bots send no receive preferences (no video requested, no audio subscription; the receive cap is enforced by the bots only). For comparison runs against the behavior before feature 005."
     default: false
+  jwt:
+    type: string
+    description: "Ready-made JWT shared by all bots, for deployments using token authentication (Prosody mod_auth_token). Sent as the 'token' query parameter of the WebSocket URL (with 'room'); the client still authenticates with SASL ANONYMOUS. Mutually exclusive with jwt_app_id/jwt_app_secret."
+  jwt_app_id:
+    type: string
+    description: "App id (iss claim). With jwt_app_secret, each bot signs its own HS256 token, with the bot's peer ID as context.user.id."
+  jwt_app_secret:
+    type: string
+    description: "HS256 secret shared with Prosody (app_secret). Must be set with jwt_app_id. Never logged."
+  jwt_audience:
+    type: string
+    description: "aud claim of the signed tokens"
+    default: "jitsi"
+  jwt_subject:
+    type: string
+    description: "sub claim of the signed tokens. Defaults to xmpp_domain."
+  jwt_ttl:
+    type: string
+    description: "Go duration from issue to expiry (exp) of the signed tokens. Must be positive."
+    default: "1h"
+  jwt_moderator:
+    type: boolean
+    description: "Set context.user.moderator in the signed tokens"
+    default: false

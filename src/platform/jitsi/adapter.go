@@ -36,8 +36,20 @@ type JingleConfig struct {
 	// runs.
 	NoBridgeChannel bool `json:"no_bridge_channel"`
 
+	// Token authentication (Prosody mod_auth_token): either a ready-made
+	// JWT shared by all bots, or an app id and secret from which each bot
+	// signs its own token (see jwt.go).
+	JWT          string `json:"jwt"`
+	JWTAppID     string `json:"jwt_app_id"`
+	JWTAppSecret string `json:"jwt_app_secret"`
+	JWTAudience  string `json:"jwt_audience"`
+	JWTSubject   string `json:"jwt_subject"`
+	JWTTTL       string `json:"jwt_ttl"`
+	JWTModerator bool   `json:"jwt_moderator"`
+
 	connectTimeout    time.Duration // Parsed ConnectTimeout
 	keepaliveInterval time.Duration // Parsed KeepaliveInterval
+	jwtTTL            time.Duration // Parsed JWTTTL
 }
 
 // Adapter implements platform.PlatformAdapter.
@@ -98,15 +110,42 @@ func (a *Adapter) ParseConfig(config map[string]interface{}) error {
 	if a.config.keepaliveInterval, err = parsePositiveDuration("keepalive_interval", a.config.KeepaliveInterval); err != nil {
 		return err
 	}
+	if err := a.config.parseJWT(); err != nil {
+		return err
+	}
 
 	a.logger.Info("Jitsi configuration parsed successfully",
 		slog.String("xmpp_domain", a.config.XMPPDomain),
 		slog.String("room", a.config.RoomName),
 		slog.String("muc_domain", a.config.MUCDomain),
 		slog.String("websocket_url", a.config.WebSocketURL),
-		slog.String("focus_jid", a.config.FocusJID))
+		slog.String("focus_jid", a.config.FocusJID),
+		slog.String("jwt_mode", a.config.jwtMode()))
 
 	return nil
+}
+
+// parseJWT validates the token authentication settings and sets their
+// defaults.
+func (c *JingleConfig) parseJWT() error {
+	if c.JWT != "" && (c.JWTAppID != "" || c.JWTAppSecret != "") {
+		return fmt.Errorf("jwt and jwt_app_id/jwt_app_secret are mutually exclusive")
+	}
+	if (c.JWTAppID == "") != (c.JWTAppSecret == "") {
+		return fmt.Errorf("jwt_app_id and jwt_app_secret must be set together")
+	}
+	if c.JWTAudience == "" {
+		c.JWTAudience = "jitsi"
+	}
+	if c.JWTSubject == "" {
+		c.JWTSubject = c.XMPPDomain
+	}
+	if c.JWTTTL == "" {
+		c.JWTTTL = "1h"
+	}
+	var err error
+	c.jwtTTL, err = parsePositiveDuration("jwt_ttl", c.JWTTTL)
+	return err
 }
 
 func parsePositiveDuration(name, value string) (time.Duration, error) {
@@ -131,7 +170,12 @@ func (a *Adapter) Connect(ctx context.Context, peerID string, handler platform.S
 	ctx, cancel := context.WithTimeout(ctx, a.config.connectTimeout)
 	defer cancel()
 
+	token, err := a.config.tokenFor(peerID)
+	if err != nil {
+		return fmt.Errorf("jitsi join failed: %w", err)
+	}
 	client := NewSignalingClient(logger, a.config)
+	client.token = token
 	// A concurrent Disconnect aborts the join (pending IQs are not failed
 	// by mellium when the stream closes).
 	stop := context.AfterFunc(client.closedCtx, cancel)
@@ -153,7 +197,7 @@ func (a *Adapter) Connect(ctx context.Context, peerID string, handler platform.S
 	a.clients[peerID] = client
 	a.mu.Unlock()
 
-	err := client.Connect(ctx)
+	err = client.Connect(ctx)
 	if err == nil {
 		err = client.JoinMUC(ctx, peerID)
 	}

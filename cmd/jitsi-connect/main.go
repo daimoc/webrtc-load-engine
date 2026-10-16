@@ -31,6 +31,10 @@ func main() {
 	mediaFile := flag.String("media-file", "", "Media file the bots send instead of the built-in content (needs ffmpeg)")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	logXMPP := flag.Bool("log-xmpp", false, "Log all XMPP traffic to stdout")
+	jwtToken := flag.String("jwt", os.Getenv("JITSI_JWT"), "JWT shared by all bots, for token-authenticated Jitsi (default $JITSI_JWT)")
+	jwtAppID := flag.String("jwt-app-id", "", "App id (iss) to sign one JWT per bot, with --jwt-app-secret")
+	jwtAppSecret := flag.String("jwt-app-secret", os.Getenv("JITSI_APP_SECRET"), "App secret (HS256) to sign one JWT per bot (default $JITSI_APP_SECRET)")
+	jwtModerator := flag.Bool("jwt-moderator", false, "Mark the signed bot tokens as moderator")
 
 	flag.Parse()
 
@@ -54,6 +58,14 @@ func main() {
 		"websocket_url": *wsURL,
 		"focus_jid":     *focusJID,
 		"debug":         *logXMPP,
+		"jwt_moderator": *jwtModerator,
+	}
+	// The secret may come from the environment; only use it when signing.
+	if *jwtAppID != "" {
+		config["jwt_app_id"] = *jwtAppID
+		config["jwt_app_secret"] = *jwtAppSecret
+	} else if *jwtToken != "" {
+		config["jwt"] = *jwtToken
 	}
 	if err := adapter.ParseConfig(config); err != nil {
 		logger.Error("Failed to parse config", slog.String("error", err.Error()))

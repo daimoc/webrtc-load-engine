@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -78,6 +79,7 @@ const (
 type SignalingClient struct {
 	logger *slog.Logger
 	config JingleConfig
+	token  string       // JWT sent in the WebSocket URL, if any
 	state  atomic.Int32 // ClientState
 
 	lifeMu  sync.Mutex
@@ -163,12 +165,17 @@ func (s *SignalingClient) occupantJID() string {
 	return s.roomJID() + "/" + s.nick
 }
 
-// Connect establishes the XMPP connection using anonymous authentication.
+// Connect establishes the XMPP connection using anonymous authentication
+// (with token authentication, Prosody validates the JWT from the URL).
 // ctx bounds the connection setup only; the connection lives until
 // Disconnect or until it is lost.
 func (s *SignalingClient) Connect(ctx context.Context) error {
+	wsURL, err := websocketURL(s.config.WebSocketURL, s.config.RoomName, s.token)
+	if err != nil {
+		return err
+	}
 	s.logger.Info("Connecting to XMPP server",
-		slog.String("websocket_url", s.config.WebSocketURL),
+		slog.String("websocket_url", redactToken(wsURL)),
 		slog.String("xmpp_domain", s.config.XMPPDomain))
 
 	domain, err := jid.Parse(s.config.XMPPDomain)
@@ -176,10 +183,14 @@ func (s *SignalingClient) Connect(ctx context.Context) error {
 		return fmt.Errorf("invalid xmpp_domain: %w", err)
 	}
 
-	wsConn, _, err := ws.Dial(ctx, s.config.WebSocketURL, &ws.DialOptions{
+	wsConn, resp, err := ws.Dial(ctx, wsURL, &ws.DialOptions{
 		Subprotocols: []string{"xmpp"},
 	})
 	if err != nil {
+		// Prosody rejects an invalid or expired token at the upgrade.
+		if resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+			return fmt.Errorf("%w: %v", ErrAuthFailed, err)
+		}
 		return fmt.Errorf("%w: %v", ErrServerUnreachable, err)
 	}
 

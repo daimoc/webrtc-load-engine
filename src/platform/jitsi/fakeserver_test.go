@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -88,6 +89,7 @@ type fakeConn struct {
 	in     chan element       // Stanzas sent by the client
 	closed chan struct{}      // Closed when the client connection ends
 	cancel context.CancelFunc // Drops the connection
+	query  url.Values         // Query parameters of the WebSocket URL
 }
 
 func (s *fakeXMPPServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +108,7 @@ func (s *fakeXMPPServer) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		in:     make(chan element, 32),
 		closed: make(chan struct{}),
 		cancel: cancel,
+		query:  r.URL.Query(),
 	}
 
 	// The client may split elements across messages: decode a byte stream.

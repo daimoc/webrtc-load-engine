@@ -44,6 +44,7 @@ go run ./src                   # HTTP API on :8080 (/api/v1/scenarios, /metrics)
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --log-xmpp   # manual Jitsi join
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video   # bots sending audio+video
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video --media-file clip.mp4   # bots sending a file's audio+video (needs ffmpeg)
+JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room test --jwt-app-id my_app   # token-auth Jitsi: one signed JWT per bot (or --jwt / $JITSI_JWT for a ready-made token)
 ```
 
 ## Code Style
