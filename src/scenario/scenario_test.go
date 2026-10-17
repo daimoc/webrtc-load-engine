@@ -148,3 +148,55 @@ func TestMediaConfig_HeightFor(t *testing.T) {
 		t.Errorf("shares 0.3/0.3/0.4 over 10 bots: %v", got)
 	}
 }
+
+func TestNewScenario_ServerMonitoring(t *testing.T) {
+	plan := validPlan(nil)
+	sc, err := NewScenario("s", "jitsi", plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.TestPlan.ServerMonitoring != nil {
+		t.Errorf("absent section: got %+v, want nil", sc.TestPlan.ServerMonitoring)
+	}
+
+	plan.ServerMonitoring = &ServerMonitoringConfig{Containers: []string{"jvb", "jicofo"}}
+	sc, err = NewScenario("s", "jitsi", plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sc.TestPlan.ServerMonitoring.IntervalSeconds; got != 5 {
+		t.Errorf("default interval: %d, want 5", got)
+	}
+
+	many := make([]string, 17)
+	for i := range many {
+		many[i] = string(rune('a' + i))
+	}
+	cases := map[string]struct {
+		cfg     ServerMonitoringConfig
+		wantErr string
+	}{
+		"one container":  {ServerMonitoringConfig{Containers: []string{"jvb"}, IntervalSeconds: 1}, ""},
+		"sixteen":        {ServerMonitoringConfig{Containers: many[:16], IntervalSeconds: 60}, ""},
+		"no container":   {ServerMonitoringConfig{}, "server_monitoring.containers must list 1 to 16 containers"},
+		"seventeen":      {ServerMonitoringConfig{Containers: many}, "server_monitoring.containers must list 1 to 16 containers"},
+		"empty name":     {ServerMonitoringConfig{Containers: []string{"jvb", ""}}, "server_monitoring.containers: empty name at index 1"},
+		"duplicate":      {ServerMonitoringConfig{Containers: []string{"jvb", "jvb"}}, `server_monitoring.containers: duplicate name "jvb"`},
+		"interval 61":    {ServerMonitoringConfig{Containers: []string{"jvb"}, IntervalSeconds: 61}, "server_monitoring.interval_seconds must be between 1 and 60, got 61"},
+		"interval below": {ServerMonitoringConfig{Containers: []string{"jvb"}, IntervalSeconds: -1}, "server_monitoring.interval_seconds must be between 1 and 60, got -1"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			cfg := tc.cfg
+			p := validPlan(nil)
+			p.ServerMonitoring = &cfg
+			_, err := NewScenario("s", "jitsi", p)
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			case tc.wantErr != "" && (err == nil || err.Error() != tc.wantErr):
+				t.Fatalf("error %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}

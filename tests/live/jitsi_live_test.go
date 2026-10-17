@@ -29,6 +29,11 @@
 // the time (006 SC-005).
 // JITSI_METRICS_ADDR (e.g. 127.0.0.1:9100) serves /metrics and
 // /debug/pprof/ during the run.
+// JITSI_SERVER_CONTAINERS (comma-separated, e.g.
+// "docker-jitsi-meet-jvb-1,docker-jitsi-meet-jicofo-1") names the local
+// containers whose CPU and memory the engine samples, every
+// JITSI_SERVER_INTERVAL seconds (default 5); the summary's server and
+// load_machine sections (feature 007) are logged with it.
 //
 // JITSI_PARTICIPANTS (default 1) bots join over JITSI_RAMP_UP seconds
 // (default 0) and must all hold an established transport for JITSI_HOLD
@@ -142,6 +147,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 			RequestedHeights:   requestedHeights(t),
 			SourceFile:         os.Getenv("JITSI_MEDIA_FILE"),
 		},
+		ServerMonitoring: serverMonitoring(t),
 	})
 	if err != nil {
 		t.Fatalf("test plan: %v", err)
@@ -406,6 +412,20 @@ func simulcastConfig(t *testing.T) *scenario.SimulcastConfig {
 		t.Fatalf("JITSI_SIMULCAST must be 360 or 720, got %q", v)
 	}
 	return &scenario.SimulcastConfig{MaxHeight: h}
+}
+
+// serverMonitoring returns the server containers of JITSI_SERVER_CONTAINERS
+// and JITSI_SERVER_INTERVAL, nil when unset.
+func serverMonitoring(t *testing.T) *scenario.ServerMonitoringConfig {
+	t.Helper()
+	v := os.Getenv("JITSI_SERVER_CONTAINERS")
+	if v == "" {
+		return nil
+	}
+	return &scenario.ServerMonitoringConfig{
+		Containers:      strings.Split(v, ","),
+		IntervalSeconds: envInt(t, "JITSI_SERVER_INTERVAL", 0),
+	}
 }
 
 // requestedHeights parses JITSI_REQUESTED_HEIGHTS ("height:share,..."),

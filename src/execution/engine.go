@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"webrtc-load-engine/src/hostload"
 	"webrtc-load-engine/src/media"
 	"webrtc-load-engine/src/platform"
 	"webrtc-load-engine/src/scenario"
@@ -33,6 +34,9 @@ type Engine struct {
 	sources       map[string]*media.Source // By kind; one per sent kind, shared by all peers
 	collectorDone chan struct{}            // Closed when the media collector has finished (or never started)
 	quality       *scenario.QualitySummary // Built by the media collector before collectorDone is closed
+
+	sampler     *hostload.Sampler // Server and engine load (007); its last sample is taken when ctx is cancelled
+	samplerDone chan struct{}     // Closed when the sampler has finished
 }
 
 // NewEngine creates a new execution engine.
@@ -52,6 +56,8 @@ func NewEngine(scenarioID string, testPlan scenario.TestPlan, adapter platform.P
 		onComplete: onComplete,
 
 		collectorDone: make(chan struct{}),
+		sampler:       hostload.NewSampler(scenarioID, testPlan.ServerMonitoring, logger),
+		samplerDone:   make(chan struct{}),
 	}
 }
 
@@ -66,7 +72,17 @@ func (e *Engine) Start() {
 		// The summary is built after the last collection, during Stop
 		// (which another goroutine may be running).
 		<-e.collectorDone
+		<-e.samplerDone
+		if e.quality != nil {
+			e.quality.Server = e.sampler.Summary()
+			e.quality.LoadMachine = e.sampler.LoadMachine()
+		}
 		e.onComplete(e.scenarioID, finalStatus, e.quality)
+	}()
+
+	go func() {
+		defer close(e.samplerDone)
+		e.sampler.Run(e.ctx)
 	}()
 
 	if err := e.startMedia(); err != nil {

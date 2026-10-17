@@ -80,6 +80,18 @@ func TestCreateScenarioIntegration(t *testing.T) {
 			expectedError:  "participants must be greater than 0",
 		},
 		{
+			name: "Invalid Test Plan - 17 Server Containers",
+			requestBody: handlers.ScenarioRequest{
+				Name:     "Too Many Containers",
+				Platform: "jitsi",
+				TestPlan: scenario.TestPlan{Participants: 10, DurationSeconds: 60, ServerMonitoring: &scenario.ServerMonitoringConfig{
+					Containers: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q"},
+				}},
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "server_monitoring.containers must list 1 to 16 containers",
+		},
+		{
 			name: "Invalid Request Body - Missing Name",
 			requestBody: handlers.ScenarioRequest{
 				Platform: "jitsi",

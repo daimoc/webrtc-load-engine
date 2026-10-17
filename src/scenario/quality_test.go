@@ -66,3 +66,53 @@ func TestQualitySummary_JSON(t *testing.T) {
 		}
 	}
 }
+
+func TestQualitySummary_ServerLoadJSON(t *testing.T) {
+	at := time.Unix(0, 0).UTC()
+	figures := LoadFigures{
+		CPUThreads:  CPUThreads{Average: 1, Peak: 2, First: 0.1},
+		MemoryBytes: MemoryBytes{Peak: 3, First: 1},
+		Samples:     4,
+		Missed:      1,
+	}
+	s := QualitySummary{
+		Server: ServerLoad{
+			Available:       true,
+			IntervalSeconds: 5,
+			Period:          &Period{Start: at, End: at},
+			Containers: []ContainerLoad{
+				{Name: "jvb", Status: LoadStatusPartial, Reason: ReasonNotRunning, SharedWith: []string{"other"}, LoadFigures: figures},
+			},
+			Total: &ServerTotal{ContainersMeasured: 1, LoadFigures: figures},
+		},
+		LoadMachine: LoadMachine{Period: &Period{Start: at, End: at}, Engine: figures, HardwareThreads: 16, UsableThreads: 8},
+	}
+	raw, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	jsonKeys("", decoded, got)
+	for _, k := range strings.Fields(`server.available server.interval_seconds server.period.start server.period.end
+		server.containers server.total.containers_measured server.total.cpu_threads.average
+		server.total.cpu_threads.peak server.total.cpu_threads.first server.total.memory_bytes.peak
+		server.total.memory_bytes.first server.total.samples server.total.missed
+		load_machine.period.start load_machine.engine.cpu_threads.average load_machine.engine.memory_bytes.peak
+		load_machine.engine.samples load_machine.hardware_threads load_machine.usable_threads`) {
+		if !got[k] {
+			t.Errorf("missing key %q", k)
+		}
+	}
+	containers := decoded.(map[string]any)["server"].(map[string]any)["containers"].([]any)
+	c := map[string]bool{}
+	jsonKeys("", containers[0], c)
+	for _, k := range strings.Fields(`name status reason shared_with cpu_threads.average memory_bytes.peak samples missed`) {
+		if !c[k] {
+			t.Errorf("missing container key %q", k)
+		}
+	}
+}

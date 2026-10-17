@@ -25,6 +25,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - Go 1.23.0 + `pion/webrtc/v3` (TrackLocalStaticRTP, ivf/ogg readers), `pion/rtp`, `pion/rtcp`; media content embedded with `go:embed` (004-synthetic-media)
 - Go 1.23.0 + `pion/webrtc/v3` (DataChannel), `pion/interceptor/pkg/twcc` (own TWCC feedback); Jitsi Colibri bridge channel messages (`ReceiverVideoConstraints`, `ReceiverAudioSubscription`) in the Jitsi adapter (005-bridge-channel-subscriptions)
 - Go 1.23.0 + `pion/webrtc/v3` (RID simulcast encodings, RTCP PLI), `pion/rtp` (VP8 payload descriptor); E-model score; `pion/transport/v2/vnet` in tests (006-media-quality)
+- Go 1.23.0 + Docker Engine API over its Unix socket with `net/http` (no Docker SDK), `syscall.Getrusage`, `/proc/self/statm` (007-server-load-report)
 
 - (001-create-scenario-api)
 
@@ -44,6 +45,7 @@ go run ./src                   # HTTP API on :8080 (/api/v1/scenarios, /metrics)
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --log-xmpp   # manual Jitsi join
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video   # bots sending audio+video
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video --media-file clip.mp4   # bots sending a file's audio+video (needs ffmpeg)
+go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --server-containers docker-jitsi-meet-jvb-1,docker-jitsi-meet-jicofo-1   # also sample the server containers' CPU/memory (prints server + load_machine at the end)
 JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room test --jwt-app-id my_app   # token-auth Jitsi: one signed JWT per bot (or --jwt / $JITSI_JWT for a ready-made token)
 ```
 
@@ -52,9 +54,9 @@ JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room
 : Follow standard conventions
 
 ## Recent Changes
+- 007-server-load-report: server containers' and engine's CPU/memory in the quality summary (`src/hostload`), no new module
 - 003-xmpp-signaling: Added Go 1.23.0 + `mellium.im/xmpp` (switched from `gosrc.io/xmpp` in 1aed684), `pion/webrtc/v3`
 - 003-xmpp-signaling: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- 002-scenario-execution-engine: Added Go 1.23.0 + Pion, net/http, `google/uuid`
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -64,6 +64,10 @@ paths:
         Defined in specs/006-media-quality/contracts/quality-summary.yaml:
         200 with the QualitySummary, 404 for an unknown scenario, 409 (with
         the scenario status) before the first run ends or while it runs.
+        Since 007 the summary also has the server and load_machine sections
+        (CPU and memory of the media server's containers and of the
+        engine), defined in
+        specs/007-server-load-report/contracts/server-load-summary.yaml.
       parameters:
         - name: id
           in: path
@@ -126,6 +130,15 @@ components:
             room_name: LoadTestRoom
         media:
           $ref: '#/components/schemas/MediaConfig'
+        server_monitoring:
+          type: object
+          description: >-
+            Local Docker containers of the media server to sample for CPU and
+            memory during the run (007). Schema in
+            specs/007-server-load-report/contracts/test-plan-server.yaml.
+          example:
+            containers: [docker-jitsi-meet-jvb-1, docker-jitsi-meet-jicofo-1]
+            interval_seconds: 5
 
     MediaConfig:
       type: object

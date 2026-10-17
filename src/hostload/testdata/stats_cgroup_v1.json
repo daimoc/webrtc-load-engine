@@ -1,0 +1,15 @@
+{
+  "read": "2026-10-16T21:00:00.000000000Z",
+  "name": "/v1-container",
+  "cpu_stats": {
+    "cpu_usage": {"total_usage": 5000000000, "usage_in_kernelmode": 1000000000, "usage_in_usermode": 4000000000},
+    "system_cpu_usage": 900000000000000,
+    "online_cpus": 4
+  },
+  "precpu_stats": {"cpu_usage": {"total_usage": 0}},
+  "memory_stats": {
+    "usage": 104857600,
+    "limit": 8589934592,
+    "stats": {"cache": 20971520, "total_inactive_file": 10485760, "rss": 73400320}
+  }
+}

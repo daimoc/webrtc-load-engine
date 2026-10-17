@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"time"
 )
 
@@ -32,6 +33,57 @@ type TestPlan struct {
 	// Media says what each bot sends (platform-independent). NewScenario sets
 	// it, with defaults, so it is never nil on a created scenario.
 	Media *MediaConfig `json:"media,omitempty"`
+	// ServerMonitoring names the media server's containers whose CPU and
+	// memory the engine samples during the run (platform-independent,
+	// specs/007-server-load-report/contracts/test-plan-server.yaml); nil:
+	// none.
+	ServerMonitoring *ServerMonitoringConfig `json:"server_monitoring,omitempty"`
+}
+
+// Limits of the server_monitoring section.
+const (
+	DefaultServerIntervalSeconds = 5
+	maxServerContainers          = 16
+	maxServerIntervalSeconds     = 60
+)
+
+// ServerMonitoringConfig is the server_monitoring part of a test plan.
+type ServerMonitoringConfig struct {
+	// Containers are the container names, as `docker ps` lists them.
+	Containers []string `json:"containers"`
+	// IntervalSeconds is the sampling interval (default 5).
+	IntervalSeconds int `json:"interval_seconds,omitempty"`
+}
+
+// withDefaults validates m and returns a copy with defaults applied; nil
+// stays nil. Docker is not contacted: a wrong name is reported in the run's
+// summary, never as an error here.
+func (m *ServerMonitoringConfig) withDefaults() (*ServerMonitoringConfig, error) {
+	if m == nil {
+		return nil, nil
+	}
+	c := *m
+	if len(c.Containers) < 1 || len(c.Containers) > maxServerContainers {
+		return nil, fmt.Errorf("server_monitoring.containers must list 1 to %d containers", maxServerContainers)
+	}
+	seen := map[string]bool{}
+	for i, name := range c.Containers {
+		if name == "" {
+			return nil, fmt.Errorf("server_monitoring.containers: empty name at index %d", i)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("server_monitoring.containers: duplicate name %q", name)
+		}
+		seen[name] = true
+	}
+	c.Containers = slices.Clone(c.Containers)
+	switch {
+	case c.IntervalSeconds == 0:
+		c.IntervalSeconds = DefaultServerIntervalSeconds
+	case c.IntervalSeconds < 1 || c.IntervalSeconds > maxServerIntervalSeconds:
+		return nil, fmt.Errorf("server_monitoring.interval_seconds must be between 1 and %d, got %d", maxServerIntervalSeconds, c.IntervalSeconds)
+	}
+	return &c, nil
 }
 
 // Media profiles (specs/004-synthetic-media/contracts/test-plan-media.yaml).
@@ -213,6 +265,11 @@ func NewScenario(name, platform string, testPlan TestPlan) (*Scenario, error) {
 		return nil, err
 	}
 	testPlan.Media = media
+	monitoring, err := testPlan.ServerMonitoring.withDefaults()
+	if err != nil {
+		return nil, err
+	}
+	testPlan.ServerMonitoring = monitoring
 
 	return &Scenario{
 		Name:      name,
@@ -224,7 +281,8 @@ func NewScenario(name, platform string, testPlan TestPlan) (*Scenario, error) {
 }
 
 // snapshot returns a copy of the scenario that callers may read without the
-// service lock. TestPlan.PlatformConfig and TestPlan.Media are shared: they
+// service lock. TestPlan.PlatformConfig, TestPlan.Media and
+// TestPlan.ServerMonitoring are shared: they
 // are never modified after creation.
 func (s *Scenario) snapshot() *Scenario {
 	c := *s

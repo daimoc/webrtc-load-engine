@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/google/uuid"
@@ -35,6 +38,8 @@ func main() {
 	jwtAppID := flag.String("jwt-app-id", "", "App id (iss) to sign one JWT per bot, with --jwt-app-secret")
 	jwtAppSecret := flag.String("jwt-app-secret", os.Getenv("JITSI_APP_SECRET"), "App secret (HS256) to sign one JWT per bot (default $JITSI_APP_SECRET)")
 	jwtModerator := flag.Bool("jwt-moderator", false, "Mark the signed bot tokens as moderator")
+	serverContainers := flag.String("server-containers", "", "Comma-separated local Docker containers of the media server to sample for CPU and memory (e.g. docker-jitsi-meet-jvb-1)")
+	serverInterval := flag.Int("server-interval", 0, "Seconds between server samples (default 5)")
 
 	flag.Parse()
 
@@ -72,11 +77,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	var monitoring *scenario.ServerMonitoringConfig
+	if *serverContainers != "" {
+		monitoring = &scenario.ServerMonitoringConfig{Containers: strings.Split(*serverContainers, ","), IntervalSeconds: *serverInterval}
+	}
+
 	// NewScenario validates the plan and applies the media defaults.
 	sc, err := scenario.NewScenario("jitsi-connect", "jitsi", scenario.TestPlan{
-		Participants:    *participants,
-		DurationSeconds: *duration,
-		Media:           &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived, SourceFile: *mediaFile},
+		Participants:     *participants,
+		DurationSeconds:  *duration,
+		Media:            &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived, SourceFile: *mediaFile},
+		ServerMonitoring: monitoring,
 	})
 	if err != nil {
 		logger.Error("Invalid flags", slog.String("error", err.Error()))
@@ -84,7 +95,9 @@ func main() {
 	}
 
 	done := make(chan string, 1)
-	engine := execution.NewEngine("cli-"+uuid.New().String()[:8], sc.TestPlan, adapter, logger, func(_, status string, _ *scenario.QualitySummary) {
+	var summary *scenario.QualitySummary
+	engine := execution.NewEngine("cli-"+uuid.New().String()[:8], sc.TestPlan, adapter, logger, func(_, status string, q *scenario.QualitySummary) {
+		summary = q
 		done <- status
 	})
 	go engine.Start()
@@ -101,5 +114,22 @@ func main() {
 	case status := <-done:
 		logger.Info("Run finished", slog.String("status", status))
 	}
+	printLoad(summary)
 	logger.Info("Exited.")
+}
+
+// printLoad prints the server and load-machine sections of the run's
+// summary (feature 007).
+func printLoad(q *scenario.QualitySummary) {
+	if q == nil {
+		return
+	}
+	raw, err := json.MarshalIndent(struct {
+		Server      scenario.ServerLoad  `json:"server"`
+		LoadMachine scenario.LoadMachine `json:"load_machine"`
+	}{q.Server, q.LoadMachine}, "", "  ")
+	if err != nil {
+		return
+	}
+	fmt.Println(string(raw))
 }

@@ -174,6 +174,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 004 Synthetic media | Bots send looped audio and video; per‑kind cap on received streams; media metrics |
 | 005 Bridge channel subscriptions | Bots request video from the bridge and subscribe only to the streams they keep |
 | 006 Media quality | Quality of what each bot receives (frame rate, freezes, resolution, audio gaps, estimated MOS), end‑to‑end latency between bots, end‑of‑run quality summary; simulcast (three layers, each bot asks for its height) |
+| 007 Server load report | CPU and memory of the media server's local Docker containers and of the engine itself, sampled during the run, in the end‑of‑run summary and as Prometheus series |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -285,6 +286,31 @@ bots the local bridge needs more than its default 3 GB heap; with 8 GB the
 bots take 2.49 cores at 360 (MOS 4.10) and 2.51 cores at 720 (MOS 3.84),
 no more than without simulcast on the same day, but the laptop they share
 with the bridge sets that figure (`specs/006-media-quality/validation-report.md`).
+
+`"server_monitoring": {"containers": ["docker-jitsi-meet-jvb-1",
+"docker-jitsi-meet-jicofo-1"], "interval_seconds": 5}` in the test plan
+makes the engine sample those local containers through the Docker Engine
+API during the run (the user running the engine must be able to use Docker;
+`DOCKER_HOST=unix://...` selects another socket). The quality summary then
+has a `server` section, per container and in total: average and peak CPU in
+threads (1.0 is one thread busy, `docker stats` % / 100), the first
+interval's CPU, peak and first memory, samples and missed intervals, and a
+status (`measured`, `partial`, `unavailable`) with the reason when a
+container could not be read (`not_found`, `not_running`,
+`docker_unreachable`, ...). It never fails or delays the run. A
+`load_machine` section gives the engine's own CPU and memory over the same
+instants, with the machine's hardware threads and those the engine may use;
+it is there with or without `server_monitoring`. The samples are exported as
+`webrtc_server_cpu_threads`, `webrtc_server_memory_bytes`,
+`webrtc_engine_cpu_threads` and `webrtc_engine_memory_bytes`
+(`specs/007-server-load-report/contracts/`). Live test:
+`JITSI_SERVER_CONTAINERS` (comma-separated) and `JITSI_SERVER_INTERVAL`;
+`jitsi-connect`: `--server-containers` and `--server-interval`. Against
+`docker stats` the bridge's average CPU was within 2% and its peak memory
+within 0.02%; the engine's average CPU within 0.3% of `/usr/bin/time`.
+Sampling three containers costs 0.64 ms of CPU per sample (0.0001 thread at
+the 5 s default); at 100 bots the bridge used 8.7 threads on average
+(`specs/007-server-load-report/validation-report.md`).
 
 ---
 
