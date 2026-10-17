@@ -1,0 +1,41 @@
+# Addition to TestPlan (specs/002-scenario-execution-engine/contracts/openapi.yaml).
+# Platform-independent: the same section works for jitsi and, later,
+# livekit (008) and mediasoup-demo (009).
+components:
+  schemas:
+    TestPlan:
+      properties:
+        server_monitoring:
+          type: object
+          description: >-
+            Containers of the media server under test, on the engine's host,
+            sampled for CPU and memory during the run through the local
+            Docker Engine API. When absent, the summary's server section is
+            unavailable with reason not_requested; the engine's own figures
+            (load_machine) are always sampled. Docker is not contacted when
+            the scenario is created: an unreachable Docker or a wrong name is
+            reported in the summary, never as an error.
+          required: [containers]
+          properties:
+            containers:
+              type: array
+              minItems: 1
+              maxItems: 16
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+              description: Container names as `docker ps` lists them.
+              example: [docker-jitsi-meet-jvb-1, docker-jitsi-meet-jicofo-1]
+            interval_seconds:
+              type: integer
+              minimum: 1
+              maximum: 60
+              default: 5
+              description: Sampling interval for the containers and the engine.
+
+# Validation errors (400 on scenario creation):
+#   server_monitoring.containers must list 1 to 16 containers
+#   server_monitoring.containers: empty name at index N
+#   server_monitoring.containers: duplicate name "X"
+#   server_monitoring.interval_seconds must be between 1 and 60, got N

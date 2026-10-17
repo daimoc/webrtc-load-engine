@@ -15,3 +15,6 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
+# Local media-server checkouts (own git clones, .env holds secrets)
+tests/platforms/docker-jitsi-meet/

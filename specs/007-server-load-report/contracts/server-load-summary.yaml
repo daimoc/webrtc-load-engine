@@ -1,0 +1,98 @@
+# Addition to QualitySummary
+# (specs/006-media-quality/contracts/quality-summary.yaml), served by the
+# same GET /api/v1/scenarios/{id}/quality. Both sections are always present.
+components:
+  schemas:
+    QualitySummary:
+      properties:
+        server: { $ref: '#/components/schemas/ServerLoad' }
+        load_machine: { $ref: '#/components/schemas/LoadMachine' }
+
+    Period:
+      type: object
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+
+    CPUThreads:
+      type: object
+      description: CPU in threads (1.0 = one hardware thread fully busy; docker stats % / 100). Never clamped.
+      properties:
+        average: { type: number, description: "CPU time over the run / wall time over the run" }
+        peak: { type: number, description: "Highest value over one interval" }
+        first: { type: number, description: "Value over the first interval, from the baseline sample taken before the first bot is launched; with a short ramp-up it includes the bots joining" }
+
+    MemoryBytes:
+      type: object
+      properties:
+        peak: { type: integer }
+        first: { type: integer }
+
+    LoadFigures:
+      type: object
+      properties:
+        cpu_threads: { $ref: '#/components/schemas/CPUThreads' }
+        memory_bytes: { $ref: '#/components/schemas/MemoryBytes' }
+        samples: { type: integer }
+        missed: { type: integer, description: "Intervals without a sample (error, timeout, restart)" }
+
+    Reason:
+      type: string
+      enum: [not_requested, docker_unreachable, permission_denied, remote_docker_host, not_found, not_running, no_samples]
+
+    ContainerLoad:
+      allOf:
+        - $ref: '#/components/schemas/LoadFigures'
+        - type: object
+          required: [name, status]
+          properties:
+            name: { type: string }
+            status: { type: string, enum: [measured, partial, unavailable] }
+            reason: { $ref: '#/components/schemas/Reason' }
+            shared_with:
+              type: array
+              items: { type: string }
+              description: Other scenarios of this engine that sampled the same container during this run (load not attributable to one scenario).
+
+    ServerLoad:
+      type: object
+      required: [available]
+      properties:
+        available: { type: boolean, description: "At least one container measured" }
+        reason: { $ref: '#/components/schemas/Reason' }
+        interval_seconds: { type: integer }
+        period: { $ref: '#/components/schemas/Period' }
+        containers:
+          type: array
+          items: { $ref: '#/components/schemas/ContainerLoad' }
+        total:
+          allOf:
+            - $ref: '#/components/schemas/LoadFigures'
+            - type: object
+              properties:
+                containers_measured: { type: integer }
+          description: Over measured containers; peaks are of the per-sample sum.
+
+    LoadMachine:
+      type: object
+      properties:
+        period: { $ref: '#/components/schemas/Period' }
+        engine: { $ref: '#/components/schemas/LoadFigures' }
+        hardware_threads: { type: integer }
+        usable_threads: { type: integer, description: "Threads the engine may run on (CPU affinity)" }
+
+# Example (10 bots, 1 min, docker-jitsi-meet):
+#   "server": {
+#     "available": true, "interval_seconds": 5,
+#     "period": {"start": "2026-10-16T21:00:00Z", "end": "2026-10-16T21:01:05Z"},
+#     "containers": [
+#       {"name": "docker-jitsi-meet-jvb-1", "status": "measured",
+#        "cpu_threads": {"average": 1.84, "peak": 2.31, "first": 0.04},
+#        "memory_bytes": {"peak": 1288490188, "first": 402653184},
+#        "samples": 14, "missed": 0},
+#       {"name": "docker-jitsi-meet-jicofo-1", "status": "measured", ...}
+#     ],
+#     "total": {"containers_measured": 2, "cpu_threads": {...}, ...}
+#   },
+#   "load_machine": {"period": {...}, "hardware_threads": 16, "usable_threads": 16,
+#     "engine": {"cpu_threads": {"average": 0.21, "peak": 0.35, "first": 0.02}, ...}}
