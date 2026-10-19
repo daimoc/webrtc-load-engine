@@ -175,6 +175,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 005 Bridge channel subscriptions | Bots request video from the bridge and subscribe only to the streams they keep |
 | 006 Media quality | Quality of what each bot receives (frame rate, freezes, resolution, audio gaps, estimated MOS), end‑to‑end latency between bots, end‑of‑run quality summary; simulcast (three layers, each bot asks for its height) |
 | 007 Server load report | CPU and memory of the media server's local Docker containers and of the engine itself, sampled during the run, in the end‑of‑run summary and as Prometheus series |
+| 008 LiveKit | LiveKit adapter: the same test plan runs against a LiveKit server (`"platform": "livekit"`), with the same quality and server‑load report; a pinned local LiveKit in `tests/platforms/livekit` |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -197,7 +198,7 @@ Details: `specs/005-bridge-channel-subscriptions/validation-report.md`,
 
 Not done yet:
 
-* adapters for other platforms (Janus, mediasoup, LiveKit),
+* adapters for other platforms (mediasoup-demo is next, then Janus); simulcast and requested heights on LiveKit,
 * SVC, and simulcast at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
 * load distribution across several agents,
 * bandwidth limits and network instability,
@@ -210,7 +211,7 @@ Not done yet:
 go build ./...
 go vet ./... && go test -race ./...
 
-# HTTP API on :8080
+# HTTP API on :8080 (run reports in ./reports, or --reports-dir)
 go run ./src
 
 # Manual single-bot Jitsi join (colour-coded XMPP trace with --log-xmpp)
@@ -311,6 +312,71 @@ within 0.02%; the engine's average CPU within 0.3% of `/usr/bin/time`.
 Sampling three containers costs 0.64 ms of CPU per sample (0.0001 thread at
 the 5 s default); at 100 bots the bridge used 8.7 threads on average
 (`specs/007-server-load-report/validation-report.md`).
+
+**LiveKit (008).** `"platform": "livekit"` with a `platform_config` of
+`url` (e.g. `ws://localhost:7880`), `room`, and `api_key` + `api_secret`
+(each bot signs its own access token, its peer ID as identity) or a
+ready-made `token`
+(`specs/008-livekit-platform/contracts/livekit-config.yaml`). The plan is
+checked when the scenario is created. Simulcast and requested heights are
+rejected on LiveKit in this version. Secrets are hidden (`"[redacted]"`) in
+what the service returns and logs, for both platforms. Each bot publishes
+its tracks on a connection it offers and receives on the one the server
+offers. It subscribes to at most `max_received_streams` tracks per kind
+itself (auto-subscribe off), earliest first, and replaces one that ends.
+The quality summary has the same fields as on Jitsi. LiveKit rewrites the
+video RTP timestamps, so video latency is reported unavailable with
+`"latency_reason": "frame_not_identified"`; audio latency is measured.
+
+```bash
+cd tests/platforms/livekit && cp env.example .env   # set LIVEKIT_API_SECRET (32+ characters)
+docker compose up -d && cd -
+set -a; . tests/platforms/livekit/.env; set +a
+LIVEKIT_URL=ws://localhost:7880 LIVEKIT_ROOM=load008 LIVEKIT_PARTICIPANTS=10 \
+LIVEKIT_SERVER_CONTAINERS=livekit-server go test -tags live -count=1 -v -run LiveKit ./tests/live/
+```
+
+Same day, same machine, 10 bots `audio_video` for 60 s, each server alone:
+
+| | LiveKit 1.13.10 | Jitsi (docker‑jitsi‑meet) |
+|---|---|---|
+| Frame rate p50, freezes | 30.0, 0 | 30.0, 14 |
+| MOS p50, audio concealed p50 | 4.37, 0 | 4.37, 0 |
+| Latency p50, audio / video | 0.5 ms / not available | 1.5 ms / 1.5 ms |
+| Server CPU threads (average) | 0.14 | 0.97 (all four containers) |
+| Engine CPU threads (average) | 0.09 | 0.39 |
+
+Same day, 100 bots, cap 10, 10 minutes:
+
+| | LiveKit | Jitsi |
+|---|---|---|
+| Freezes, MOS p50 | 0, 4.37 | 236, 4.33 |
+| Latency p50, audio / video | 1.5 ms / not available | 7.5 ms / 10.5 ms |
+| Server CPU threads (average), memory | 2.28, 1.2 GB | 8.65, 4.2 GB |
+| Engine CPU (`/usr/bin/time`) | 1.43 cores | 2.90 cores |
+
+The local LiveKit uses a UDP port range (50000–60000). Its single‑port mode
+delayed everything it sent by 1.3 s at 100 bots
+(`specs/008-livekit-platform/validation-report.md`).
+
+**Run reports (009).** Every run, through the HTTP API, `jitsi-connect` or a
+live test, ends by writing two files to `reports/`:
+`<end time UTC>-<platform>-<name>-<run id>.json` and `.md`. The JSON file
+holds the scenario's identity, the test plan (secrets as `"[redacted]"`),
+start and end times, outcome (with the error of a failed run), engine
+version and the quality summary exactly as `GET
+/api/v1/scenarios/{id}/quality` returns it
+(`specs/009-run-report-files/contracts/run-report.schema.yaml`). The Markdown
+file gives the same figures for reading: key figures first (participants,
+MOS, freezes, frame rate, resolution, latency, server and engine CPU and
+memory), then audio, video, server, load machine, worst bots and the test
+plan. Stopped and failed runs are reported too; a report never overwrites
+another. The folder is `reports/` in the working directory (the
+repository's for live tests), or `--reports-dir` (`go run ./src`,
+`jitsi-connect`) or `REPORTS_DIR`; it is ignored by git. A write failure
+never changes the run: it is logged and shown in the scenario's answer,
+`GET /api/v1/scenarios/{id}` → `"report": {"run_id", "json": {"path" |
+"error"}, "markdown": {...}}`.
 
 ---
 

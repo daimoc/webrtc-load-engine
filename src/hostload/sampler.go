@@ -150,6 +150,11 @@ func (s *Sampler) tick(ctx context.Context) {
 	// both cover the same instants.
 	proc := s.sampleProcess()
 	wg.Wait()
+	if ctx.Err() != nil {
+		// The run ended while this tick was in flight: its requests were
+		// cancelled, not failed. The end-of-run tick covers the end.
+		return
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

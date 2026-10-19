@@ -16,5 +16,13 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local media-server checkouts (own git clones, .env holds secrets)
-tests/platforms/docker-jitsi-meet/
+# Local media servers: only the minimal setup is committed (.env holds secrets)
+tests/platforms/docker-jitsi-meet/*
+!tests/platforms/docker-jitsi-meet/docker-compose.yml
+!tests/platforms/docker-jitsi-meet/env.example
+!tests/platforms/docker-jitsi-meet/setup.sh
+!tests/platforms/docker-jitsi-meet/README.md
+tests/platforms/livekit/.env
+
+# Run reports (009): two files per run
+/reports/

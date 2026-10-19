@@ -60,7 +60,8 @@ func TestEngine_StartStop(t *testing.T) {
 	onCompleteCalled := make(chan struct{})
 	var finalStatus string
 
-	onComplete := func(scenarioID, status string, _ *scenario.QualitySummary) {
+	onComplete := func(scenarioID string, r scenario.RunResult) {
+		status := r.Status
 		if scenarioID != testScenarioID {
 			t.Errorf("Expected scenarioID %s, got %s", testScenarioID, scenarioID)
 		}
@@ -117,7 +118,8 @@ func TestEngine_StopDuringRampUp(t *testing.T) {
 	onCompleteCalled := make(chan struct{})
 	var finalStatus string
 
-	onComplete := func(scenarioID, status string, _ *scenario.QualitySummary) {
+	onComplete := func(scenarioID string, r scenario.RunResult) {
+		status := r.Status
 		finalStatus = status
 		close(onCompleteCalled)
 	}
@@ -170,7 +172,7 @@ func TestEngine_StopCancelsInFlightConnects(t *testing.T) {
 	adapter := &blockingAdapter{}
 	done := make(chan string, 1)
 	plan := scenario.TestPlan{Participants: 3, DurationSeconds: 60}
-	engine := NewEngine("test-scenario-789", plan, adapter, quietLogger, func(_, status string, _ *scenario.QualitySummary) { done <- status })
+	engine := NewEngine("test-scenario-789", plan, adapter, quietLogger, func(_ string, r scenario.RunResult) { done <- r.Status })
 
 	go engine.Start()
 	time.Sleep(100 * time.Millisecond) // All peers are stuck connecting
@@ -264,7 +266,8 @@ func TestEngine_SendsMediaOnceEstablished(t *testing.T) {
 	done := make(chan string, 1)
 	var quality *scenario.QualitySummary
 	id := "engine-media-" + uuid.NewString()
-	engine := NewEngine(id, plan, adapter, quietLogger, func(_, status string, q *scenario.QualitySummary) {
+	engine := NewEngine(id, plan, adapter, quietLogger, func(_ string, r scenario.RunResult) {
+		status, q := r.Status, r.Quality
 		quality = q
 		done <- status
 	})
@@ -306,7 +309,7 @@ func TestEngine_SourceFileFailsScenario(t *testing.T) {
 		Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, SourceFile: file}}
 	done := make(chan string, 1)
 	engine := NewEngine("engine-file-"+uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger,
-		func(_, status string, _ *scenario.QualitySummary) { done <- status })
+		func(_ string, r scenario.RunResult) { done <- r.Status })
 	go engine.Start()
 	select {
 	case status := <-done:
@@ -346,5 +349,88 @@ func TestEngine_SourceFileLayers(t *testing.T) {
 		}
 		engine.cancel() // Stops the sources; Stop needs Start's collector
 
+	}
+}
+
+// publishAdapter is a mock adapter whose platform receives media on a
+// publish session (008): its Connect creates the publish offer.
+type publishAdapter struct {
+	MockPlatformAdapter
+	offers atomic.Int32 // Publish offers created
+}
+
+func (a *publishAdapter) PublishSession() bool { return true }
+
+func (a *publishAdapter) Connect(ctx context.Context, peerID string, h platform.SignalingHandler) error {
+	if _, err := h.CreatePublishOffer(func(string, string) {}); err == nil {
+		a.offers.Add(1)
+	}
+	return a.MockPlatformAdapter.Connect(ctx, peerID, h)
+}
+
+func TestEngine_PublishSessionFromAdapter(t *testing.T) {
+	plan := scenario.TestPlan{Participants: 2, DurationSeconds: 1, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudio}}
+	if _, err := scenario.NewScenario("s", "jitsi", plan); err != nil { // Fills the media defaults
+		t.Fatal(err)
+	}
+	pub := &publishAdapter{MockPlatformAdapter: MockPlatformAdapter{t: t}}
+	if m := NewEngine(uuid.NewString(), plan, pub, quietLogger, nil).peerMedia(0); !m.PublishSession {
+		t.Error("peers of an adapter with PublishSession() true have no publish session")
+	}
+	if m := NewEngine(uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger, nil).peerMedia(0); m.PublishSession {
+		t.Error("peers of an adapter without PublishSessionAdapter have a publish session")
+	}
+
+	done := make(chan struct{})
+	e := NewEngine(uuid.NewString(), plan, pub, quietLogger, func(string, scenario.RunResult) { close(done) })
+	go e.Start()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("scenario did not complete")
+	}
+	if n := pub.offers.Load(); n != 2 {
+		t.Errorf("publish offers created = %d, want 2 (one per peer)", n)
+	}
+}
+
+func TestEngine_RunResultTimes(t *testing.T) {
+	done := make(chan scenario.RunResult, 1)
+	plan := scenario.TestPlan{Participants: 1, DurationSeconds: 1}
+	before := time.Now()
+	engine := NewEngine("run-result-"+uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger,
+		func(_ string, r scenario.RunResult) { done <- r })
+	go engine.Start()
+	r := <-done
+	if r.Status != "completed" || r.Error != "" {
+		t.Fatalf("status %q, error %q", r.Status, r.Error)
+	}
+	if r.StartedAt.Location() != time.UTC || r.EndedAt.Location() != time.UTC {
+		t.Errorf("times not UTC: %v, %v", r.StartedAt, r.EndedAt)
+	}
+	if r.StartedAt.Before(before) || !r.EndedAt.After(r.StartedAt) {
+		t.Errorf("started %v, ended %v (test started %v)", r.StartedAt, r.EndedAt, before)
+	}
+	if r.Quality == nil || r.EndedAt.Before(r.Quality.GeneratedAt) {
+		t.Errorf("ended %v before the summary %+v", r.EndedAt, r.Quality)
+	}
+}
+
+func TestEngine_RunResultFailedStart(t *testing.T) {
+	done := make(chan scenario.RunResult, 1)
+	plan := scenario.TestPlan{Participants: 1, DurationSeconds: 1,
+		Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudio, SourceFile: filepath.Join(t.TempDir(), "missing.mp4")}}
+	engine := NewEngine("run-failed-"+uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger,
+		func(_ string, r scenario.RunResult) { done <- r })
+	go engine.Start()
+	r := <-done
+	if r.Status != "failed" || r.Error == "" {
+		t.Fatalf("status %q, error %q", r.Status, r.Error)
+	}
+	if r.Quality != nil {
+		t.Errorf("quality %+v on a failed start", r.Quality)
+	}
+	if r.StartedAt.IsZero() || r.EndedAt.Before(r.StartedAt) {
+		t.Errorf("started %v, ended %v", r.StartedAt, r.EndedAt)
 	}
 }

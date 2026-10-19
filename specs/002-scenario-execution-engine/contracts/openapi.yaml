@@ -61,7 +61,8 @@ paths:
       summary: Quality summary of a scenario's last run (added by 006)
       operationId: getQuality
       description: >-
-        Defined in specs/006-media-quality/contracts/quality-summary.yaml:
+        Defined in specs/006-media-quality/contracts/quality-summary.yaml
+        (plus latency_reason per kind, specs/008-livekit-platform/contracts/quality-summary-delta.yaml):
         200 with the QualitySummary, 404 for an unknown scenario, 409 (with
         the scenario status) before the first run ends or while it runs.
         Since 007 the summary also has the server and load_machine sections
@@ -96,6 +97,10 @@ components:
           example: "My First Load Test"
         platform:
           type: string
+          enum: [jitsi, livekit]
+          description: >-
+            Platform adapter (livekit: 008). Any other value is rejected
+            with 400 "unsupported platform adapter: X".
           example: "jitsi"
         test_plan:
           $ref: '#/components/schemas/TestPlan'
@@ -123,8 +128,15 @@ components:
           type: object
           additionalProperties: true
           description: >-
-            Adapter-specific settings, validated when the scenario is executed.
-            Schema per platform: specs/003-xmpp-signaling/contracts/configuration.yaml for jitsi.
+            Adapter-specific settings. Schema per platform:
+            specs/003-xmpp-signaling/contracts/configuration.yaml for jitsi
+            (validated when the scenario is executed),
+            specs/008-livekit-platform/contracts/livekit-config.yaml for
+            livekit (validated when the scenario is created, with
+            media.simulcast and media.requested_heights rejected). Secret
+            keys (jitsi: jwt_app_secret, jwt; livekit: api_secret, token)
+            are replaced by "[redacted]" in what the service returns and
+            logs.
           example:
             xmpp_domain: meet.jit.si
             room_name: LoadTestRoom
@@ -201,6 +213,38 @@ components:
         status:
           type: string
           example: "created"
+        report:
+          description: >
+            Report files of the last run (feature 009,
+            specs/009-run-report-files/contracts/api-scenario-report.yaml).
+            Absent before the first run's report is written and while a run
+            is running.
+          $ref: '#/components/schemas/ReportFiles'
+
+    ReportFiles:
+      type: object
+      required: [run_id, json, markdown]
+      properties:
+        run_id:
+          type: string
+          pattern: '^[0-9a-f]{8}$'
+          example: "3f9a1c2e"
+        json:
+          $ref: '#/components/schemas/ReportFile'
+        markdown:
+          $ref: '#/components/schemas/ReportFile'
+
+    ReportFile:
+      type: object
+      description: Exactly one of path and error is set.
+      properties:
+        path:
+          type: string
+          description: Absolute path of the written file.
+          example: "/home/op/webrtc-load-engine/reports/20261018T153012Z-jitsi-ten-bots-3f9a1c2e.json"
+        error:
+          type: string
+          description: Why the file was not written.
 
     Error:
       type: object

@@ -25,6 +25,9 @@ type ScenarioRequest struct {
 type ScenarioResponse struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
+	// Report is where the last run's report files went (009); absent before
+	// the first run's report is written and while a run is running.
+	Report *scenario.ReportFiles `json:"report,omitempty"`
 }
 
 // ErrorResponse represents the error response body.
@@ -195,7 +198,7 @@ func (h *ScenarioHandler) GetScenario(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(ScenarioResponse{ID: scenario.ID, Status: scenario.Status})
+	json.NewEncoder(w).Encode(ScenarioResponse{ID: scenario.ID, Status: scenario.Status, Report: scenario.Report()})
 }
 
 

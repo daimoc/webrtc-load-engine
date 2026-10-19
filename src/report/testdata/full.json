@@ -1,0 +1,165 @@
+{
+  "scenario_id": "cli-557d7e51",
+  "generated_at": "2026-10-18T23:20:57.995079862+02:00",
+  "bots": 2,
+  "video": {
+    "available": true,
+    "bots": 2,
+    "latency_seconds": {
+      "p50": 0.0015,
+      "p95": 0.0015,
+      "p99": 0.0015
+    },
+    "latency_available": true,
+    "frame_rate": {
+      "p50": 30.02110701219964,
+      "p95": 30.046695486412084,
+      "p99": 30.046695486412084
+    },
+    "freeze_seconds": {
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "freezes_total": 0,
+    "resolution_switches_total": 0,
+    "keyframe_requests_sent_total": 0,
+    "keyframe_requests_received_total": 2,
+    "height_share": {
+      "360": 1
+    },
+    "requested_height_share": {
+      "p50": 1,
+      "p95": 1,
+      "p99": 1
+    }
+  },
+  "audio": {
+    "available": true,
+    "bots": 2,
+    "latency_seconds": {
+      "p50": 0.0005,
+      "p95": 0.0005,
+      "p99": 0.0005
+    },
+    "latency_available": true,
+    "concealed_ratio": {
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "mos": {
+      "p50": 4.368504685538369,
+      "p95": 4.368543312905345,
+      "p99": 4.368543312905345
+    }
+  },
+  "worst": {
+    "lowest_mos": [
+      {
+        "peer_id": "peer-cli-557d7e51-1",
+        "value": 4.368504685538369
+      },
+      {
+        "peer_id": "peer-cli-557d7e51-0",
+        "value": 4.368543312905345
+      }
+    ],
+    "most_freeze_seconds": [],
+    "highest_latency_p95_seconds": [
+      {
+        "peer_id": "peer-cli-557d7e51-0",
+        "value": 0.0025
+      },
+      {
+        "peer_id": "peer-cli-557d7e51-1",
+        "value": 0.0025
+      }
+    ],
+    "lowest_requested_height_share": [
+      {
+        "peer_id": "peer-cli-557d7e51-0",
+        "value": 1
+      },
+      {
+        "peer_id": "peer-cli-557d7e51-1",
+        "value": 1
+      }
+    ]
+  },
+  "server": {
+    "available": true,
+    "interval_seconds": 5,
+    "period": {
+      "start": "2026-10-18T23:20:27.992823077+02:00",
+      "end": "2026-10-18T23:20:57.995121508+02:00"
+    },
+    "containers": [
+      {
+        "name": "docker-jitsi-meet-jvb-1",
+        "status": "measured",
+        "cpu_threads": {
+          "average": 0.453,
+          "peak": 1.363,
+          "first": 1.363
+        },
+        "memory_bytes": {
+          "peak": 441180160,
+          "first": 264019968
+        },
+        "samples": 7,
+        "missed": 0
+      },
+      {
+        "name": "docker-jitsi-meet-jicofo-1",
+        "status": "measured",
+        "cpu_threads": {
+          "average": 0.045,
+          "peak": 0.245,
+          "first": 0.245
+        },
+        "memory_bytes": {
+          "peak": 202776576,
+          "first": 182054912
+        },
+        "samples": 7,
+        "missed": 0
+      }
+    ],
+    "total": {
+      "containers_measured": 2,
+      "cpu_threads": {
+        "average": 0.498,
+        "peak": 1.608,
+        "first": 1.608
+      },
+      "memory_bytes": {
+        "peak": 643448832,
+        "first": 446074880
+      },
+      "samples": 7,
+      "missed": 0
+    }
+  },
+  "load_machine": {
+    "period": {
+      "start": "2026-10-18T23:20:27.992823077+02:00",
+      "end": "2026-10-18T23:20:57.995121508+02:00"
+    },
+    "engine": {
+      "cpu_threads": {
+        "average": 0.065,
+        "peak": 0.07,
+        "first": 0.056
+      },
+      "memory_bytes": {
+        "peak": 34451456,
+        "first": 17408000
+      },
+      "samples": 7,
+      "missed": 0
+    },
+    "hardware_threads": 16,
+    "usable_threads": 8
+  }
+}

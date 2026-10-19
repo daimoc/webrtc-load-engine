@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -102,6 +103,20 @@ type Peer struct {
 	answered   bool                 // Guarded by trickleMu: answer SDP handed to signaling
 	trickle    platform.TrickleFunc // Guarded by trickleMu
 	answeredAt time.Time            // Guarded by trickleMu
+
+	// Publish session (008 research R4): a second PeerConnection that
+	// carries the local tracks, offered by the peer. Nil without.
+	pub          *webrtc.PeerConnection
+	pubMu        sync.Mutex                // Serializes CreatePublishOffer and ApplyPublishAnswer
+	pubOfferedAt time.Time                 // Guarded by trickleMu: publish offer handed to signaling
+	pubOffered   bool                      // Guarded by trickleMu
+	pubTrickle   platform.TrickleFunc      // Guarded by trickleMu
+	pubAnswered  bool                      // Guarded by candMu
+	pubPending   []webrtc.ICECandidateInit // Remote publish candidates before the answer, guarded by candMu
+
+	// Transports connected, for the lifecycle: established once every
+	// open session is. Guarded by stateMu.
+	mainUp, pubUp bool
 }
 
 var _ platform.SignalingHandler = (*Peer)(nil)
@@ -124,6 +139,11 @@ type PeerMedia struct {
 	// LayerHeights are the heights of the simulcast layers, low to high,
 	// the same for every peer of the scenario; nil without simulcast.
 	LayerHeights []int
+	// PublishSession puts the local tracks on a second session the peer
+	// offers (CreatePublishOffer), for platforms that receive the peer's
+	// media apart from what they send it (008 research R4). The session
+	// the remote side offers then only receives.
+	PublishSession bool
 }
 
 // NewPeer creates a new Peer in the "new" state.
@@ -159,13 +179,23 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 
 	// Default codecs and interceptors, so the peer can answer audio/video
 	// offers; see newPeerConnection for the receive settings.
-	pc, err := newPeerConnection(p)
+	pc, err := newPeerConnection(p, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create peer connection: %w", err)
 	}
 	p.pc = pc
+	if m.PublishSession {
+		pub, err := newPeerConnection(p, true)
+		if err != nil {
+			pc.Close()
+			return nil, fmt.Errorf("failed to create publish peer connection: %w", err)
+		}
+		p.pub = pub
+		pub.OnConnectionStateChange(p.onPublishStateChange)
+		pub.OnICECandidate(p.onLocalPublishCandidate)
+	}
 	if err := p.addLocalTracks(); err != nil {
-		pc.Close()
+		p.closeConnections()
 		return nil, err
 	}
 	peersByState.WithLabelValues(scenarioID, string(PeerStateNew)).Inc()
@@ -195,7 +225,7 @@ func (p *Peer) addLocalTracks() error {
 		if err != nil {
 			return fmt.Errorf("failed to create %s track: %w", kind, err)
 		}
-		sender, err := p.pc.AddTrack(track)
+		sender, err := p.addSendTrack(track)
 		if err != nil {
 			return fmt.Errorf("failed to add %s track: %w", kind, err)
 		}
@@ -207,6 +237,20 @@ func (p *Peer) addLocalTracks() error {
 		go p.readRTCP(kind, sender, "")
 	}
 	return nil
+}
+
+// addSendTrack adds a local track to the session that sends: the publish
+// session (sendonly) when there is one, else the answered session (the
+// offer's sections are then answered sendrecv).
+func (p *Peer) addSendTrack(track *webrtc.TrackLocalStaticRTP) (*webrtc.RTPSender, error) {
+	if p.pub == nil {
+		return p.pc.AddTrack(track)
+	}
+	tr, err := p.pub.AddTransceiverFromTrack(track, webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionSendonly})
+	if err != nil {
+		return nil, err
+	}
+	return tr.Sender(), nil
 }
 
 // simulcastRIDs name the video layers, low to high.
@@ -222,7 +266,7 @@ func (p *Peer) addLayerTracks(codec webrtc.RTPCodecCapability) error {
 			return fmt.Errorf("failed to create video layer %s: %w", rid, err)
 		}
 		if sender == nil {
-			sender, err = p.pc.AddTrack(track)
+			sender, err = p.addSendTrack(track)
 		} else {
 			err = sender.AddEncoding(track)
 		}
@@ -644,12 +688,23 @@ func (p *Peer) fail(stage string, cause error) {
 func (p *Peer) Close() error {
 	p.feedback.close()
 	p.stopLayerReaders()
-	err := p.pc.Close()
+	err := p.closeConnections()
 	p.channelsMu.Lock()
 	for _, c := range p.channels {
 		c.uncount()
 	}
 	p.channelsMu.Unlock()
+	return err
+}
+
+// closeConnections closes the peer's PeerConnections.
+func (p *Peer) closeConnections() error {
+	err := p.pc.Close()
+	if p.pub != nil {
+		if perr := p.pub.Close(); err == nil {
+			err = perr
+		}
+	}
 	return err
 }
 
@@ -873,25 +928,177 @@ func (p *Peer) OnSignalingLost(err error) {
 	p.fail(stageSignalingLost, err)
 }
 
-// onConnectionStateChange maps the media transport state (ICE + DTLS) to the
-// peer lifecycle.
+// onConnectionStateChange maps the media transport state (ICE + DTLS) of
+// the answered session to the peer lifecycle.
 func (p *Peer) onConnectionStateChange(state webrtc.PeerConnectionState) {
 	p.logger.Info("Peer connection state changed", slog.String("transport_state", state.String()))
+	p.onTransportState(state, false)
+}
+
+// onPublishStateChange does the same for the publish session.
+func (p *Peer) onPublishStateChange(state webrtc.PeerConnectionState) {
+	p.logger.Info("Publish connection state changed", slog.String("transport_state", state.String()))
+	p.onTransportState(state, true)
+}
+
+// onTransportState moves the peer to established once every open session's
+// transport is connected, and to failed when either fails.
+func (p *Peer) onTransportState(state webrtc.PeerConnectionState, publish bool) {
 	switch state {
 	case webrtc.PeerConnectionStateConnected:
-		if p.State() == PeerStateEstablished {
-			return // Recovered from a transient "disconnected" state
+		p.stateMu.Lock()
+		if publish {
+			p.pubUp = true
+		} else {
+			p.mainUp = true
 		}
-		p.trickleMu.Lock()
-		answeredAt := p.answeredAt
-		p.trickleMu.Unlock()
-		if !answeredAt.IsZero() {
-			transportConnectSeconds.WithLabelValues(p.scenarioID).Observe(time.Since(answeredAt).Seconds())
+		ready := p.mainUp && (p.pub == nil || p.pubUp)
+		p.stateMu.Unlock()
+		if !ready || p.State() == PeerStateEstablished {
+			return // Waiting for the other session, or recovered from a transient "disconnected" state
+		}
+		if since := p.firstSDPAt(); !since.IsZero() {
+			transportConnectSeconds.WithLabelValues(p.scenarioID).Observe(time.Since(since).Seconds())
 		}
 		if err := p.transition(PeerStateEstablished); err != nil {
 			p.logger.Error("Peer lifecycle error", slog.String("error", err.Error()))
 		}
 	case webrtc.PeerConnectionStateFailed:
-		p.fail(stageTransport, fmt.Errorf("ICE/DTLS transport failed"))
+		what := "ICE/DTLS transport failed"
+		if publish {
+			what = "publish session ICE/DTLS transport failed"
+		}
+		p.fail(stageTransport, errors.New(what))
 	}
+}
+
+// firstSDPAt is when the peer first handed an SDP (answer or publish offer)
+// to signaling; zero before.
+func (p *Peer) firstSDPAt() time.Time {
+	p.trickleMu.Lock()
+	defer p.trickleMu.Unlock()
+	switch {
+	case p.answeredAt.IsZero():
+		return p.pubOfferedAt
+	case p.pubOfferedAt.IsZero() || p.answeredAt.Before(p.pubOfferedAt):
+		return p.answeredAt
+	}
+	return p.pubOfferedAt
+}
+
+// CreatePublishOffer implements platform.SignalingHandler.
+func (p *Peer) CreatePublishOffer(trickle platform.TrickleFunc) (string, error) {
+	if p.pub == nil {
+		return "", errors.New("peer has no publish session")
+	}
+	if len(p.kinds) == 0 {
+		return "", errors.New("receive-only peer has nothing to publish")
+	}
+	p.pubMu.Lock()
+	defer p.pubMu.Unlock()
+	offer, err := p.pub.CreateOffer(nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create publish offer: %w", err)
+	}
+	gathered := webrtc.GatheringCompletePromise(p.pub)
+	if err := p.pub.SetLocalDescription(offer); err != nil {
+		return "", fmt.Errorf("failed to set publish local description: %w", err)
+	}
+	select {
+	case <-gathered:
+	case <-time.After(p.gatherTimeout):
+		p.logger.Info("Publish ICE gathering not complete, remaining candidates will be trickled")
+	}
+	// As in answer: each candidate is either in the SDP or trickled.
+	p.trickleMu.Lock()
+	local := p.pub.LocalDescription()
+	p.pubOffered = true
+	p.pubTrickle = trickle
+	p.pubOfferedAt = time.Now()
+	p.trickleMu.Unlock()
+	return local.SDP, nil
+}
+
+// ApplyPublishAnswer implements platform.SignalingHandler.
+func (p *Peer) ApplyPublishAnswer(sdp string) error {
+	if p.pub == nil {
+		return errors.New("peer has no publish session")
+	}
+	p.pubMu.Lock()
+	defer p.pubMu.Unlock()
+	if err := p.pub.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: sdp}); err != nil {
+		peerFailures.WithLabelValues(p.scenarioID, stageNegotiation).Inc()
+		return fmt.Errorf("failed to set publish answer: %w", err)
+	}
+	p.trickleMu.Lock()
+	offeredAt := p.pubOfferedAt
+	p.trickleMu.Unlock()
+	negotiationSeconds.WithLabelValues(p.scenarioID).Observe(time.Since(offeredAt).Seconds())
+
+	p.candMu.Lock()
+	p.pubAnswered = true
+	pending := p.pubPending
+	p.pubPending = nil
+	p.candMu.Unlock()
+	for _, c := range pending {
+		if err := p.pub.AddICECandidate(c); err != nil {
+			p.logger.Warn("Failed to apply buffered remote publish candidate", slog.String("error", err.Error()))
+		}
+	}
+	return nil
+}
+
+// OnPublishICECandidate implements platform.SignalingHandler.
+func (p *Peer) OnPublishICECandidate(mid, candidate string) error {
+	if p.pub == nil {
+		return errors.New("peer has no publish session")
+	}
+	init := webrtc.ICECandidateInit{Candidate: candidate}
+	if mid != "" {
+		init.SDPMid = &mid
+	}
+	p.candMu.Lock()
+	if !p.pubAnswered {
+		p.pubPending = append(p.pubPending, init)
+		p.candMu.Unlock()
+		return nil
+	}
+	p.candMu.Unlock()
+	if err := p.pub.AddICECandidate(init); err != nil {
+		return fmt.Errorf("failed to add publish ICE candidate: %w", err)
+	}
+	return nil
+}
+
+// onLocalPublishCandidate trickles publish candidates gathered after the
+// offer was returned.
+func (p *Peer) onLocalPublishCandidate(c *webrtc.ICECandidate) {
+	if c == nil {
+		return
+	}
+	p.trickleMu.Lock()
+	offered, trickle := p.pubOffered, p.pubTrickle
+	p.trickleMu.Unlock()
+	if !offered || trickle == nil {
+		return // In the offer SDP
+	}
+	init := c.ToJSON()
+	mid := ""
+	if init.SDPMid != nil {
+		mid = *init.SDPMid
+	}
+	trickle(mid, init.Candidate)
+}
+
+// LocalVideoSize implements platform.SignalingHandler: the size of the
+// built-in video content (004).
+func (p *Peer) LocalVideoSize() (width, height int) {
+	if !slices.Contains(p.kinds, media.KindVideo) {
+		return 0, 0
+	}
+	c, err := media.LoadContent(media.KindVideo)
+	if err != nil {
+		return 0, 0
+	}
+	return c.Width, c.Height
 }

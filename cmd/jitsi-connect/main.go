@@ -12,7 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"webrtc-load-engine/src/execution"
+	"webrtc-load-engine/src/platform/catalog"
 	"webrtc-load-engine/src/platform/jitsi"
+	"webrtc-load-engine/src/report"
 	"webrtc-load-engine/src/scenario"
 )
 
@@ -40,6 +42,7 @@ func main() {
 	jwtModerator := flag.Bool("jwt-moderator", false, "Mark the signed bot tokens as moderator")
 	serverContainers := flag.String("server-containers", "", "Comma-separated local Docker containers of the media server to sample for CPU and memory (e.g. docker-jitsi-meet-jvb-1)")
 	serverInterval := flag.Int("server-interval", 0, "Seconds between server samples (default 5)")
+	reportsDir := flag.String("reports-dir", "", "Folder of the run reports (default $"+report.EnvDir+", else ./reports)")
 
 	flag.Parse()
 
@@ -94,11 +97,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	done := make(chan string, 1)
-	var summary *scenario.QualitySummary
-	engine := execution.NewEngine("cli-"+uuid.New().String()[:8], sc.TestPlan, adapter, logger, func(_, status string, q *scenario.QualitySummary) {
-		summary = q
-		done <- status
+	sc.ID = "cli-" + uuid.New().String()[:8]
+	done := make(chan scenario.RunResult, 1)
+	engine := execution.NewEngine(sc.ID, sc.TestPlan, adapter, logger, func(_ string, r scenario.RunResult) {
+		done <- r
 	})
 	go engine.Start()
 
@@ -106,16 +108,33 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	var result scenario.RunResult
 	select {
 	case <-stop:
 		logger.Info("Disconnecting...")
 		engine.Stop()
-		<-done
-	case status := <-done:
-		logger.Info("Run finished", slog.String("status", status))
+		result = <-done
+	case result = <-done:
+		logger.Info("Run finished", slog.String("status", result.Status))
 	}
-	printLoad(summary)
+	printLoad(result.Quality)
+	writeReport(logger, *reportsDir, sc, config, result)
 	logger.Info("Exited.")
+}
+
+// writeReport writes the run's report files (feature 009); the report's
+// test plan has the adapter's config, its secrets hidden. The writer logs
+// where the files went, or why not.
+func writeReport(logger *slog.Logger, reportsDir string, sc *scenario.Scenario, config map[string]any, r scenario.RunResult) {
+	dir, err := report.ResolveDir(reportsDir)
+	if err != nil {
+		logger.Warn("Run report not written", slog.String("error", err.Error()))
+		return
+	}
+	reported := *sc
+	reported.TestPlan.PlatformConfig = config
+	reported.TestPlan = scenario.RedactTestPlan(reported.TestPlan, catalog.New(logger).SecretKeys("jitsi"))
+	report.Writer{Dir: dir, Logger: logger}.WriteReport(&reported, r)
 }
 
 // printLoad prints the server and load-machine sections of the run's

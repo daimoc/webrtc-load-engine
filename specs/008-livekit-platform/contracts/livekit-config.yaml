@@ -1,0 +1,67 @@
+# platform_config for platform "livekit" (FR-001, FR-002, FR-008, FR-009; research R3, R10)
+# Validated when the scenario is created; any error is a 400 with the message below.
+
+type: object
+additionalProperties: false
+required: [url, room]
+properties:
+  url:
+    type: string
+    description: >
+      LiveKit server base URL: ws://, wss://, http:// or https:// (http(s) is
+      turned into ws(s)), without path or with a path ending before /rtc.
+      Example: ws://localhost:7880.
+    errors:
+      missing: "platform_config.url is required"
+      invalid: "platform_config.url must be a ws://, wss://, http:// or https:// URL, got %q"
+  room:
+    type: string
+    minLength: 1
+    description: Room all bots join; created by the first join.
+    errors:
+      missing: "platform_config.room is required"
+  api_key:
+    type: string
+    description: API key (iss claim). With api_secret, each bot signs its own token (identity = peer ID).
+  api_secret:
+    type: string
+    writeOnly: true
+    description: >
+      HMAC secret matching api_key on the server (LIVEKIT_KEYS). Never logged;
+      redacted as "[redacted]" in API answers.
+  token:
+    type: string
+    writeOnly: true
+    description: >
+      Ready-made access token shared by all bots. Its identity is fixed, so a
+      room keeps only one bot: for single-bot or debugging runs. Redacted in
+      API answers.
+  token_ttl:
+    type: string
+    default: "6h"
+    description: Go duration from issue to expiry of the signed tokens; must be positive. Only with api_key/api_secret.
+rules:
+  - "exactly one of (api_key + api_secret) or token: 'platform_config needs api_key and api_secret, or token'"
+  - "api_key without api_secret or the reverse: 'platform_config.api_key and platform_config.api_secret must be set together'"
+  - "token with api_key or api_secret: 'platform_config.token cannot be combined with api_key/api_secret'"
+  - "token_ttl not a positive duration: 'platform_config.token_ttl must be a positive duration, got %q'"
+  - "media.simulcast set: 'media.simulcast is not supported on platform livekit'"
+  - "media.requested_heights set: 'media.requested_heights is not supported on platform livekit'"
+  - "token_ttl with token: 'platform_config.token_ttl applies only with api_key/api_secret'"
+  - "a value that is not a string: 'platform_config.%s must be a string'"
+  - "unknown key: 'platform_config: unknown key %q for platform livekit'"
+
+example:
+  name: lk-10-bots
+  platform: livekit
+  test_plan:
+    participants: 10
+    ramp_up_seconds: 10
+    duration_seconds: 60
+    media: { profile: audio_video, max_received_streams: 10 }
+    server_monitoring: { containers: [livekit-server] }
+    platform_config:
+      url: ws://localhost:7880
+      room: load008
+      api_key: devkey
+      api_secret: "<from tests/platforms/livekit/.env>"

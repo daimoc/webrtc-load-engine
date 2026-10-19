@@ -20,6 +20,7 @@ type Engine struct {
 	testPlan   scenario.TestPlan
 	adapter    platform.PlatformAdapter
 	logger     *slog.Logger
+	publish    bool // The adapter's platform receives the peers' media on a publish session (008)
 
 	peers      map[string]*Peer
 	peersMutex sync.RWMutex
@@ -29,7 +30,7 @@ type Engine struct {
 	wg       sync.WaitGroup // Tracks in-flight peer connect goroutines
 	stopOnce sync.Once
 
-	onComplete func(scenarioID, status string, quality *scenario.QualitySummary)
+	onComplete func(scenarioID string, r scenario.RunResult)
 
 	sources       map[string]*media.Source // By kind; one per sent kind, shared by all peers
 	collectorDone chan struct{}            // Closed when the media collector has finished (or never started)
@@ -40,16 +41,18 @@ type Engine struct {
 }
 
 // NewEngine creates a new execution engine.
-func NewEngine(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, logger *slog.Logger, onComplete func(scenarioID, status string, quality *scenario.QualitySummary)) *Engine {
+func NewEngine(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, logger *slog.Logger, onComplete func(scenarioID string, r scenario.RunResult)) *Engine {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	pa, ok := adapter.(platform.PublishSessionAdapter)
 	return &Engine{
 		scenarioID: scenarioID,
 		testPlan:   testPlan,
 		adapter:    adapter,
 		logger:     logger,
+		publish:    ok && pa.PublishSession(),
 		peers:      make(map[string]*Peer),
 		ctx:        ctx,
 		cancel:     cancel,
@@ -66,6 +69,7 @@ func (e *Engine) Start() {
 	e.logger.Info("Starting scenario execution", slog.String("scenario_id", e.scenarioID))
 
 	finalStatus := "completed" // Default status
+	result := scenario.RunResult{StartedAt: time.Now().UTC()}
 
 	defer func() {
 		e.logger.Info("Scenario execution finished", slog.String("scenario_id", e.scenarioID), slog.String("status", finalStatus))
@@ -77,7 +81,9 @@ func (e *Engine) Start() {
 			e.quality.Server = e.sampler.Summary()
 			e.quality.LoadMachine = e.sampler.LoadMachine()
 		}
-		e.onComplete(e.scenarioID, finalStatus, e.quality)
+		result.Status, result.Quality = finalStatus, e.quality
+		result.EndedAt = time.Now().UTC()
+		e.onComplete(e.scenarioID, result)
 	}()
 
 	go func() {
@@ -88,6 +94,7 @@ func (e *Engine) Start() {
 	if err := e.startMedia(); err != nil {
 		e.logger.Error("Failed to start media", slog.String("scenario_id", e.scenarioID), slog.String("error", err.Error()))
 		finalStatus = "failed"
+		result.Error = err.Error()
 		close(e.collectorDone)
 		e.Stop()
 		return
@@ -276,7 +283,7 @@ func (e *Engine) onPeerState(p *Peer, to PeerState) {
 
 // peerMedia returns what peer number i of the scenario sends and receives.
 func (e *Engine) peerMedia(i int) PeerMedia {
-	m := PeerMedia{Kinds: e.testPlan.Media.Kinds()}
+	m := PeerMedia{Kinds: e.testPlan.Media.Kinds(), PublishSession: e.publish}
 	if mc := e.testPlan.Media; mc != nil {
 		m.ReceiveLimit = mc.MaxReceivedStreams
 		m.StallTimeout = time.Duration(mc.StallTimeoutSeconds) * time.Second

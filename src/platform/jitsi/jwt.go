@@ -1,14 +1,12 @@
 package jitsi
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"webrtc-load-engine/src/platform/internal/jwt"
 )
 
 // jwtClockSkew backdates nbf so that a server clock slightly behind ours
@@ -80,15 +78,7 @@ func signJWT(c JingleConfig, peerID string, now time.Time) (string, error) {
 	}
 	claims.Context.User = jwtUser{ID: peerID, Name: "bot-" + name, Moderator: c.JWTModerator}
 
-	payload, err := json.Marshal(claims)
-	if err != nil {
-		return "", fmt.Errorf("encode jwt claims: %w", err)
-	}
-	enc := base64.RawURLEncoding
-	signed := enc.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." + enc.EncodeToString(payload)
-	mac := hmac.New(sha256.New, []byte(c.JWTAppSecret))
-	mac.Write([]byte(signed))
-	return signed + "." + enc.EncodeToString(mac.Sum(nil)), nil
+	return jwt.Sign(claims, []byte(c.JWTAppSecret))
 }
 
 // websocketURL adds the room and the token to the WebSocket URL, as

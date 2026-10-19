@@ -217,6 +217,16 @@ func (h *pionHandler) OnSignalingLost(err error) {
 	h.lost <- err
 }
 
+// Jitsi has no publish session.
+func (h *pionHandler) CreatePublishOffer(platform.TrickleFunc) (string, error) {
+	return "", errors.New("no publish session")
+}
+func (h *pionHandler) ApplyPublishAnswer(string) error { return errors.New("no publish session") }
+func (h *pionHandler) OnPublishICECandidate(_, _ string) error {
+	return errors.New("no publish session")
+}
+func (h *pionHandler) LocalVideoSize() (int, int) { return 0, 0 }
+
 func waitErr(t *testing.T, errc <-chan error, what string) error {
 	t.Helper()
 	select {

@@ -1,0 +1,15 @@
+# Change to the 006 quality summary (specs/006-media-quality/contracts/quality-summary.yaml)
+# FR-011, research R11. Applies to both platforms; nothing else changes.
+
+KindQuality:            # video and audio
+  added:
+    latency_reason:
+      type: string
+      enum: [frame_not_identified, not_measured]
+      description: >
+        Present only when latency_available is false and the kind received
+        media. frame_not_identified: frames arrived but none matched the
+        scenario's send times (the server changed what identifies a frame).
+        not_measured: no send times for the media received (for example
+        media from another machine only).
+      example: frame_not_identified

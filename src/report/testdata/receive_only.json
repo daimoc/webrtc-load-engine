@@ -1,0 +1,13 @@
+{
+  "scenario_id": "scenario-ro",
+  "generated_at": "2026-10-18T15:30:12Z",
+  "bots": 3,
+  "video": {"available": false, "reason": "no bot received video", "bots": 0, "latency_available": false,
+            "freezes_total": 0, "resolution_switches_total": 0, "keyframe_requests_sent_total": 0, "keyframe_requests_received_total": 0},
+  "audio": {"available": false, "reason": "no bot received audio", "bots": 0, "latency_available": false},
+  "worst": {"lowest_mos": [], "most_freeze_seconds": [], "highest_latency_p95_seconds": [], "lowest_requested_height_share": []},
+  "server": {"available": false, "reason": "not_requested"},
+  "load_machine": {"engine": {"cpu_threads": {"average": 0.012, "peak": 0.02, "first": 0.01},
+                   "memory_bytes": {"peak": 20971520, "first": 16777216}, "samples": 3, "missed": 0},
+                   "hardware_threads": 16, "usable_threads": 8}
+}

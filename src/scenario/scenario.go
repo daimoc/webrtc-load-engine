@@ -20,7 +20,16 @@ type Scenario struct {
 	// quality is the summary of the last run, set when it ends (served on
 	// its own endpoint, not with the scenario).
 	quality *QualitySummary
+	// report is where the last run's report files went (009); nil before
+	// the first run's report is written and while a run is running.
+	report *ReportFiles
+	// runs counts the runs started, so a late report is not stored on a
+	// newer run.
+	runs int
 }
+
+// Report returns the report files of the scenario's last run, or nil.
+func (s *Scenario) Report() *ReportFiles { return s.report }
 
 // TestPlan defines the load test parameters.
 type TestPlan struct {

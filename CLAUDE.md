@@ -26,6 +26,9 @@ Spec Kit task and use Superpowers practices to execute it.
 - Go 1.23.0 + `pion/webrtc/v3` (DataChannel), `pion/interceptor/pkg/twcc` (own TWCC feedback); Jitsi Colibri bridge channel messages (`ReceiverVideoConstraints`, `ReceiverAudioSubscription`) in the Jitsi adapter (005-bridge-channel-subscriptions)
 - Go 1.23.0 + `pion/webrtc/v3` (RID simulcast encodings, RTCP PLI), `pion/rtp` (VP8 payload descriptor); E-model score; `pion/transport/v2/vnet` in tests (006-media-quality)
 - Go 1.23.0 + Docker Engine API over its Unix socket with `net/http` (no Docker SDK), `syscall.Getrusage`, `/proc/self/statm` (007-server-load-report)
+- Go 1.23.0 + `pion/webrtc/v3` (second PeerConnection: publish session the peer offers), `nhooyr.io/websocket`, `google.golang.org/protobuf/encoding/protowire` (hand-written LiveKit signaling codec; no LiveKit SDK/protocol module) (008-livekit-platform)
+- Go 1.23.0 (keep 1.23-compatible code) + standard library only (`encoding/json`, `os`, `path/filepath`, `runtime/debug`, `strings`); `google/uuid` (already used) for run IDs. No new module. (009-run-report-files)
+- files: two per run in the reports folder (`reports/` by default); the scenario keeps only the paths in memory (009-run-report-files)
 
 - (001-create-scenario-api)
 
@@ -46,6 +49,8 @@ go run ./cmd/jitsi-connect --domain meet.example.org --room test --log-xmpp   # 
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video   # bots sending audio+video
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --media audio_video --media-file clip.mp4   # bots sending a file's audio+video (needs ffmpeg)
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --server-containers docker-jitsi-meet-jvb-1,docker-jitsi-meet-jicofo-1   # also sample the server containers' CPU/memory (prints server + load_machine at the end)
+set -a; . tests/platforms/livekit/.env; set +a; LIVEKIT_URL=ws://localhost:7880 LIVEKIT_ROOM=load008 LIVEKIT_PARTICIPANTS=10 go test -tags live -count=1 -v -run LiveKit ./tests/live/   # LiveKit live test (start tests/platforms/livekit first; variables at the top of tests/live/livekit_live_test.go)
+go run ./cmd/jitsi-connect --domain meet.jitsi --muc muc.meet.jitsi --ws ws://localhost:8000/xmpp-websocket --room test --participants 2 --reports-dir /tmp/r   # every run writes <time>-<platform>-<name>-<run>.json/.md to ./reports (or --reports-dir / $REPORTS_DIR)
 JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room test --jwt-app-id my_app   # token-auth Jitsi: one signed JWT per bot (or --jwt / $JITSI_JWT for a ready-made token)
 ```
 
@@ -54,9 +59,9 @@ JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room
 : Follow standard conventions
 
 ## Recent Changes
+- 009-run-report-files: JSON + Markdown report of every run in `reports/` (`src/report`), `RunResult` in the engine's completion callback, `report` in the scenario answer; no new module
+- 008-livekit-platform: LiveKit adapter (`src/platform/livekit`), publish session in `execution.Peer`, platform catalog (`src/platform/catalog`), local server in `tests/platforms/livekit`
 - 007-server-load-report: server containers' and engine's CPU/memory in the quality summary (`src/hostload`), no new module
-- 003-xmpp-signaling: Added Go 1.23.0 + `mellium.im/xmpp` (switched from `gosrc.io/xmpp` in 1aed684), `pion/webrtc/v3`
-- 003-xmpp-signaling: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -227,7 +227,7 @@ func TestTestPlan_PlatformConfigJSONRoundTrip(t *testing.T) {
 // failingStarter is an ExecutionStarter that always refuses to start.
 type failingStarter struct{ err error }
 
-func (f *failingStarter) StartExecution(_ string, _ TestPlan, _ platform.PlatformAdapter, _ func(string, string, *QualitySummary)) (ExecutionEngine, error) {
+func (f *failingStarter) StartExecution(_ string, _ TestPlan, _ platform.PlatformAdapter, _ func(string, RunResult)) (ExecutionEngine, error) {
 	return nil, f.err
 }
 
@@ -259,13 +259,13 @@ type completingStarter struct{}
 
 type completingEngine struct {
 	id         string
-	onComplete func(string, string, *QualitySummary)
+	onComplete func(string, RunResult)
 }
 
-func (e *completingEngine) Start() { e.onComplete(e.id, "completed", nil) }
+func (e *completingEngine) Start() { e.onComplete(e.id, RunResult{Status: "completed"}) }
 func (e *completingEngine) Stop()  {}
 
-func (completingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *QualitySummary)) (ExecutionEngine, error) {
+func (completingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, RunResult)) (ExecutionEngine, error) {
 	return &completingEngine{id: id, onComplete: onComplete}, nil
 }
 
@@ -314,16 +314,16 @@ func TestService_ScenarioReadsDoNotRaceWithExecution(t *testing.T) {
 // stoppingStarter starts engines that report being stopped on request.
 type stoppingStarter struct{}
 
-func (stoppingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *QualitySummary)) (ExecutionEngine, error) {
+func (stoppingStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, RunResult)) (ExecutionEngine, error) {
 	return &stoppedEngine{id: id, onComplete: onComplete}, nil
 }
 
 type stoppedEngine struct {
 	id         string
-	onComplete func(string, string, *QualitySummary)
+	onComplete func(string, RunResult)
 }
 
-func (e *stoppedEngine) Start() { e.onComplete(e.id, "stopped", nil) }
+func (e *stoppedEngine) Start() { e.onComplete(e.id, RunResult{Status: "stopped"}) }
 func (e *stoppedEngine) Stop()  {}
 
 func TestService_StoppedScenarioCanBeExecutedAgain(t *testing.T) {
@@ -358,15 +358,15 @@ type summaryStarter struct{ runs *int }
 type summaryEngine struct {
 	id         string
 	run        int
-	onComplete func(string, string, *QualitySummary)
+	onComplete func(string, RunResult)
 }
 
 func (e *summaryEngine) Start() {
-	e.onComplete(e.id, "completed", &QualitySummary{ScenarioID: e.id, Bots: e.run})
+	e.onComplete(e.id, RunResult{Status: "completed", Quality: &QualitySummary{ScenarioID: e.id, Bots: e.run}})
 }
 func (e *summaryEngine) Stop() {}
 
-func (s summaryStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *QualitySummary)) (ExecutionEngine, error) {
+func (s summaryStarter) StartExecution(id string, _ TestPlan, _ platform.PlatformAdapter, onComplete func(string, RunResult)) (ExecutionEngine, error) {
 	*s.runs++
 	return &summaryEngine{id: id, run: *s.runs, onComplete: onComplete}, nil
 }

@@ -54,6 +54,7 @@ type AudioQuality struct {
 	periodConceal uint64
 
 	latency LatencyBuckets
+	lookups uint64 // Packets looked up in sendTimes
 }
 
 // AudioQualitySnapshot is a point-in-time copy of an AudioQuality, in
@@ -65,7 +66,8 @@ type AudioQualitySnapshot struct {
 	PeriodConcealed uint64
 	PeriodExpected  uint64
 
-	Latency LatencyBuckets // Send-to-receive time of the packets found in the send times
+	Latency        LatencyBuckets // Send-to-receive time of the packets found in the send times
+	LatencyLookups uint64         // Packets looked up in the send times, found or not
 }
 
 // NewAudioQuality creates the measures of a stream with the given RTP clock
@@ -89,6 +91,7 @@ func (q *AudioQuality) measureLatency(ts uint32, arrival time.Time) {
 	if q.sendTimes == nil {
 		return
 	}
+	q.lookups++
 	if at, ok := q.sendTimes.Lookup(ts); ok {
 		if d := arrival.Sub(at); d >= 0 {
 			q.latency.Add(d)
@@ -222,6 +225,7 @@ func (q *AudioQuality) Snapshot(resetPeriod bool) AudioQualitySnapshot {
 		PeriodConcealed: q.periodConceal,
 		PeriodExpected:  e - q.periodBase,
 		Latency:         q.latency,
+		LatencyLookups:  q.lookups,
 	}
 	if resetPeriod {
 		q.periodBase = e

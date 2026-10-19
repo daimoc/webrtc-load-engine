@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,7 +18,8 @@ import (
 	"webrtc-load-engine/src/api/handlers"
 	"webrtc-load-engine/src/execution"
 	"webrtc-load-engine/src/platform"
-	"webrtc-load-engine/src/platform/jitsi"
+	"webrtc-load-engine/src/platform/catalog"
+	"webrtc-load-engine/src/report"
 	"webrtc-load-engine/src/scenario"
 )
 
@@ -64,37 +66,67 @@ func init() {
 	prometheus.MustRegister(scenarioExecutionRequestsTotal) // Register new metric
 }
 
-// MainEngineStarter is an implementation of scenario.ExecutionStarter.
+// MainEngineStarter is an implementation of scenario.ExecutionStarter. It
+// also implements scenario.PlatformCatalog over the built-in platforms.
 type MainEngineStarter struct {
-	logger *slog.Logger
+	logger  *slog.Logger
+	catalog *catalog.Catalog
 }
+
+var _ scenario.PlatformCatalog = (*MainEngineStarter)(nil)
 
 // NewMainEngineStarter creates a new MainEngineStarter.
 func NewMainEngineStarter(logger *slog.Logger) *MainEngineStarter {
-	return &MainEngineStarter{logger: logger}
+	return &MainEngineStarter{logger: logger, catalog: catalog.New(logger)}
 }
 
-// StartExecution creates and returns a new execution.Engine.
-// When no adapter is supplied, a Jitsi adapter is built from testPlan.PlatformConfig.
-// TODO: select the adapter from the scenario's Platform once more adapters exist.
-func (es *MainEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID, status string, quality *scenario.QualitySummary)) (scenario.ExecutionEngine, error) {
+// StartExecution creates and returns a new execution.Engine. The service
+// passes the adapter its catalog built for the scenario's platform; when no
+// adapter is supplied, a Jitsi adapter is built from testPlan.PlatformConfig.
+func (es *MainEngineStarter) StartExecution(scenarioID string, testPlan scenario.TestPlan, adapter platform.PlatformAdapter, onComplete func(scenarioID string, r scenario.RunResult)) (scenario.ExecutionEngine, error) {
 	if adapter == nil {
-		jitsiAdapter := jitsi.NewAdapter(es.logger)
-		if err := jitsiAdapter.ParseConfig(testPlan.PlatformConfig); err != nil {
+		a, err := es.catalog.NewAdapter("jitsi", testPlan)
+		if err != nil {
 			return nil, fmt.Errorf("invalid platform_config: %w", err)
 		}
-		adapter = jitsiAdapter
+		adapter = a
 	}
 	return execution.NewEngine(scenarioID, testPlan, adapter, es.logger, onComplete), nil
 }
 
+// Platforms implements scenario.PlatformCatalog.
+func (es *MainEngineStarter) Platforms() []string { return es.catalog.Platforms() }
+
+// ValidateTestPlan implements scenario.PlatformCatalog.
+func (es *MainEngineStarter) ValidateTestPlan(name string, tp scenario.TestPlan) error {
+	return es.catalog.ValidateTestPlan(name, tp)
+}
+
+// SecretKeys implements scenario.PlatformCatalog.
+func (es *MainEngineStarter) SecretKeys(name string) []string { return es.catalog.SecretKeys(name) }
+
+// NewAdapter implements scenario.PlatformCatalog.
+func (es *MainEngineStarter) NewAdapter(name string, tp scenario.TestPlan) (platform.PlatformAdapter, error) {
+	return es.catalog.NewAdapter(name, tp)
+}
+
 func main() {
+	reportsFlag := flag.String("reports-dir", "", "Folder of the run reports (default $"+report.EnvDir+", else ./reports)")
+	flag.Parse()
+
 	// Initialize structured logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
 	engineStarter := NewMainEngineStarter(logger)
 	scenarioService := scenario.NewService(logger, engineStarter) // Pass starter to service
+	reportsDir, err := report.ResolveDir(*reportsFlag)
+	if err != nil {
+		logger.Error("Cannot resolve the reports folder", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	scenarioService.SetReporter(report.Writer{Dir: reportsDir, Logger: logger})
+	logger.Info("Run reports folder", slog.String("dir", reportsDir))
 
 	// Create HandlerMetrics instance
 	handlerMetrics := handlers.NewHandlerMetrics(

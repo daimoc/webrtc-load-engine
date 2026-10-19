@@ -220,6 +220,9 @@ func TestVideoQuality_Latency(t *testing.T) {
 	if s.Latency.N != 10 {
 		t.Fatalf("latency samples %d, want 10", s.Latency.N)
 	}
+	if s.LatencyLookups != 12 {
+		t.Errorf("latency lookups %d, want 12 (every frame, found or not)", s.LatencyLookups)
+	}
 	if q, _ := s.Latency.Quantile(0.5); q != 40500*time.Microsecond {
 		t.Fatalf("median %s, want 40.5ms", q)
 	}

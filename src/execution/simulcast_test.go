@@ -231,7 +231,7 @@ func TestEngine_RequestedHeights(t *testing.T) {
 		Simulcast:        &scenario.SimulcastConfig{MaxHeight: 360},
 		RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 0.5}, {Height: 90, Share: 0.5}},
 	}}
-	e := NewEngine("heights", plan, nil, quietLogger, func(string, string, *scenario.QualitySummary) {})
+	e := NewEngine("heights", plan, nil, quietLogger, func(string, scenario.RunResult) {})
 	var got []int
 	for i := 0; i < 4; i++ {
 		m := e.peerMedia(i)

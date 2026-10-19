@@ -24,7 +24,7 @@ func (n noOpLogger) WithGroup(string) slog.Handler           { return n }
 func TestMainEngineStarter_RejectsMissingPlatformConfig(t *testing.T) {
 	starter := NewMainEngineStarter(slog.New(noOpLogger{}))
 
-	engine, err := starter.StartExecution("s1", scenario.TestPlan{Participants: 1, DurationSeconds: 1}, nil, func(string, string, *scenario.QualitySummary) {})
+	engine, err := starter.StartExecution("s1", scenario.TestPlan{Participants: 1, DurationSeconds: 1}, nil, func(string, scenario.RunResult) {})
 	if err == nil {
 		t.Fatal("expected an error when platform_config is missing, got nil")
 	}
@@ -41,7 +41,7 @@ func TestMainEngineStarter_ConfiguresJitsiAdapterFromPlatformConfig(t *testing.T
 		PlatformConfig:  map[string]any{"xmpp_domain": "meet.example.org", "room_name": "load1"},
 	}
 
-	engine, err := starter.StartExecution("s1", tp, nil, func(string, string, *scenario.QualitySummary) {})
+	engine, err := starter.StartExecution("s1", tp, nil, func(string, scenario.RunResult) {})
 	if err != nil {
 		t.Fatalf("expected engine to start with valid platform_config, got %v", err)
 	}
@@ -55,15 +55,15 @@ type qualityStarter struct{}
 
 type qualityEngine struct {
 	id         string
-	onComplete func(string, string, *scenario.QualitySummary)
+	onComplete func(string, scenario.RunResult)
 }
 
 func (e *qualityEngine) Start() {
-	e.onComplete(e.id, "completed", &scenario.QualitySummary{ScenarioID: e.id, Bots: 3})
+	e.onComplete(e.id, scenario.RunResult{Status: "completed", Quality: &scenario.QualitySummary{ScenarioID: e.id, Bots: 3}})
 }
 func (e *qualityEngine) Stop() {}
 
-func (qualityStarter) StartExecution(id string, _ scenario.TestPlan, _ platform.PlatformAdapter, onComplete func(string, string, *scenario.QualitySummary)) (scenario.ExecutionEngine, error) {
+func (qualityStarter) StartExecution(id string, _ scenario.TestPlan, _ platform.PlatformAdapter, onComplete func(string, scenario.RunResult)) (scenario.ExecutionEngine, error) {
 	return &qualityEngine{id: id, onComplete: onComplete}, nil
 }
 

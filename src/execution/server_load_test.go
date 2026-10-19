@@ -56,7 +56,8 @@ func runServerLoadScenario(t *testing.T, monitoring *scenario.ServerMonitoringCo
 	var status string
 	var summary *scenario.QualitySummary
 	engine := NewEngine("engine-load-"+uuid.NewString(), plan, &MockPlatformAdapter{t: t}, quietLogger,
-		func(_, s string, q *scenario.QualitySummary) {
+		func(_ string, r scenario.RunResult) {
+			s, q := r.Status, r.Quality
 			status, summary = s, q
 			close(done)
 		})

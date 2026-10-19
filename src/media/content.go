@@ -47,6 +47,9 @@ type Content struct {
 	Codec        webrtc.RTPCodecCapability
 	Frames       []Frame
 	LoopDuration time.Duration
+	// Width and Height are the video's size from its IVF header (0 for
+	// audio).
+	Width, Height int
 }
 
 var (
@@ -178,8 +181,10 @@ func parseIVF(data []byte) (*Content, error) {
 	toDuration := func(units uint64) time.Duration { return time.Duration(units * num * uint64(time.Second) / den) }
 	toTicks := func(units uint64) uint32 { return uint32(units * num * videoClockRate / den) }
 	c := &Content{
-		Kind:  KindVideo,
-		Codec: webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: videoClockRate},
+		Kind:   KindVideo,
+		Codec:  webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: videoClockRate},
+		Width:  int(header.Width),
+		Height: int(header.Height),
 	}
 	var timestamps []uint64
 	for {

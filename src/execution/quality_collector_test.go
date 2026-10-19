@@ -16,6 +16,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"webrtc-load-engine/src/media"
+	"webrtc-load-engine/src/scenario"
 )
 
 // histogram returns the sample count and sum of a histogram series.
@@ -270,5 +271,43 @@ func TestMediaCollector_Latency(t *testing.T) {
 	w := s.Worst.HighestLatencyP95Seconds
 	if len(w) != 3 || w[0].PeerID != "bot-2" || !near(w[0].Value, 0.0355) {
 		t.Errorf("highest latency p95: %+v", w)
+	}
+}
+
+// latency_reason (008 research R11): why latency is missing for a kind
+// that was received.
+func TestMediaCollector_LatencyReason(t *testing.T) {
+	now := time.Unix(1000, 0)
+	c := newMediaCollector("latency-reason-"+uuid.NewString(), 10*time.Second, quietLogger)
+	c.collect(now, []mediaPeer{&fakeMediaPeer{id: "bot-0", state: PeerStateEstablished, snap: map[string]KindMediaSnapshot{
+		// Video frames looked up, none found: the server changed their timestamps.
+		"video": {Packets: 10, Offered: 1, Streams: 1, LastReceived: now, Video: []media.VideoQualitySnapshot{{
+			Frames: 60, Height: 360, PeriodIntervals: 59, PeriodSpan: 2 * time.Second, LatencyLookups: 60,
+		}}},
+		"audio": {Packets: 10, Offered: 1, Streams: 1, LastReceived: now, Audio: []media.AudioQualitySnapshot{{
+			Frame: 20 * time.Millisecond, Expected: 100, PeriodExpected: 100, Latency: latencyOf(10*time.Millisecond, 100), LatencyLookups: 100,
+		}}},
+	}}})
+	s := c.summary(now)
+	if s.Video.LatencyAvailable || s.Video.LatencyReason != scenario.LatencyFrameNotIdentified {
+		t.Errorf("video: available %v, reason %q, want %q", s.Video.LatencyAvailable, s.Video.LatencyReason, scenario.LatencyFrameNotIdentified)
+	}
+	if !s.Audio.LatencyAvailable || s.Audio.LatencyReason != "" {
+		t.Errorf("audio: available %v, reason %q, want available without reason", s.Audio.LatencyAvailable, s.Audio.LatencyReason)
+	}
+
+	// No send times (nothing looked up): not measured.
+	s = summaryCollector(t, 2).summary(now)
+	if s.Video.LatencyReason != scenario.LatencyNotMeasured || s.Audio.LatencyReason != scenario.LatencyNotMeasured {
+		t.Errorf("reasons without send times: video %q, audio %q, want %q", s.Video.LatencyReason, s.Audio.LatencyReason, scenario.LatencyNotMeasured)
+	}
+
+	// A kind nobody received has its own reason, and no latency reason.
+	a := newMediaCollector("latency-reason-audio-"+uuid.NewString(), 10*time.Second, quietLogger)
+	a.collect(now, []mediaPeer{&fakeMediaPeer{id: "a", state: PeerStateEstablished, snap: map[string]KindMediaSnapshot{
+		"audio": {Packets: 10, Offered: 1, Streams: 1, LastReceived: now, Audio: []media.AudioQualitySnapshot{{Frame: 20 * time.Millisecond, Expected: 100, PeriodExpected: 100}}},
+	}}})
+	if r := a.summary(now).Video.LatencyReason; r != "" {
+		t.Errorf("video not received: latency reason %q, want none", r)
 	}
 }

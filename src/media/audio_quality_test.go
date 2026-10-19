@@ -147,6 +147,9 @@ func TestAudioQuality_Latency(t *testing.T) {
 	if s.Latency.N != 19 {
 		t.Fatalf("latency samples %d, want 19", s.Latency.N)
 	}
+	if s.LatencyLookups != 20 {
+		t.Errorf("latency lookups %d, want 20 (every packet once, found or not)", s.LatencyLookups)
+	}
 	if q, _ := s.Latency.Quantile(0.5); q != 30500*time.Microsecond {
 		t.Fatalf("median %s, want 30.5ms", q)
 	}

@@ -47,6 +47,7 @@ type VideoQuality struct {
 	lastRequest  time.Time
 
 	latency LatencyBuckets
+	lookups uint64 // Frames looked up in sendTimes
 }
 
 // VideoQualitySnapshot is a point-in-time copy of a VideoQuality. Counters
@@ -63,7 +64,8 @@ type VideoQualitySnapshot struct {
 	PeriodIntervals int           // Frame intervals that ended in the period
 	PeriodSpan      time.Duration // Their total duration
 
-	Latency LatencyBuckets // Send-to-receive time of the frames found in the send times
+	Latency        LatencyBuckets // Send-to-receive time of the frames found in the send times
+	LatencyLookups uint64         // Frames looked up in the send times, found or not
 }
 
 // FrameRate returns the period's frames per second, or 0 without an
@@ -164,6 +166,7 @@ func (q *VideoQuality) newFrame(ts uint32, info vp8Info, arrival time.Time) {
 	q.lastTS = ts
 	q.lastFrame = arrival
 	if q.sendTimes != nil {
+		q.lookups++
 		if at, ok := q.sendTimes.Lookup(ts); ok {
 			if d := arrival.Sub(at); d >= 0 {
 				q.latency.Add(d)
@@ -218,6 +221,7 @@ func (q *VideoQuality) Snapshot(resetPeriod bool) VideoQualitySnapshot {
 		LastFrame:       q.lastFrame,
 		PeriodIntervals: q.periodIntervals,
 		Latency:         q.latency,
+		LatencyLookups:  q.lookups,
 	}
 	for h, d := range q.heightTime {
 		s.HeightTime[h] = d

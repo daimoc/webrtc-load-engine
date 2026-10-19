@@ -116,3 +116,17 @@ func TestQualitySummary_ServerLoadJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestKindQuality_LatencyReasonJSON(t *testing.T) {
+	raw, err := json.Marshal(KindQuality{Available: true, Bots: 1, LatencyReason: LatencyFrameNotIdentified})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"latency_reason":"frame_not_identified"`) {
+		t.Errorf("JSON %s has no latency_reason", raw)
+	}
+	raw, _ = json.Marshal(KindQuality{Available: true, LatencyAvailable: true})
+	if strings.Contains(string(raw), "latency_reason") {
+		t.Errorf("JSON %s has latency_reason without a reason", raw)
+	}
+}

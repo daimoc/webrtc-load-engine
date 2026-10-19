@@ -23,7 +23,21 @@ type KindQuality struct {
 	// was measured.
 	Latency          *Percentiles `json:"latency_seconds,omitempty"`
 	LatencyAvailable bool         `json:"latency_available"`
+	// LatencyReason says why latency is missing for a kind that was
+	// received (008 research R11); empty otherwise.
+	LatencyReason string `json:"latency_reason,omitempty"`
 }
+
+// Reasons latency is missing for a received kind.
+const (
+	// LatencyFrameNotIdentified: frames were looked up in the scenario's
+	// send times and none was found (the server changed what identifies a
+	// frame, e.g. rewrote its RTP timestamp).
+	LatencyFrameNotIdentified = "frame_not_identified"
+	// LatencyNotMeasured: no send times for the media received (e.g. media
+	// from another machine only).
+	LatencyNotMeasured = "not_measured"
+)
 
 // VideoQuality is the video part of the summary.
 type VideoQuality struct {

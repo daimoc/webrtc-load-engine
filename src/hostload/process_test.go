@@ -6,24 +6,35 @@ import (
 	"time"
 )
 
+// The counter advances with CPU work, in nanoseconds. Busy work is timed by
+// the counter itself, not by the wall clock: on a loaded machine (the whole
+// suite in parallel) a 50 ms wall-clock loop gets less than 50 ms of CPU.
 func TestProcessSample_CPU(t *testing.T) {
 	before, _, err := processSample()
 	if err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(50 * time.Millisecond)
+	start := time.Now()
 	x := 0
-	for time.Now().Before(deadline) {
-		x++
+	for {
+		for i := 0; i < 1e5; i++ {
+			x++
+		}
+		now, _, err := processSample()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if time.Duration(now-before) >= 50*time.Millisecond {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			t.Fatalf("CPU counter advanced %v in 5 s of busy work (x=%d)", time.Duration(now-before), x)
+		}
 	}
-	after, _, err := processSample()
-	if err != nil {
-		t.Fatal(err)
-	}
-	used := time.Duration(after - before)
-	// The busy loop's 50 ms, plus whatever the test runtime does meanwhile.
-	if used < 40*time.Millisecond || used > 500*time.Millisecond {
-		t.Errorf("CPU time over a 50 ms busy loop: %v (x=%d)", used, x)
+	// 50 ms of CPU take at least 50 ms divided by the threads that ran:
+	// a counter in the wrong unit would be off by 1000.
+	if wall := time.Since(start); wall < 50*time.Millisecond/time.Duration(runtime.NumCPU()) {
+		t.Errorf("50 ms of CPU counted in %v of wall time", wall)
 	}
 }
 

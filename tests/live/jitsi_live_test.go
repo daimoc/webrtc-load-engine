@@ -124,7 +124,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	noBridgeChannel := os.Getenv("JITSI_NO_BRIDGE_CHANNEL") != ""
 	adapter := jitsi.NewAdapter(logger)
-	if err := adapter.ParseConfig(map[string]interface{}{
+	config := map[string]any{
 		"xmpp_domain":       domain,
 		"muc_domain":        mucDomain,
 		"room_name":         room,
@@ -132,7 +132,8 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		"connect_timeout":   "20s",
 		"debug":             os.Getenv("JITSI_LOG_XMPP") != "",
 		"no_bridge_channel": noBridgeChannel,
-	}); err != nil {
+	}
+	if err := adapter.ParseConfig(config); err != nil {
 		t.Fatalf("ParseConfig: %v", err)
 	}
 
@@ -155,10 +156,10 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	plan := sc.TestPlan
 	kinds := plan.Media.Kinds()
 	done := make(chan string, 1)
-	var quality *scenario.QualitySummary
-	engine := execution.NewEngine(scenarioID, plan, adapter, logger, func(_, status string, q *scenario.QualitySummary) {
-		quality = q
-		done <- status
+	var result scenario.RunResult
+	engine := execution.NewEngine(scenarioID, plan, adapter, logger, func(_ string, r scenario.RunResult) {
+		result = r
+		done <- r.Status
 	})
 	// checkQuality is set once the run's expectations are known; it checks
 	// the quality summary after the run.
@@ -170,7 +171,8 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		if status := <-done; status != "stopped" {
 			t.Errorf("expected the run to end stopped, got %s", status)
 		}
-		checkQuality(quality)
+		writeReport(t, sc, scenarioID, config, result)
+		checkQuality(result.Quality)
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)
 		}

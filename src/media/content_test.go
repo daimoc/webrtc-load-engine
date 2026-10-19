@@ -25,6 +25,9 @@ func TestContent_Video(t *testing.T) {
 	if c.Frames[1].Samples != 3000 {
 		t.Fatalf("expected 3000 RTP ticks per frame at 30 fps, got %d", c.Frames[1].Samples)
 	}
+	if c.Width != 640 || c.Height != 360 {
+		t.Fatalf("expected 640×360 from the IVF header, got %d×%d", c.Width, c.Height)
+	}
 }
 
 func TestContent_Audio(t *testing.T) {

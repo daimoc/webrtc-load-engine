@@ -329,3 +329,23 @@ func BenchmarkTick_Docker(b *testing.B) {
 		b.Fatalf("not every container measured: %+v", server.Containers)
 	}
 }
+
+// A tick in flight when the run ends has its requests cancelled: it is
+// neither a sample nor a missed interval (the end-of-run tick follows).
+// Found by TestEngine_ServerLoad, whose 2 s run with a 1 s interval ends
+// as a tick starts about half the time.
+func TestSampler_TickCancelledByRunEnd(t *testing.T) {
+	fake := newFakeDocker(t, func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // Answers only after the run ended
+	})
+	s, _ := newTestSampler(t, fake, []string{"jvb"}, nil)
+	s.start()
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(20*time.Millisecond, cancel)
+	s.tick(ctx)
+	s.finish()
+	c := s.Summary().Containers[0]
+	if c.Samples != 0 || c.Missed != 0 {
+		t.Errorf("cancelled tick counted: %d samples, %d missed", c.Samples, c.Missed)
+	}
+}

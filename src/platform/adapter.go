@@ -64,6 +64,33 @@ type SignalingHandler interface {
 	// OnSignalingLost reports that the signaling connection was lost after
 	// Connect returned (server gone, kicked from the room, keepalive timeout).
 	OnSignalingLost(err error)
+
+	// The publish session, for platforms that receive the peer's media on a
+	// session the peer offers, separate from the one the platform offers
+	// for the media the peer receives (see PublishSessionAdapter). With it,
+	// the session OnOffer answers carries no local track.
+
+	// CreatePublishOffer creates the publish session's offer: one sendonly
+	// section per local track. Candidates gathered before it returns are in
+	// the SDP; later ones go to trickle. Fails if the peer was not built
+	// with a publish session, or sends nothing.
+	CreatePublishOffer(trickle TrickleFunc) (string, error)
+	// ApplyPublishAnswer applies the remote answer to the publish offer.
+	ApplyPublishAnswer(sdp string) error
+	// OnPublishICECandidate applies a remote candidate for the publish
+	// session. Candidates received before the answer are buffered.
+	OnPublishICECandidate(mid, candidate string) error
+	// LocalVideoSize returns the width and height of the video the peer
+	// sends (0, 0 without video).
+	LocalVideoSize() (width, height int)
+}
+
+// PublishSessionAdapter is implemented by adapters whose platform receives
+// the peer's media on a session the peer offers, separate from the session
+// the platform offers for the media the peer receives. The engine checks it
+// once per scenario and builds its peers accordingly.
+type PublishSessionAdapter interface {
+	PublishSession() bool
 }
 
 // PlatformAdapter defines the interface for a platform-specific signaling client.

@@ -47,6 +47,7 @@ type botQuality struct {
 	freezeLog []streamFreezeLog
 
 	latency map[string]*media.LatencyBuckets // By kind, over the bot's streams
+	lookups map[string]uint64                // By kind: frames looked up in the send times, found or not
 }
 
 // streamFreezeLog rate-limits the freeze logs of one received video stream.
@@ -58,7 +59,7 @@ type streamFreezeLog struct {
 func (c *mediaCollector) bot(peerID string) *botQuality {
 	b := c.bots[peerID]
 	if b == nil {
-		b = &botQuality{heightTime: map[int]time.Duration{}, latency: map[string]*media.LatencyBuckets{}}
+		b = &botQuality{heightTime: map[int]time.Duration{}, latency: map[string]*media.LatencyBuckets{}, lookups: map[string]uint64{}}
 		c.bots[peerID] = b
 	}
 	return b
@@ -97,8 +98,10 @@ func (c *mediaCollector) collectVideo(peerID string, b *botQuality, k KindMediaS
 	var freezeTime time.Duration
 	heightTime := map[int]time.Duration{}
 	var latency media.LatencyBuckets
+	var lookups uint64
 	for i, s := range k.Video {
 		latency.Merge(&s.Latency)
+		lookups += s.LatencyLookups
 		freezes += s.Freezes
 		switches += s.Switches
 		freezeTime += s.FreezeTime
@@ -119,6 +122,7 @@ func (c *mediaCollector) collectVideo(peerID string, b *botQuality, k KindMediaS
 	if latency.N > 0 {
 		b.latency[media.KindVideo] = &latency
 	}
+	b.lookups[media.KindVideo] = lookups
 	addCount(media.Freezes.WithLabelValues(id), &b.freezes, freezes)
 	addCount(media.ResolutionSwitches.WithLabelValues(id), &b.switches, switches)
 	if freezeTime > b.freezeTime {
@@ -162,8 +166,10 @@ func (c *mediaCollector) collectAudio(b *botQuality, k KindMediaSnapshot) {
 	id := c.scenarioID
 	var concealed, expected time.Duration
 	var latency media.LatencyBuckets
+	var lookups uint64
 	for _, s := range k.Audio {
 		latency.Merge(&s.Latency)
+		lookups += s.LatencyLookups
 		concealed += time.Duration(s.Concealed) * s.Frame
 		expected += time.Duration(s.Expected) * s.Frame
 		if s.PeriodExpected == 0 {
@@ -184,6 +190,7 @@ func (c *mediaCollector) collectAudio(b *botQuality, k KindMediaSnapshot) {
 	if latency.N > 0 {
 		b.latency[media.KindAudio] = &latency
 	}
+	b.lookups[media.KindAudio] = lookups
 	if concealed > b.concealed {
 		media.AudioConcealedSeconds.WithLabelValues(id).Add((concealed - b.concealed).Seconds())
 		b.concealed = concealed
@@ -297,6 +304,18 @@ func (c *mediaCollector) summary(now time.Time) *scenario.QualitySummary {
 	}
 	if l := latencies[media.KindAudio]; len(l) > 0 {
 		s.Audio.Latency, s.Audio.LatencyAvailable = percentiles(l), true
+	}
+	for kind, kq := range map[string]*scenario.KindQuality{media.KindVideo: &s.Video.KindQuality, media.KindAudio: &s.Audio.KindQuality} {
+		if !kq.Available || kq.LatencyAvailable {
+			continue
+		}
+		kq.LatencyReason = scenario.LatencyNotMeasured
+		for _, b := range c.bots {
+			if b.lookups[kind] > 0 {
+				kq.LatencyReason = scenario.LatencyFrameNotIdentified
+				break
+			}
+		}
 	}
 	s.Worst.HighestLatencyP95Seconds = worst(latencyBots, true)
 	s.Worst.LowestMOS = worst(mosBots, false)

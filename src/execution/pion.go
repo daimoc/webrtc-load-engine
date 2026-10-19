@@ -36,7 +36,10 @@ var settingEngineHook func(*webrtc.SettingEngine)
 //     filling a 1 MB buffer each: the media server may send more streams than
 //     the peer receives (receive cap, its own sources);
 //   - Pion's logs go to the peer's structured logger.
-func newPeerConnection(p *Peer) (*webrtc.PeerConnection, error) {
+//
+// The publish session (publish true, 008 research R4) receives no media:
+// it has neither the receive gate nor transport-wide feedback.
+func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 	m := &webrtc.MediaEngine{}
 	if err := m.RegisterDefaultCodecs(); err != nil {
 		return nil, err
@@ -51,15 +54,24 @@ func newPeerConnection(p *Peer) (*webrtc.PeerConnection, error) {
 	if err := webrtc.ConfigureRTCPReports(registry); err != nil {
 		return nil, err
 	}
-	for _, kind := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {
-		m.RegisterFeedback(webrtc.RTCPFeedback{Type: webrtc.TypeRTCPFBTransportCC}, kind)
-		if err := m.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: sdp.TransportCCURI}, kind); err != nil {
-			return nil, err
+	if !publish {
+		for _, kind := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {
+			m.RegisterFeedback(webrtc.RTCPFeedback{Type: webrtc.TypeRTCPFBTransportCC}, kind)
+			if err := m.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: sdp.TransportCCURI}, kind); err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	var se webrtc.SettingEngine
 	se.LoggerFactory = slogLoggerFactory{p.logger}
+	if publish {
+		if settingEngineHook != nil {
+			settingEngineHook(&se)
+		}
+		api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithInterceptorRegistry(registry), webrtc.WithSettingEngine(se))
+		return api.NewPeerConnection(webrtc.Configuration{})
+	}
 	se.BufferFactory = func(packetType packetio.BufferPacketType, ssrc uint32) io.ReadWriteCloser {
 		limit := rtpBufferLimit
 		if packetType == packetio.RTCPBufferPacket {

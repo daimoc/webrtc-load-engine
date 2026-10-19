@@ -1,0 +1,50 @@
+# JSON report file: reports/<base>.json (feature 009, research R3/R4).
+# OpenAPI 3.0 schema style, as the other contracts of this repository.
+RunReport:
+  type: object
+  required: [format_version, run_id, scenario, test_plan, started_at, ended_at, duration_seconds, outcome, engine, quality]
+  properties:
+    format_version:
+      type: integer
+      enum: [1]
+    run_id:
+      type: string
+      pattern: '^[0-9a-f]{8}$'
+      description: New for each run; part of the file name.
+    scenario:
+      type: object
+      required: [id, name, platform]
+      properties:
+        id: {type: string, example: scenario-6d0c1e2a-...}
+        name: {type: string, description: Exactly as given, not slugged.}
+        platform: {type: string, enum: [jitsi, livekit]}
+    test_plan:
+      description: >
+        The scenario's test plan (specs/001, 004, 006, 007 contracts), with
+        the platform's secret platform_config keys replaced by "[redacted]"
+        (Jitsi: jwt_app_secret, jwt; LiveKit: api_secret, token).
+      type: object
+    started_at: {type: string, format: date-time, description: UTC}
+    ended_at: {type: string, format: date-time, description: UTC}
+    duration_seconds: {type: number}
+    outcome:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [completed, stopped, failed]}
+        error: {type: string, description: Set when status is failed.}
+    engine:
+      type: object
+      required: [version, go_version]
+      properties:
+        version: {type: string, example: b8d2eb3c1a2f+dirty, description: 'vcs revision, module version, or "devel"'}
+        go_version: {type: string, example: go1.27.2}
+    quality:
+      nullable: true
+      description: >
+        The quality summary exactly as GET /api/v1/scenarios/{id}/quality
+        returns it (specs/006-media-quality/contracts/quality-summary.yaml,
+        server and load_machine sections from
+        specs/007-server-load-report/contracts/server-load-summary.yaml);
+        null when the run failed before measuring started.
+      $ref: '../../006-media-quality/contracts/quality-summary.yaml#/components/schemas/QualitySummary'

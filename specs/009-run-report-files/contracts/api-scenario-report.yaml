@@ -1,0 +1,46 @@
+# GET /api/v1/scenarios/{id}: the answer gains `report` (feature 009, FR-013).
+# Fields already served (id, status) are unchanged. The quality endpoint
+# (GET /api/v1/scenarios/{id}/quality) is unchanged (FR-014).
+ScenarioResponse:
+  type: object
+  required: [id, status]
+  properties:
+    id: {type: string}
+    status: {type: string, enum: [created, running, completed, stopped, failed]}
+    report:
+      description: >
+        Report files of the scenario's last run. Absent before the first run
+        ends, while a run is running, and for the short time between the end
+        of a run and the end of its write.
+      $ref: '#/ReportFiles'
+
+ReportFiles:
+  type: object
+  required: [run_id, json, markdown]
+  properties:
+    run_id: {type: string, pattern: '^[0-9a-f]{8}$'}
+    json: {$ref: '#/ReportFile'}
+    markdown: {$ref: '#/ReportFile'}
+
+ReportFile:
+  type: object
+  description: Exactly one of path and error is set.
+  properties:
+    path: {type: string, description: Absolute path of the written file.}
+    error: {type: string, description: Why the file was not written.}
+
+examples:
+  written:
+    id: scenario-6d0c1e2a-0f1b-4c3d-9e8f-123456789abc
+    status: completed
+    report:
+      run_id: 3f9a1c2e
+      json: {path: /home/op/webrtc-load-engine/reports/20261018T153012Z-jitsi-ten-bots-3f9a1c2e.json}
+      markdown: {path: /home/op/webrtc-load-engine/reports/20261018T153012Z-jitsi-ten-bots-3f9a1c2e.md}
+  not_written:
+    id: scenario-6d0c1e2a-0f1b-4c3d-9e8f-123456789abc
+    status: completed
+    report:
+      run_id: 3f9a1c2e
+      json: {error: "mkdir /readonly/reports: permission denied"}
+      markdown: {error: "mkdir /readonly/reports: permission denied"}
