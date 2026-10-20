@@ -18,7 +18,7 @@ the engine's session); Jitsi from `tests/platforms/docker-jitsi-meet`
 | SC-005: unwritable folder, same outcome and time, API says why | **Met** | CLI: `completed`, one WARN per file, 10.34 s vs 10.01 s (T024); API: `TestRunReportNotWritten`; service: `TestService_ReportFailureKeepsStatus` |
 | SC-006: no secret in any report | **Met (unit)** | `TestWriteNoSecrets` (Jitsi `jwt_app_secret`, `jwt`; LiveKit `api_secret`, `token`; both files). Not run against a token-auth Jitsi: none runs locally |
 | SC-007: run judged from the Markdown in 1 minute | **Met** | Key-figures table first (T021 excerpt below) |
-| SC-008: 100-bot run, no more CPU during the run, reports within 2 s | **Partly met** | Reports in 23 ms. CPU: engine 3.17 cores, server 4.94 threads on average, against 1.43 and 2.28 in 008's run on 2026-10-17. See below |
+| SC-008: 100-bot run, no more CPU during the run, reports within 2 s | **Met** | Reports in 23 ms. CPU: A/B run of 2026-10-19, engine 3.25 cores with 009 against 3.19–3.20 without, same machine state; the doubling against 008 is the machine's state, not 009. See "A/B run" below |
 
 ## 10 bots on Jitsi, key figures (T021)
 
@@ -63,6 +63,38 @@ at 16–17 during the run on 16 threads; the LiveKit container had been up 5
 hours and a 10-bot Jitsi load had just stopped). It is not proven: a same-day
 A/B run against a build without 009 would settle it. Until then, SC-008's
 CPU part is open.
+
+### A/B run (2026-10-19)
+
+008 and 009 were committed together (`9ccf33b`), so no commit has 008
+without 009. The "no 009" build is `9ccf33b` with the report files off
+(`writeReport` returns at once) and the frame and packet lookup counters
+(`q.lookups++` in `src/media`) removed: the only work 009 adds during a run.
+Same plan as T027 (100 bots `audio_video`, cap 10, ramp-up 20 s, 10 min
+hold, `LIVEKIT_SERVER_CONTAINERS=livekit-server`), LiveKit restarted before
+each run, Jitsi stopped, machine rebooted 8 min before the first run. Runs
+alternate:
+
+| Run | Build | Engine (`/usr/bin/time`) | Engine `load_machine` avg | Server avg / peak | MOS p50 | Freezes |
+|---|---|---|---|---|---|---|
+| 1 | no 009 | 3.20 cores | 3.198 | 4.91 / 5.35 | 4.366 | 0 |
+| 2 | 009 | 3.25 cores | 3.253 | 5.05 / 5.62 | 4.366 | 0 |
+| 3 | no 009 | 3.19 cores | 3.186 | 4.92 / 5.37 | 4.365 | 0 |
+| 4 | 009 | 1.02 cores | 1.019 | 1.57 / 2.15 | 4.367 | 0 |
+
+All four passed (100 bots established in 20.4–21.2 s, max RSS 1.18–1.20 GiB).
+Run 2 used 0.06 core (2%) more than runs 1 and 3, and its server, which 009
+does not change, 0.13 thread more: run-to-run noise. **SC-008's CPU part is
+met.**
+
+Run 4 used a third of the CPU of the others, the engine and the server
+alike, with the same quality: the cinnamon screensaver locked the
+screen at 22:58:34, 35 s before it started; runs 1–3 ran with the desktop
+on. The CPU of this machine for the same load therefore changes threefold
+with its state (desktop session, frequency), which explains 008's 1.43 cores
+and 009's 3.17. It is a correlation, not proven. Load figures from this
+laptop are comparable only between runs taken in the same state: compare
+platforms on alternated runs, as here.
 
 ## Deviations from the plan
 
