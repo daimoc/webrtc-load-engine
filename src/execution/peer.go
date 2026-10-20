@@ -184,7 +184,9 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 		return nil, fmt.Errorf("failed to create peer connection: %w", err)
 	}
 	p.pc = pc
-	if m.PublishSession {
+	// A receive-only peer has nothing to publish: a publish session would
+	// never connect and keep it from being established (010 T016).
+	if m.PublishSession && len(m.Kinds) > 0 {
 		pub, err := newPeerConnection(p, true)
 		if err != nil {
 			pc.Close()

@@ -13,6 +13,7 @@ import (
 	"webrtc-load-engine/src/platform"
 	"webrtc-load-engine/src/platform/jitsi"
 	"webrtc-load-engine/src/platform/livekit"
+	"webrtc-load-engine/src/platform/mediasoup"
 	"webrtc-load-engine/src/scenario"
 )
 
@@ -41,7 +42,7 @@ func New(logger *slog.Logger) *Catalog {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Catalog{logger: logger, entries: []Entry{jitsiEntry(), livekitEntry()}}
+	return &Catalog{logger: logger, entries: []Entry{jitsiEntry(), livekitEntry(), mediasoupEntry()}}
 }
 
 // jitsiEntry keeps Jitsi's behaviour: its config is parsed when the run
@@ -73,6 +74,23 @@ func livekitEntry() Entry {
 				return nil, err
 			}
 			return livekit.NewAdapter(logger, cfg), nil
+		},
+	}
+}
+
+// mediasoupEntry checks mediasoup-demo plans at creation (010 FR-002,
+// FR-008).
+func mediasoupEntry() Entry {
+	return Entry{
+		Name:       "mediasoup",
+		Validate:   mediasoup.Validate,
+		SecretKeys: []string{"unlimited_room_secret"},
+		NewAdapter: func(logger *slog.Logger, config map[string]any) (platform.PlatformAdapter, error) {
+			cfg, err := mediasoup.ParseConfig(config)
+			if err != nil {
+				return nil, err
+			}
+			return mediasoup.NewAdapter(logger, cfg), nil
 		},
 	}
 }

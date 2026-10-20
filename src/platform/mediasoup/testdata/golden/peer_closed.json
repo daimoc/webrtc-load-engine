@@ -1,0 +1,7 @@
+{
+  "data": {
+    "peerId": "peerB"
+  },
+  "method": "peerClosed",
+  "notification": true
+}

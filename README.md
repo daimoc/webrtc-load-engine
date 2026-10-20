@@ -176,6 +176,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 006 Media quality | Quality of what each bot receives (frame rate, freezes, resolution, audio gaps, estimated MOS), end‑to‑end latency between bots, end‑of‑run quality summary; simulcast (three layers, each bot asks for its height) |
 | 007 Server load report | CPU and memory of the media server's local Docker containers and of the engine itself, sampled during the run, in the end‑of‑run summary and as Prometheus series |
 | 008 LiveKit | LiveKit adapter: the same test plan runs against a LiveKit server (`"platform": "livekit"`), with the same quality and server‑load report; a pinned local LiveKit in `tests/platforms/livekit` |
+| 010 mediasoup-demo | mediasoup-demo adapter (`"platform": "mediasoup"`): the demo web client's protoo signaling, SDP built from mediasoup's parameters, the same report; bots send RFC 7675 consent checks like browsers; a pinned local server built from the demo's commit in `tests/platforms/mediasoup` |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -198,7 +199,7 @@ Details: `specs/005-bridge-channel-subscriptions/validation-report.md`,
 
 Not done yet:
 
-* adapters for other platforms (mediasoup-demo is next, then Janus); simulcast and requested heights on LiveKit,
+* adapters for other platforms (Janus); simulcast and requested heights on LiveKit and mediasoup,
 * SVC, and simulcast at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
 * load distribution across several agents,
 * bandwidth limits and network instability,
@@ -377,6 +378,48 @@ repository's for live tests), or `--reports-dir` (`go run ./src`,
 never changes the run: it is logged and shown in the scenario's answer,
 `GET /api/v1/scenarios/{id}` → `"report": {"run_id", "json": {"path" |
 "error"}, "markdown": {...}}`.
+
+**mediasoup-demo (010).** `"platform": "mediasoup"` with a `platform_config`
+of `url` (e.g. `ws://localhost:4443`) and `room`, and optionally:
+- `origin`: the demo refuses a WebSocket whose `Origin` doesn't match its
+  domain; the default is `http(s)://<url host>`;
+- `insecure_tls`: for `wss://` with a self-signed certificate;
+- `unlimited_room_secret`: the server's secret for rooms without the demo's
+  10-minute limit; redacted;
+- `use_pipe_transports`: the room on two workers instead of one.
+
+The details are in `specs/010-mediasoup-platform/contracts/mediasoup-config.yaml`.
+Simulcast and requested heights are rejected on mediasoup in this version.
+
+The bots speak the demo web client's protoo protocol. mediasoup has no SDP:
+the adapter builds each bot's receive offer and publish answer from the
+server's ICE, DTLS and RTP parameters, as `mediasoup-client` does. The
+receive cap uses the demo's paused consumers: a bot accepts `newConsumer` up
+to `max_received_streams` per kind, declines the rest, and resumes the
+earliest waiting one when an accepted one closes.
+
+The demo closes a transport after 20 s without an ICE consent check. All
+bots, on every platform, now send one every 5 s (RFC 7675), as browsers do.
+The quality summary and report have the same fields as on LiveKit. mediasoup
+keeps the senders' timestamps, so audio and video latency are both
+measured.
+
+```bash
+cd tests/platforms/mediasoup && cp env.example .env && docker compose up -d --build && cd -
+MEDIASOUP_URL=ws://localhost:4443 MEDIASOUP_ROOM=load010 MEDIASOUP_PARTICIPANTS=10 \
+MEDIASOUP_SERVER_CONTAINERS=mediasoup-demo go test -tags live -count=1 -v -run Mediasoup ./tests/live/
+```
+
+10 bots `audio_video` for 60 s on the local server (mediasoup 3.30.1, 2
+workers): 0 freezes, 30 fps, MOS p50 4.37, latency p50 0.5 ms audio and
+2.5 ms video, server 0.21 threads, engine 0.54 threads.
+
+At 100 bots with a cap of 10, the demo does not hold on this laptop, where
+LiveKit does. It puts a room on one worker, one thread, which saturates: its
+single UDP port drops packets and some bots lose ICE consent. With
+`use_pipe_transports` (two workers), the bots hold their transports, but
+audio degrades (MOS 2.99)
+(`specs/010-mediasoup-platform/validation-report.md`).
 
 ---
 

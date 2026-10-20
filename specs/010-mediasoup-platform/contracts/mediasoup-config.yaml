@@ -1,0 +1,68 @@
+# platform_config for platform "mediasoup" (FR-001, FR-002, FR-008; research R9, R10)
+# Validated when the scenario is created; any error is a 400 with the message below.
+
+type: object
+additionalProperties: false   # "platform_config: unknown key %q for platform mediasoup"
+required: [url, room]
+properties:
+  url:
+    type: string
+    description: >
+      mediasoup-demo server base URL: ws://, wss://, http:// or https://
+      (http(s) is turned into ws(s)), without query. The adapter appends
+      ?roomId=…&peerId=… itself. Example: ws://localhost:4443.
+    errors:
+      missing: "platform_config.url is required"
+      invalid: "platform_config.url must be a ws://, wss://, http:// or https:// URL without query, got %q"
+  room:
+    type: string
+    minLength: 1
+    description: Room all bots join (roomId); created by the first join.
+    errors:
+      missing: "platform_config.room is required"
+  origin:
+    type: string
+    description: >
+      Origin header sent on the WebSocket handshake. The demo rejects (403) an
+      Origin whose scheme or hostname differs from its configured domain.
+      Default: http://<url host> for ws://, https://<url host> for wss://.
+    errors:
+      invalid: "platform_config.origin must be an http:// or https:// URL, got %q"
+  insecure_tls:
+    type: boolean
+    default: false
+    description: Do not check the server's TLS certificate (wss:// with a self-signed certificate).
+    errors:
+      invalid: "platform_config.insecure_tls must be a boolean"
+  unlimited_room_secret:
+    type: string
+    writeOnly: true
+    description: >
+      The server's UNLIMITED_ROOM_SECRET, sent as unlimitedRoomSecret so the
+      room has no 10-minute limit. Not needed when the server sets none (the
+      local setup). Never logged; "[redacted]" in API answers and report files.
+  use_pipe_transports:
+    type: boolean
+    default: false
+    description: >
+      Sent as usePipeTransports=true: the room uses two routers on two
+      workers (producers and consumers). Needs a server with at least 2
+      workers, else the join fails with the server's reason.
+    errors:
+      invalid: "platform_config.use_pipe_transports must be a boolean"
+
+# Creation-time rules on the rest of the test plan for platform mediasoup (FR-008)
+media_rules:
+  simulcast: "media.simulcast is not supported on platform mediasoup"
+  requested_heights: "media.requested_heights is not supported on platform mediasoup"
+
+# Catalog entry
+catalog:
+  name: mediasoup
+  secret_keys: [unlimited_room_secret]
+
+example:
+  platform: mediasoup
+  platform_config:
+    url: ws://localhost:4443
+    room: load010

@@ -1,0 +1,87 @@
+{
+  "data": {
+    "appData": {
+      "peerId": "peerB",
+      "source": "mic"
+    },
+    "consumerId": "07622e69-ac4a-4c82-8481-79ac8fb6330c",
+    "consumerScore": {
+      "producerScore": 0,
+      "producerScores": [
+        0
+      ],
+      "score": 10
+    },
+    "kind": "audio",
+    "peerId": "peerB",
+    "producerId": "93057a8f-1c70-439e-8c1e-db45495f9b3e",
+    "producerPaused": false,
+    "rtpParameters": {
+      "codecs": [
+        {
+          "channels": 2,
+          "clockRate": 48000,
+          "mimeType": "audio/opus",
+          "parameters": {
+            "minptime": 10,
+            "useinbandfec": 1
+          },
+          "payloadType": 100,
+          "rtcpFeedback": [
+            {
+              "parameter": "",
+              "type": "nack"
+            }
+          ]
+        }
+      ],
+      "encodings": [
+        {
+          "ssrc": 651695965
+        }
+      ],
+      "headerExtensions": [
+        {
+          "encrypt": false,
+          "id": 1,
+          "parameters": {},
+          "uri": "urn:ietf:params:rtp-hdrext:sdes:mid"
+        },
+        {
+          "encrypt": false,
+          "id": 4,
+          "parameters": {},
+          "uri": "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time"
+        },
+        {
+          "encrypt": false,
+          "id": 6,
+          "parameters": {},
+          "uri": "urn:ietf:params:rtp-hdrext:ssrc-audio-level"
+        },
+        {
+          "encrypt": false,
+          "id": 10,
+          "parameters": {},
+          "uri": "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"
+        },
+        {
+          "encrypt": false,
+          "id": 11,
+          "parameters": {},
+          "uri": "urn:mediasoup:params:rtp-hdrext:packet-id"
+        }
+      ],
+      "mid": "0",
+      "rtcp": {
+        "cname": "probe",
+        "reducedSize": true
+      }
+    },
+    "transportId": "5a4e7dc2-9867-4917-8b7d-9233efa941cd",
+    "type": "simple"
+  },
+  "id": 7474020,
+  "method": "newConsumer",
+  "request": true
+}

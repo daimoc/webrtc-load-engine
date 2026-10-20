@@ -1,0 +1,71 @@
+{
+  "data": {
+    "dtlsParameters": {
+      "fingerprints": [
+        {
+          "algorithm": "sha-1",
+          "value": "42:D8:3C:DC:CF:7C:A5:2F:58:5E:5C:9A:E3:BD:CE:B1:0C:E0:C9:69"
+        },
+        {
+          "algorithm": "sha-224",
+          "value": "7E:BA:01:79:02:66:EB:15:98:63:47:4B:C4:70:DE:A5:2E:4D:2C:F6:B0:6B:40:88:76:6E:7B:C4"
+        },
+        {
+          "algorithm": "sha-256",
+          "value": "EB:AE:F8:FA:3D:3B:CC:FE:D4:7F:FA:6B:BB:FC:95:CB:C9:E4:76:6C:37:D3:E2:03:E5:35:4B:D4:CC:AC:0A:BD"
+        },
+        {
+          "algorithm": "sha-384",
+          "value": "33:69:41:D5:14:57:CD:35:F0:AA:33:BE:BE:B1:CF:67:4C:F1:CC:34:EA:B7:CD:65:43:E8:5F:03:86:75:C4:69:00:60:C0:34:6C:F0:38:79:93:4D:6A:D5:3C:9A:4E:B1"
+        },
+        {
+          "algorithm": "sha-512",
+          "value": "9D:ED:49:AD:A2:28:2E:96:7A:10:7E:01:DC:F9:02:58:81:E3:34:4F:44:3A:F7:2A:E1:B8:76:11:1C:78:40:B6:29:5E:1A:76:83:7E:33:23:70:CB:C0:FB:43:D2:08:21:7B:05:BE:E9:09:F4:73:A3:85:75:3A:87:6E:65:DA:5D"
+        }
+      ],
+      "role": "auto"
+    },
+    "iceCandidates": [
+      {
+        "address": "127.0.0.1",
+        "foundation": "udpcandidate",
+        "ip": "127.0.0.1",
+        "port": 44444,
+        "priority": 1076302079,
+        "protocol": "udp",
+        "type": "host"
+      },
+      {
+        "address": "127.0.0.1",
+        "foundation": "tcpcandidate",
+        "ip": "127.0.0.1",
+        "port": 44444,
+        "priority": 1076276479,
+        "protocol": "tcp",
+        "tcpType": "passive",
+        "type": "host"
+      }
+    ],
+    "iceParameters": {
+      "iceLite": true,
+      "password": "m6k59oj4n27o10xqoz93yq8hdmiqrzgv",
+      "usernameFragment": "kasxoor7z12vtd2qfrv2i4jo4h4eup7z"
+    },
+    "sctpParameters": {
+      "MIS": 65535,
+      "OS": 65535,
+      "isDataChannel": true,
+      "maxMessageSize": 5000000,
+      "maxReceiveMessageSize": 5000000,
+      "maxReceiverWindowBufferSize": 7000000,
+      "maxSendMessageSize": 5000000,
+      "perStreamSendQueueLimit": 5000000,
+      "port": 5000,
+      "sendBufferSize": 7000000
+    },
+    "transportId": "5a4e7dc2-9867-4917-8b7d-9233efa941cd"
+  },
+  "id": 102,
+  "ok": true,
+  "response": true
+}

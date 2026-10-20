@@ -1,0 +1,6 @@
+{
+  "errorCode": 500,
+  "errorReason": "Peer already joined",
+  "id": 104,
+  "response": true
+}

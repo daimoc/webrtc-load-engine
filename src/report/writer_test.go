@@ -198,10 +198,11 @@ func TestWriteJSONFailureKeepsMarkdown(t *testing.T) {
 // No secret of a test plan reaches a report file (SC-006).
 func TestWriteNoSecrets(t *testing.T) {
 	dir := t.TempDir()
-	keys := map[string][]string{"jitsi": {"jwt_app_secret", "jwt"}, "livekit": {"api_secret", "token"}}
+	keys := map[string][]string{"jitsi": {"jwt_app_secret", "jwt"}, "livekit": {"api_secret", "token"}, "mediasoup": {"unlimited_room_secret"}}
 	for platform, config := range map[string]map[string]any{
-		"jitsi":   {"xmpp_domain": "meet.jitsi", "jwt_app_id": "app", "jwt_app_secret": "s3cr3t-009", "jwt": "tok-009"},
-		"livekit": {"url": "ws://localhost:7880", "api_key": "devkey", "api_secret": "s3cr3t-lk", "token": "tok-lk"},
+		"jitsi":     {"xmpp_domain": "meet.jitsi", "jwt_app_id": "app", "jwt_app_secret": "s3cr3t-009", "jwt": "tok-009"},
+		"livekit":   {"url": "ws://localhost:7880", "api_key": "devkey", "api_secret": "s3cr3t-lk", "token": "tok-lk"},
+		"mediasoup": {"url": "ws://localhost:4443", "room": "load010", "unlimited_room_secret": "s3cr3t-ms"},
 	} {
 		sc := testScenario()
 		sc.Platform = platform
@@ -209,12 +210,12 @@ func TestWriteNoSecrets(t *testing.T) {
 		Writer{Dir: dir}.WriteReport(sc, testResult())
 	}
 	entries, _ := os.ReadDir(dir)
-	if len(entries) != 4 {
-		t.Fatalf("%d files, want 4", len(entries))
+	if len(entries) != 6 {
+		t.Fatalf("%d files, want 6", len(entries))
 	}
 	for _, e := range entries {
 		raw, _ := os.ReadFile(filepath.Join(dir, e.Name()))
-		for _, secret := range []string{"s3cr3t-009", "tok-009", "s3cr3t-lk", "tok-lk"} {
+		for _, secret := range []string{"s3cr3t-009", "tok-009", "s3cr3t-lk", "tok-lk", "s3cr3t-ms"} {
 			if bytes.Contains(raw, []byte(secret)) {
 				t.Errorf("%s contains %q", e.Name(), secret)
 			}

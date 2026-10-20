@@ -1,0 +1,15 @@
+# Local mediasoup-demo server for 010 (specs/010-mediasoup-platform/research.md R11).
+# Settings come from .env (copy env.example; .env is not committed).
+services:
+  mediasoup:
+    build: .
+    image: webrtc-load-engine/mediasoup-demo:899109e
+    container_name: mediasoup-demo
+    network_mode: host
+    env_file: .env
+    environment:
+      DEBUG: "mediasoup-demo-server:INFO* mediasoup-demo-server:WARN* mediasoup-demo-server:ERROR* mediasoup:WARN* mediasoup:ERROR*"
+    volumes:
+      - ./config.mjs:/demo/server/config.mjs:ro
+      - ./certs:/certs:ro # Optional TLS certificate (see README)
+    restart: unless-stopped

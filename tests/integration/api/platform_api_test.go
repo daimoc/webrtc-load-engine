@@ -125,3 +125,47 @@ func TestLiveKitCreationRules(t *testing.T) {
 		t.Errorf("GET answer contains the secret: %s", body)
 	}
 }
+
+func TestMediasoupCreationRules(t *testing.T) {
+	ts := newPlatformServer(t)
+	cfg := func(change map[string]any) map[string]any {
+		m := map[string]any{"url": "ws://localhost:4443", "room": "load010", "unlimited_room_secret": "ms-secret-value"}
+		for k, v := range change {
+			if v == nil {
+				delete(m, k)
+			} else {
+				m[k] = v
+			}
+		}
+		return m
+	}
+	plan := func(c map[string]any, m *scenario.MediaConfig) scenario.TestPlan {
+		return scenario.TestPlan{Participants: 2, DurationSeconds: 10, PlatformConfig: c, Media: m}
+	}
+	for _, tt := range []struct {
+		name string
+		plan scenario.TestPlan
+		msg  string
+	}{
+		{"missing room", plan(cfg(map[string]any{"room": nil}), nil), "platform_config.room is required"},
+		{"bad url", plan(cfg(map[string]any{"url": "ftp://x"}), nil), `platform_config.url must be a ws://, wss://, http:// or https:// URL without query, got "ftp://x"`},
+		{"unknown key", plan(cfg(map[string]any{"api_key": "k"}), nil), `platform_config: unknown key "api_key" for platform mediasoup`},
+		{"insecure_tls not bool", plan(cfg(map[string]any{"insecure_tls": "yes"}), nil), "platform_config.insecure_tls must be a boolean"},
+		{"simulcast", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}}), "media.simulcast is not supported on platform mediasoup"},
+		{"requested heights", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}}), "media.requested_heights is not supported on platform mediasoup"},
+	} {
+		status, out := create(t, ts, handlers.ScenarioRequest{Name: tt.name, Platform: "mediasoup", TestPlan: tt.plan})
+		if status != http.StatusBadRequest || out["error"] != tt.msg {
+			t.Errorf("%s: %d %v, want 400 %q", tt.name, status, out, tt.msg)
+		}
+	}
+
+	status, out := create(t, ts, handlers.ScenarioRequest{Name: "ok", Platform: "mediasoup", TestPlan: plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, MaxReceivedStreams: 10})})
+	if status != http.StatusCreated {
+		t.Fatalf("valid mediasoup plan: %d %v", status, out)
+	}
+	body := getBody(t, ts, out["id"].(string))
+	if strings.Contains(body, "ms-secret-value") {
+		t.Errorf("GET answer contains the secret: %s", body)
+	}
+}

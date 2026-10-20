@@ -1,0 +1,7 @@
+{
+  "data": {
+    "consumerId": "07622e69-ac4a-4c82-8481-79ac8fb6330c"
+  },
+  "method": "consumerClosed",
+  "notification": true
+}

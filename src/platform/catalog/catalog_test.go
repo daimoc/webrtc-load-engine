@@ -4,8 +4,10 @@ import (
 	"slices"
 	"testing"
 
+	"webrtc-load-engine/src/platform"
 	"webrtc-load-engine/src/platform/jitsi"
 	"webrtc-load-engine/src/platform/livekit"
+	"webrtc-load-engine/src/platform/mediasoup"
 	"webrtc-load-engine/src/scenario"
 )
 
@@ -48,7 +50,7 @@ func TestCatalog_UnknownPlatform(t *testing.T) {
 
 func TestCatalog_LiveKit(t *testing.T) {
 	c := New(nil)
-	if !slices.Equal(c.Platforms(), []string{"jitsi", "livekit"}) {
+	if !slices.Contains(c.Platforms(), "livekit") {
 		t.Fatalf("Platforms() = %v", c.Platforms())
 	}
 	cfg := map[string]any{"url": "ws://localhost:7880", "room": "r", "api_key": "k", "api_secret": "s"}
@@ -67,5 +69,41 @@ func TestCatalog_LiveKit(t *testing.T) {
 	}
 	if _, ok := a.(*livekit.Adapter); !ok {
 		t.Errorf("NewAdapter(livekit) = %T", a)
+	}
+}
+
+func TestCatalog_Mediasoup(t *testing.T) {
+	c := New(nil)
+	if !slices.Equal(c.Platforms(), []string{"jitsi", "livekit", "mediasoup"}) {
+		t.Fatalf("Platforms() = %v", c.Platforms())
+	}
+	cfg := map[string]any{"url": "ws://localhost:4443", "room": "load010", "unlimited_room_secret": "s"}
+	if err := c.ValidateTestPlan("mediasoup", scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, MaxReceivedStreams: 10}}); err != nil {
+		t.Errorf("valid mediasoup plan: %v", err)
+	}
+	for _, tc := range []struct {
+		tp   scenario.TestPlan
+		want string
+	}{
+		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Simulcast: &scenario.SimulcastConfig{}}}, "media.simulcast is not supported on platform mediasoup"},
+		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{RequestedHeights: []scenario.RequestedHeight{{Height: 180, Share: 1}}}}, "media.requested_heights is not supported on platform mediasoup"},
+		{scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://localhost:4443"}}, "platform_config.room is required"},
+	} {
+		if err := c.ValidateTestPlan("mediasoup", tc.tp); err == nil || err.Error() != tc.want {
+			t.Errorf("ValidateTestPlan = %v, want %q", err, tc.want)
+		}
+	}
+	if got := c.SecretKeys("mediasoup"); !slices.Equal(got, []string{"unlimited_room_secret"}) {
+		t.Errorf("SecretKeys(mediasoup) = %v", got)
+	}
+	a, err := c.NewAdapter("mediasoup", scenario.TestPlan{PlatformConfig: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := a.(*mediasoup.Adapter); !ok {
+		t.Errorf("NewAdapter(mediasoup) = %T", a)
+	}
+	if ps, ok := a.(platform.PublishSessionAdapter); !ok || !ps.PublishSession() {
+		t.Error("the mediasoup adapter does not use a publish session")
 	}
 }

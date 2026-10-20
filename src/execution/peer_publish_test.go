@@ -263,3 +263,26 @@ func TestPeer_PublishOfferNeedsPublishSession(t *testing.T) {
 		t.Error("CreatePublishOffer of a receive-only peer returned no error")
 	}
 }
+
+// TestPeer_ReceiveOnlyHasNoPublishSession checks that a receive-only peer
+// of a publish-session platform opens no publish session (010 T016): one
+// that never connects would keep the peer from being established.
+func TestPeer_ReceiveOnlyHasNoPublishSession(t *testing.T) {
+	p, err := NewPeer("peer-recv", uuid.NewString(), PeerMedia{PublishSession: true}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if p.pub != nil {
+		t.Fatal("a receive-only peer has a publish session")
+	}
+	if _, err := p.CreatePublishOffer(func(string, string) {}); err == nil {
+		t.Error("CreatePublishOffer of a receive-only peer returned no error")
+	}
+	// The answered session alone makes it established.
+	p.transition(PeerStateConnecting)
+	p.onTransportState(webrtc.PeerConnectionStateConnected, false)
+	if p.State() != PeerStateEstablished {
+		t.Errorf("state = %s, want established", p.State())
+	}
+}

@@ -1,0 +1,19 @@
+{
+  "data": {
+    "appData": {
+      "channel": "bot"
+    },
+    "dataConsumerId": "90943aba-f18c-489d-a786-79c11ea8d03a",
+    "dataProducerId": "df705b61-58b6-42c1-a045-2ee308054c26",
+    "label": "bot",
+    "protocol": "",
+    "sctpStreamParameters": {
+      "ordered": true,
+      "streamId": 0
+    },
+    "transportId": "5a4e7dc2-9867-4917-8b7d-9233efa941cd"
+  },
+  "id": 3921458,
+  "method": "newDataConsumer",
+  "request": true
+}

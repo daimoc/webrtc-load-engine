@@ -1,0 +1,7 @@
+{
+  "data": {
+    "version": "3.30.1"
+  },
+  "method": "mediasoupVersion",
+  "notification": true
+}

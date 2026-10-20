@@ -35,7 +35,9 @@ var settingEngineHook func(*webrtc.SettingEngine)
 //     the peer's own (RTCP about them) are dropped as they arrive, instead of
 //     filling a 1 MB buffer each: the media server may send more streams than
 //     the peer receives (receive cap, its own sources);
-//   - Pion's logs go to the peer's structured logger.
+//   - Pion's logs go to the peer's structured logger;
+//   - the transport sends RFC 7675 consent checks while it is busy, as
+//     browsers do (consent.go).
 //
 // The publish session (publish true, 008 research R4) receives no media:
 // it has neither the receive gate nor transport-wide feedback.
@@ -65,12 +67,17 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 
 	var se webrtc.SettingEngine
 	se.LoggerFactory = slogLoggerFactory{p.logger}
+	c, err := newConsent(p.logger)
+	if err != nil {
+		return nil, err
+	}
+	se.SetNet(c.net) // A hook may replace it (virtual network): no consent checks then
 	if publish {
 		if settingEngineHook != nil {
 			settingEngineHook(&se)
 		}
 		api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithInterceptorRegistry(registry), webrtc.WithSettingEngine(se))
-		return api.NewPeerConnection(webrtc.Configuration{})
+		return c.start(api.NewPeerConnection(webrtc.Configuration{}))
 	}
 	se.BufferFactory = func(packetType packetio.BufferPacketType, ssrc uint32) io.ReadWriteCloser {
 		limit := rtpBufferLimit
@@ -85,7 +92,7 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 		settingEngineHook(&se)
 	}
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithInterceptorRegistry(registry), webrtc.WithSettingEngine(se))
-	return api.NewPeerConnection(webrtc.Configuration{})
+	return c.start(api.NewPeerConnection(webrtc.Configuration{}))
 }
 
 // gatedBuffer is an SRTP/SRTCP read buffer that drops what it is given while

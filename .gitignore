@@ -23,6 +23,9 @@ tests/platforms/docker-jitsi-meet/*
 !tests/platforms/docker-jitsi-meet/setup.sh
 !tests/platforms/docker-jitsi-meet/README.md
 tests/platforms/livekit/.env
+tests/platforms/mediasoup/.env
+tests/platforms/mediasoup/certs/*
+!tests/platforms/mediasoup/certs/.gitkeep
 
 # Run reports (009): two files per run
 /reports/

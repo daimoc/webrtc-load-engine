@@ -29,6 +29,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - Go 1.23.0 + `pion/webrtc/v3` (second PeerConnection: publish session the peer offers), `nhooyr.io/websocket`, `google.golang.org/protobuf/encoding/protowire` (hand-written LiveKit signaling codec; no LiveKit SDK/protocol module) (008-livekit-platform)
 - Go 1.23.0 (keep 1.23-compatible code) + standard library only (`encoding/json`, `os`, `path/filepath`, `runtime/debug`, `strings`); `google/uuid` (already used) for run IDs. No new module. (009-run-report-files)
 - files: two per run in the reports folder (`reports/` by default); the scenario keeps only the paths in memory (009-run-report-files)
+- Go 1.23.0 + `nhooyr.io/websocket` (protoo JSON, subprotocol `protoo`), `pion/sdp/v3` (SDP built from mediasoup's ICE/DTLS/RTP parameters, as mediasoup-client does), 008 publish session reused; no new module (010-mediasoup-platform)
 
 - (001-create-scenario-api)
 
@@ -51,6 +52,7 @@ go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 
 go run ./cmd/jitsi-connect --domain meet.example.org --room test --participants 2 --server-containers docker-jitsi-meet-jvb-1,docker-jitsi-meet-jicofo-1   # also sample the server containers' CPU/memory (prints server + load_machine at the end)
 set -a; . tests/platforms/livekit/.env; set +a; LIVEKIT_URL=ws://localhost:7880 LIVEKIT_ROOM=load008 LIVEKIT_PARTICIPANTS=10 go test -tags live -count=1 -v -run LiveKit ./tests/live/   # LiveKit live test (start tests/platforms/livekit first; variables at the top of tests/live/livekit_live_test.go)
 go run ./cmd/jitsi-connect --domain meet.jitsi --muc muc.meet.jitsi --ws ws://localhost:8000/xmpp-websocket --room test --participants 2 --reports-dir /tmp/r   # every run writes <time>-<platform>-<name>-<run>.json/.md to ./reports (or --reports-dir / $REPORTS_DIR)
+MEDIASOUP_URL=ws://localhost:4443 MEDIASOUP_ROOM=load010 MEDIASOUP_PARTICIPANTS=10 MEDIASOUP_SERVER_CONTAINERS=mediasoup-demo go test -tags live -count=1 -v -run Mediasoup ./tests/live/   # mediasoup-demo live test (start tests/platforms/mediasoup first; variables at the top of tests/live/mediasoup_live_test.go)
 JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room test --jwt-app-id my_app   # token-auth Jitsi: one signed JWT per bot (or --jwt / $JITSI_JWT for a ready-made token)
 ```
 
@@ -59,9 +61,9 @@ JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room
 : Follow standard conventions
 
 ## Recent Changes
+- 010-mediasoup-platform: mediasoup-demo adapter (`src/platform/mediasoup`), catalog entry, local server built from a pinned commit in `tests/platforms/mediasoup`; RFC 7675 consent checks on every PeerConnection (`src/execution/consent.go`); no publish session for receive-only peers
 - 009-run-report-files: JSON + Markdown report of every run in `reports/` (`src/report`), `RunResult` in the engine's completion callback, `report` in the scenario answer; no new module
 - 008-livekit-platform: LiveKit adapter (`src/platform/livekit`), publish session in `execution.Peer`, platform catalog (`src/platform/catalog`), local server in `tests/platforms/livekit`
-- 007-server-load-report: server containers' and engine's CPU/memory in the quality summary (`src/hostload`), no new module
 
 
 <!-- MANUAL ADDITIONS START -->
