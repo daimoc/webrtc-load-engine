@@ -19,7 +19,7 @@ screen state of each comparison is given.
 | Criterion | Result | Evidence |
 |---|---|---|
 | SC-001: same plan as Jitsi/LiveKit, 10 bots `audio_video` 1 min, 9 + 9 streams each, all leave within 10 s | **Met** | T016: 10 bots established in 406 ms, 9.0 audio and 9.0 video streams offered per bot, bots left in 1–4 ms. The plan differs from LiveKit's only in `platform` and `platform_config` |
-| SC-002: 100 bots, cap 10, 10 min, every bot connected the whole hold, engine CPU within noise of LiveKit's | **Not met** | T023: in the default mode the room's single worker saturates and its one UDP port drops packets, so about one bot per run loses ICE consent. With a 4 MiB socket buffer the drops stop, but the worker still saturates (2 bots lost, MOS 2.87). With pipe transports all bots hold, but audio degrades (MOS 2.99) with drops on the bots' sockets. See "100 bots" below |
+| SC-002: 100 bots, cap 10, 10 min, every bot connected the whole hold, engine CPU within noise of LiveKit's | **Not met** | T023: in the default mode the room's single worker saturates and its one UDP port drops packets, so about one bot per run loses ICE consent. With a 4 MiB socket buffer the drops stop, but the worker still saturates (2 bots lost, MOS 2.87). With pipe transports all bots hold, but audio degrades (MOS 2.99): mediasoup's own pipe socket between the two workers drops packets (T028). See "100 bots" below |
 | SC-003: 10 bots idle machine, no freezes, gaps < 1%, MOS p50 ≥ 4.0 | **Met** | 0 freezes, 0.00% audio concealed, MOS p50 4.37, 30 fps at 360 lines (`20261020T070507Z-mediasoup-live-mediasoup-838d3854`) |
 | SC-004: same fields as LiveKit and Jitsi | **Met** | T018: 93 report fields each. Differences: `platform_config` keys, and video latency, given by value on mediasoup and by `latency_reason` on LiveKit (FR-011). Identical `/metrics` series and labels (47) |
 | SC-005: 100% of bad plans rejected at creation | **Met** | `TestValidate`, `TestCatalog_Mediasoup`, `TestMediasoupCreationRules` (HTTP 400 with the contract's messages) |
@@ -76,8 +76,12 @@ What happens on mediasoup:
   audio concealed (p95), 7,792 freezes.
 - With `use_pipe_transports` (producers and consumers on two workers), all
   100 bots held their transport for 60 s with 0 video freezes. But audio
-  degraded (MOS 2.99, 14% concealed at p95), and the bots' own sockets
-  dropped 140,000 datagrams in 40 s.
+  degraded (MOS 2.99, 14% concealed at p95). About 3,000–4,000 datagrams/s
+  are dropped. T023 attributed them to the bots' sockets, which was wrong:
+  per socket (T028) they all fall on one root-owned socket, mediasoup's pipe
+  transport between its two workers, with its buffer full. The bots'
+  sockets drop nothing. Video recovers through NACK and RTX; audio has no
+  retransmission, so it shows the loss.
 
 **Conclusion**: on this laptop, mediasoup-demo cannot carry 100 bots
 `audio_video` with a cap of 10 in one room: its default mode saturates one
@@ -86,11 +90,28 @@ anticipated, not of the adapter. It is also the comparison result the user
 asked for: under the same load LiveKit holds (4.9 threads spread over the
 machine), and the demo's single-threaded room does not.
 
-The engine-side drops in pipe mode remain open. Possible next steps:
-- larger receive buffers on the engine's sockets (the consent wrapper
-  already opens them);
+Pipe mode's loss is inside mediasoup. The demo calls `pipeToRouter` without
+socket options, so its pipe socket keeps the kernel default
+(`net.core.rmem_default`, 208 KiB). No demo setting can change it. A larger
+host default (`sysctl net.core.rmem_default`, root) would raise it, but it
+would also change every other socket on the machine. Other next steps:
 - a 50-bot run to find where the demo saturates;
 - a run with the server on its own machine.
+
+### Larger receive buffers on the bots' sockets (T028)
+
+At the user's request, the engine was given a 4 MiB receive buffer for
+each of its UDP sockets, set where the consent wrapper opens them. The same
+100-bot pipe-mode run with and without it:
+
+| Build | Drops on the bots' 1,600 sockets | Drops on mediasoup's pipe socket | MOS p50 | Audio concealed p95 |
+|---|---|---|---|---|
+| Without (T023 binary) | 0 | 172,228 in 45 s | 3.02 | 14.0% |
+| With 4 MiB buffers | 0 | 172,996 in 45 s | 3.04 | 13.6% |
+
+No measurable effect: the bots' sockets did not overflow with the default
+buffer either. The change was therefore reverted; the engine keeps the
+kernel's default buffers.
 
 ## Implementation findings that changed the design
 

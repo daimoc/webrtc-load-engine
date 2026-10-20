@@ -334,7 +334,7 @@ description: "Task list for 010 mediasoup-demo platform"
     - `/proc/net/udp`: every drop is on mediasoup's port 44444, the one `WebRtcServer` socket that receives every bot of the room's worker: 3,000 at t+10 s, 119,000 at t+20 s, 420,000 at t+26 s. None on the bots' sockets.
     - The room's worker was at 20%, then 73%, then 90% of a core over the same times; the second worker was idle (one room = one worker, research R9). A transport is lost only when four checks in a row are dropped, hence about one bot per run.
     - **With a 4 MiB socket buffer** (`MEDIASOUP_SOCKET_BUFFER`, now in the setup): no drops on 44444. But the worker stays at ~90%, 2 bots were lost at 56 s, MOS 2.87, 53% audio concealed (p95), 22.7 fps, 7,792 freezes.
-    - **With the buffer and `use_pipe_transports`**: all 100 bots held their transport for 60 s, 10 + 10 streams offered per bot, 0 video freezes, 29.7 fps. But MOS was 2.99 and 14% of audio concealed (p95), and this time the *bots'* sockets dropped 140,000 datagrams in 40 s.
+    - **With the buffer and `use_pipe_transports`**: all 100 bots held their transport for 60 s, 10 + 10 streams offered per bot, 0 video freezes, 29.7 fps. But MOS was 2.99 and 14% of audio concealed (p95), with 140,000 datagrams dropped in 40 s outside port 44444. Attributed to the bots' sockets here, which was wrong; T028 found mediasoup's internal pipe socket.
 
     **SC-002 is not met for mediasoup-demo**: at 100 bots, cap 10, the demo's room cannot carry this load on this laptop. The default mode saturates its one worker; pipe mode still degrades audio, with drops on the engine side that this task did not resolve. The engine's CPU could not be compared, since no mediasoup run completed its 10 minutes. LiveKit's same-state runs are the reference above. Follow-ups are listed in validation-report.md.
 - [X] T024 [US3] Room time limit (quickstart step 8, research R9). Set `UNLIMITED_ROOM_SECRET=s` in `.env` and restart. Then:
@@ -381,6 +381,17 @@ description: "Task list for 010 mediasoup-demo platform"
     - **go.mod**: `pion/ice/v2 v2.3.38` and `pion/stun v0.6.1` move from indirect to direct; no new module;
     - **FR-009**: Jitsi 2-bot `audio_video` live run PASS (established in 2.2 s, 0 freezes); LiveKit 10-bot live run PASS (9 + 9 streams per bot, 0 freezes); a receive-only LiveKit bot alone is now established (202 ms), confirming the 008 fix.
 ---
+
+## Follow-up (2026-10-20)
+
+- [X] T028 Larger receive buffers on the bots' UDP sockets (user request after T023), in `src/execution/consent.go` (`socketReadBuffer`, 4 MiB, set when the consent wrapper opens a socket), tested by `TestConsentNet_ReadBuffer`.
+  - **Recorded 2026-10-20**, 100 bots, cap 10, `use_pipe_transports`, screen on:
+    - per-socket drops (`/proc/net/udp`, mapped to processes): the bots' 1,600 sockets dropped **0** datagrams with and without the change;
+    - all drops (~172,000 in 45 s) are on one root-owned socket: mediasoup's pipe transport between its two workers, with its buffer full;
+    - quality unchanged: MOS 3.02 → 3.04, audio concealed p95 14.0% → 13.6%.
+
+    No measurable effect; T023's "bots' sockets" attribution corrected in validation-report.md. The pipe socket keeps the kernel default because the demo's `pipeToRouter` passes no socket options.
+  - **Reverted** (user decision, 2026-10-20): no benefit measured, so the change and its test were removed (constitution: no feature "just in case").
 
 ## Dependencies & Execution Order
 
