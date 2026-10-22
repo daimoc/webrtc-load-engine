@@ -336,7 +336,7 @@ description: "Task list for 010 mediasoup-demo platform"
     - **With a 4 MiB socket buffer** (`MEDIASOUP_SOCKET_BUFFER`, now in the setup): no drops on 44444. But the worker stays at ~90%, 2 bots were lost at 56 s, MOS 2.87, 53% audio concealed (p95), 22.7 fps, 7,792 freezes.
     - **With the buffer and `use_pipe_transports`**: all 100 bots held their transport for 60 s, 10 + 10 streams offered per bot, 0 video freezes, 29.7 fps. But MOS was 2.99 and 14% of audio concealed (p95), with 140,000 datagrams dropped in 40 s outside port 44444. Attributed to the bots' sockets here, which was wrong; T028 found mediasoup's internal pipe socket.
 
-    **SC-002 is not met for mediasoup-demo**: at 100 bots, cap 10, the demo's room cannot carry this load on this laptop. The default mode saturates its one worker; pipe mode still degrades audio, with drops on the engine side that this task did not resolve. The engine's CPU could not be compared, since no mediasoup run completed its 10 minutes. LiveKit's same-state runs are the reference above. Follow-ups are listed in validation-report.md.
+    **SC-002 is not met for mediasoup-demo**: at 100 bots, cap 10, the demo's room cannot carry this load on this laptop. The default mode saturates its one worker; pipe mode still degrades audio, with drops on mediasoup's internal pipe socket (T028). The engine's CPU could not be compared, since no mediasoup run completed its 10 minutes. LiveKit's same-state runs are the reference above. Follow-ups are listed in validation-report.md.
 - [X] T024 [US3] Room time limit (quickstart step 8, research R9). Set `UNLIMITED_ROOM_SECRET=s` in `.env` and restart. Then:
   - a 2-bot run with an 11-minute hold and no secret: record when and how the bots are reported lost (state, reason in the log);
   - the same with `MEDIASOUP_UNLIMITED_ROOM_SECRET=s` in another room: it completes.
@@ -392,6 +392,8 @@ description: "Task list for 010 mediasoup-demo platform"
 
     No measurable effect; T023's "bots' sockets" attribution corrected in validation-report.md. The pipe socket keeps the kernel default because the demo's `pipeToRouter` passes no socket options.
   - **Reverted** (user decision, 2026-10-20): no benefit measured, so the change and its test were removed (constitution: no feature "just in case").
+
+- [X] T029 Three-server comparison at 50 bots (user request after T028): the same plan (50 bots `audio_video`, cap 10, ramp-up 10 s, 10 min hold) on Jitsi, LiveKit and mediasoup-demo, alternated twice, each server alone and started just before its run, screen unlocked throughout. All six runs passed; results and findings in validation-report.md "Three servers, 50 bots".
 
 ## Dependencies & Execution Order
 

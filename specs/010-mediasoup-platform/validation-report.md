@@ -95,8 +95,9 @@ socket options, so its pipe socket keeps the kernel default
 (`net.core.rmem_default`, 208 KiB). No demo setting can change it. A larger
 host default (`sysctl net.core.rmem_default`, root) would raise it, but it
 would also change every other socket on the machine. Other next steps:
-- a 50-bot run to find where the demo saturates;
-- a run with the server on its own machine.
+- a run with the server on its own machine;
+- a step between 50 bots (holds, T029) and 100 to find where the demo
+  saturates.
 
 ### Larger receive buffers on the bots' sockets (T028)
 
@@ -112,6 +113,55 @@ each of its UDP sockets, set where the consent wrapper opens them. The same
 No measurable effect: the bots' sockets did not overflow with the default
 buffer either. The change was therefore reverted; the engine keeps the
 kernel's default buffers.
+
+## Three servers, 50 bots (T029)
+
+The same plan on the three local servers, alternated twice (Jitsi,
+LiveKit, mediasoup, Jitsi, LiveKit, mediasoup) on 2026-10-20 from
+19:59 to 21:02 UTC:
+- 50 bots `audio_video`, cap 10, ramp-up 10 s (the 100-bot runs' 5 bots/s),
+  10 min hold;
+- each server alone, started just before its run, mediasoup in its default
+  mode (one worker for the room);
+- screen unlocked during all six runs (`loginctl` `LockedHint=no`).
+
+All six runs passed: 50/50 bots held their transport for the whole hold, 10
+audio and 10 video streams offered per bot.
+
+| | Jitsi | LiveKit | mediasoup-demo |
+|---|---|---|---|
+| MOS p50 | 4.37 / 4.37 | 4.37 / 4.37 | 4.37 / 4.37 |
+| Audio concealed p95 | 0.01% / 0.00% | 0.01% / 0.00% | 0.00% / 0.00% |
+| Frame rate p50 | 30.0 / 30.0 | 30.0 / 30.0 | 30.0 / 30.0 |
+| Video freezes over the run | 68 / 228 | 0 / 0 | 0 / 0 |
+| Latency p50, audio / video | 3.5 / 5.5 ms, 2.5 / 4.5 ms | 2.5 / 3.5 ms both | 2.5 / 5.5 ms both |
+| Server CPU threads, average / peak | 4.42 / 4.64, 4.49 / 4.69 | 2.64 / 4.04, 2.62 / 7.28 | 0.60 / 0.76, 0.60 / 0.77 |
+| Server memory peak | 2.35 / 2.31 GB | 0.57 / 0.58 GB | 0.48 / 0.48 GB |
+| Engine CPU threads, average | 1.67 / 1.69 | 1.74 / 1.75 | 1.15 / 1.14 |
+
+Pairs are run 1 / run 2. Server figures cover all the server's containers:
+jvb carries Jitsi's load (4.41 and 4.47 threads), jicofo and prosody
+0.01 each. Engine figures agree with `/usr/bin/time` (user + system over
+the elapsed time).
+
+Findings:
+- **Quality**: identical audio and frame rate on the three servers. Only
+  Jitsi froze video, mostly at start-up: run 1 had 44 of its 48 logged
+  freezes in the first minute; run 2 had 103 of 160 there, then a tail
+  that faded over the hold (24, 10, 11, 7, then 1–3 a minute). This is
+  the bridge's start-up behaviour of 006, larger in run 2.
+- **Server CPU**: for the same load, the mediasoup-demo room used 0.6
+  threads, LiveKit about 4x more and Jitsi's bridge about 7x more.
+  mediasoup's one worker at this load is well under a core, while it
+  saturated at 100 bots (T023). Its limit on this laptop is between 50 and
+  100 bots.
+- **Engine CPU** is a third lower against mediasoup (1.15 threads) than
+  against LiveKit or Jitsi (1.7), for the same streams received. Not
+  explained here; candidates are the RTCP and bandwidth probing each
+  server sends.
+
+Reports: `20261020T200913Z`, `T201949Z`, `T203025Z`, `T204111Z`,
+`T205146Z` and `T210212Z` in `reports/` (not committed).
 
 ## Implementation findings that changed the design
 
