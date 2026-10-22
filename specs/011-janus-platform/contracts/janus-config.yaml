@@ -1,0 +1,61 @@
+# platform_config for platform "janus" (FR-001, FR-002, FR-010; research R9)
+# Validated when the scenario is created; any error is a 400 with the message below.
+
+type: object
+additionalProperties: false   # "platform_config: unknown key %q for platform janus"
+required: [url, room]
+properties:
+  url:
+    type: string
+    description: >
+      Janus WebSocket transport URL: ws://, wss://, http:// or https://
+      (http(s) is turned into ws(s)), without query. Example: ws://localhost:8188.
+    errors:
+      missing: "platform_config.url is required"
+      invalid: "platform_config.url must be a ws://, wss://, http:// or https:// URL without query, got %q"
+  room:
+    oneOf: [{type: integer, minimum: 1}, {type: string, pattern: "^[1-9][0-9]*$"}]
+    description: >
+      Numeric VideoRoom ID all bots join. Created by the bots if missing, with
+      one publisher place per bot plus the dummy publisher (research R4).
+    errors:
+      missing: "platform_config.room is required"
+      invalid: "platform_config.room must be a positive integer, got %v"
+  insecure_tls:
+    type: boolean
+    default: false
+    description: Do not check the server's TLS certificate (wss:// with a self-signed certificate).
+    errors:
+      invalid: "platform_config.insecure_tls must be a boolean"
+  api_secret:
+    type: string
+    writeOnly: true
+    description: The server's api_secret (janus.jcfg), sent as apisecret on every request.
+  token:
+    type: string
+    writeOnly: true
+    description: A stored token (janus.jcfg token_auth), sent as token on every request.
+  pin:
+    type: string
+    writeOnly: true
+    description: The room's PIN, sent on join (and set on the room when the bots create it).
+  admin_key:
+    type: string
+    writeOnly: true
+    description: VideoRoom admin_key, sent on room create when the server requires one.
+
+# Creation-time rules on the rest of the test plan for platform janus (FR-010)
+media_rules:
+  simulcast: "media.simulcast is not supported on platform janus"
+  requested_heights: "media.requested_heights is not supported on platform janus"
+
+# Catalog entry
+catalog:
+  name: janus
+  secret_keys: [api_secret, token, pin, admin_key]
+
+example:
+  platform: janus
+  platform_config:
+    url: ws://localhost:8188
+    room: 1011

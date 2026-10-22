@@ -30,6 +30,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - Go 1.23.0 (keep 1.23-compatible code) + standard library only (`encoding/json`, `os`, `path/filepath`, `runtime/debug`, `strings`); `google/uuid` (already used) for run IDs. No new module. (009-run-report-files)
 - files: two per run in the reports folder (`reports/` by default); the scenario keeps only the paths in memory (009-run-report-files)
 - Go 1.23.0 + `nhooyr.io/websocket` (protoo JSON, subprotocol `protoo`), `pion/sdp/v3` (SDP built from mediasoup's ICE/DTLS/RTP parameters, as mediasoup-client does), 008 publish session reused; no new module (010-mediasoup-platform)
+- Go 1.23.0 + `nhooyr.io/websocket` (Janus JSON API, subprotocol `janus-protocol`), 008 publish session and 010 consent checks reused; Janus v1.4.3 VideoRoom (multistream, dummy publisher); no new module (011-janus-platform)
 
 - (001-create-scenario-api)
 
@@ -61,9 +62,9 @@ JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room
 : Follow standard conventions
 
 ## Recent Changes
+- 011-janus-platform (planned): Janus VideoRoom adapter (`src/platform/janus`), catalog entry, local server built from tag v1.4.3 in `tests/platforms/janus`, live test `tests/live/janus_live_test.go`
 - 010-mediasoup-platform: mediasoup-demo adapter (`src/platform/mediasoup`), catalog entry, local server built from a pinned commit in `tests/platforms/mediasoup`; RFC 7675 consent checks on every PeerConnection (`src/execution/consent.go`); no publish session for receive-only peers
 - 009-run-report-files: JSON + Markdown report of every run in `reports/` (`src/report`), `RunResult` in the engine's completion callback, `report` in the scenario answer; no new module
-- 008-livekit-platform: LiveKit adapter (`src/platform/livekit`), publish session in `execution.Peer`, platform catalog (`src/platform/catalog`), local server in `tests/platforms/livekit`
 
 
 <!-- MANUAL ADDITIONS START -->
