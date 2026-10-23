@@ -17,7 +17,7 @@ properties:
     oneOf: [{type: integer, minimum: 1}, {type: string, pattern: "^[1-9][0-9]*$"}]
     description: >
       Numeric VideoRoom ID all bots join. Created by the bots if missing, with
-      one publisher place per bot plus the dummy publisher (research R4).
+      one publisher place per bot, and the dummy publisher (research R4).
     errors:
       missing: "platform_config.room is required"
       invalid: "platform_config.room must be a positive integer, got %v"

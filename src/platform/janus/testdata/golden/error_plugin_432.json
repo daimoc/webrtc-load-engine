@@ -1,0 +1,14 @@
+{
+  "janus": "event",
+  "session_id": 3189339628904039,
+  "transaction": "t3373930894928200927",
+  "sender": 769652869101850,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "event",
+      "error_code": 432,
+      "error": "Maximum number of active publishers (1) already reached"
+    }
+  }
+}

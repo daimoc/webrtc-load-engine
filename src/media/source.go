@@ -146,11 +146,21 @@ func (s *Source) Unsubscribe(w TrackWriter) {
 	}
 }
 
+// initialRTPTimestamp is the RTP timestamp of a source's first frame. It is
+// not 0 (RFC 3550 5.1: the initial value should not be predictable) so that
+// a server which rebases forwarded timestamps from 0, as Janus does, never
+// yields timestamps of recently sent frames, which would give the latency
+// measure wrong values (011 research R8). It is below 2^31 because Jitsi's
+// bridge keeps a video stream's timestamps only when they are newer than 0
+// in RTP's modular order, and rebases them otherwise. Fixed, so media stays
+// deterministic.
+const initialRTPTimestamp uint32 = 1 << 30
+
 // Run sends the content in a loop until ctx ends.
 func (s *Source) Run(ctx context.Context) {
 	var (
 		seqs  = make([]uint16, len(s.layers))
-		ts    uint32
+		ts    = initialRTPTimestamp
 		start = s.clock.Now()
 		base  = s.layers[0].content
 		frame = make([][]*rtp.Packet, len(s.layers))

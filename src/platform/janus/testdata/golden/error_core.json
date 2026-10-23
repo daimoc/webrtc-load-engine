@@ -1,0 +1,9 @@
+{
+  "janus": "error",
+  "session_id": 3189339628904039,
+  "transaction": "t6424328506848478730",
+  "error": {
+    "code": 458,
+    "reason": "No such session 3189339628904039"
+  }
+}

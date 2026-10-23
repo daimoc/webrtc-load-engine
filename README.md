@@ -177,6 +177,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 007 Server load report | CPU and memory of the media server's local Docker containers and of the engine itself, sampled during the run, in the end‑of‑run summary and as Prometheus series |
 | 008 LiveKit | LiveKit adapter: the same test plan runs against a LiveKit server (`"platform": "livekit"`), with the same quality and server‑load report; a pinned local LiveKit in `tests/platforms/livekit` |
 | 010 mediasoup-demo | mediasoup-demo adapter (`"platform": "mediasoup"`): the demo web client's protoo signaling, SDP built from mediasoup's parameters, the same report; bots send RFC 7675 consent checks like browsers; a pinned local server built from the demo's commit in `tests/platforms/mediasoup` |
+| 011 Janus | Janus VideoRoom adapter (`"platform": "janus"`): the Janus API over WebSocket, one multistream subscription per bot that follows the receive cap, the same report; a pinned local Janus built from its tag in `tests/platforms/janus` |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -199,7 +200,7 @@ Details: `specs/005-bridge-channel-subscriptions/validation-report.md`,
 
 Not done yet:
 
-* adapters for other platforms (Janus); simulcast and requested heights on LiveKit and mediasoup,
+* simulcast and requested heights on LiveKit, mediasoup and Janus,
 * SVC, and simulcast at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
 * load distribution across several agents,
 * bandwidth limits and network instability,
@@ -420,6 +421,46 @@ single UDP port drops packets and some bots lose ICE consent. With
 `use_pipe_transports` (two workers), the bots hold their transports, but
 audio degrades (MOS 2.99)
 (`specs/010-mediasoup-platform/validation-report.md`).
+
+**Janus (011).** `"platform": "janus"` with a `platform_config` of `url`
+(e.g. `ws://localhost:8188`) and a numeric `room`, and optionally
+`insecure_tls` and the server's own credentials: `api_secret`, `token`, the
+room's `pin`, and the VideoRoom `admin_key` for creating rooms. The four
+credentials are redacted. The details are in
+`specs/011-janus-platform/contracts/janus-config.yaml`. Simulcast and
+requested heights are rejected on Janus in this version.
+
+Each bot holds one Janus session over the WebSocket transport (subprotocol
+`janus-protocol`), kept alive every 25 s, with two VideoRoom handles:
+- a publisher, whose PeerConnection carries the bot's media;
+- a subscriber, one multistream subscription that Janus offers.
+
+The bots create the room if it does not exist, with one publisher place per
+bot and the VideoRoom dummy publisher. Every bot subscribes to the dummy at
+join, so that it is connected even alone in the room. The receive cap is
+applied in the subscription: one `update` per change, swapping an ended
+stream for the earliest waiting one.
+
+The quality summary and report have the same fields as on the other
+platforms. Janus rebases the RTP timestamps it forwards, so latency is left
+out with `frame_not_identified`. The bots' sources now start their
+timestamps at 2^30, so that a rebased timestamp never matches a recently
+sent frame. Not 2^31: Jitsi's bridge rebases video timestamps from 2^31 up.
+At 50 bots with receive cap 10, alternated with the other three servers,
+Janus held every bot for 10 minutes with the same quality, using about
+twice LiveKit's server CPU and 60 MB of memory
+(`specs/011-janus-platform/validation-report.md`).
+
+```bash
+cd tests/platforms/janus && cp env.example .env && docker compose up -d --build && cd -
+JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 \
+JANUS_SERVER_CONTAINERS=janus go test -tags live -count=1 -v -run Janus ./tests/live/
+```
+
+10 bots `audio_video` for 60 s on the local server (Janus 1.4.3): 0
+freezes, 30 fps, MOS p50 4.37, server 0.76 threads, engine 0.46 threads.
+Janus never offers loopback candidates: the bots reach it on the host's own
+IPv4 address (`tests/platforms/janus/README.md`).
 
 ---
 

@@ -1,0 +1,14 @@
+{
+  "janus": "success",
+  "session_id": 6435936487302831,
+  "transaction": "t2263631908702481832",
+  "sender": 8268442820418709,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "event",
+      "error_code": 427,
+      "error": "Room 9002 already exists"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# WebSocket transport, used by the bots (subprotocol janus-protocol).
+general: {
+	json = "compact"
+	ws = true
+	ws_port = 8188
+	ws_ip = "127.0.0.1"
+	wss = false
+}
+
+admin: {
+	admin_ws = false
+	admin_wss = false
+}
+
+cors: {
+}
+
+certificates: {
+}

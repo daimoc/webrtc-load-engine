@@ -1,0 +1,43 @@
+{
+  "janus": "event",
+  "session_id": 6435936487302831,
+  "transaction": "t7801480640006315978",
+  "sender": 3107468714501874,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "updated",
+      "room": 9002,
+      "streams": [
+        {
+          "type": "audio",
+          "active": true,
+          "mindex": 0,
+          "mid": "0",
+          "ready": true,
+          "send": true,
+          "feed_id": 2646808844340002,
+          "feed_display": "Dummy publisher",
+          "feed_mid": "0",
+          "codec": "opus"
+        },
+        {
+          "type": "audio",
+          "active": true,
+          "mindex": 1,
+          "mid": "1",
+          "ready": false,
+          "send": true,
+          "feed_id": 7342466929253127,
+          "feed_display": "probe-b",
+          "feed_mid": "0",
+          "codec": "opus"
+        }
+      ]
+    }
+  },
+  "jsep": {
+    "type": "offer",
+    "sdp": "<offer SDP from Janus 1.4.3, see research R5>"
+  }
+}

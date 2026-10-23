@@ -136,6 +136,10 @@ func TestSource_SchedulesFramesAcrossLoops(t *testing.T) {
 			t.Errorf("frame %d written at %s, want %s", i, frameTimes[i], wantTimes[i]*time.Millisecond)
 		}
 	}
+	// The first frame starts at 2^30 (011 research R8), and SendTimes holds it.
+	if timestamps[0] != 1<<30 {
+		t.Errorf("first timestamp %d, want 2^30", timestamps[0])
+	}
 	// Timestamps advance by each frame's samples, across the loop boundary.
 	wantTS := []uint32{0, 2700, 5400, 9000, 11700, 14400, 18000, 20700}
 	for i := range wantTS {

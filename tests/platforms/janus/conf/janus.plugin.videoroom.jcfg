@@ -1,0 +1,5 @@
+# VideoRoom plugin: numeric room IDs, no admin_key, no static room. The bots
+# create their room (research R4).
+general: {
+	string_ids = false
+}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"webrtc-load-engine/src/platform"
+	"webrtc-load-engine/src/platform/janus"
 	"webrtc-load-engine/src/platform/jitsi"
 	"webrtc-load-engine/src/platform/livekit"
 	"webrtc-load-engine/src/platform/mediasoup"
@@ -74,7 +75,7 @@ func TestCatalog_LiveKit(t *testing.T) {
 
 func TestCatalog_Mediasoup(t *testing.T) {
 	c := New(nil)
-	if !slices.Equal(c.Platforms(), []string{"jitsi", "livekit", "mediasoup"}) {
+	if !slices.Contains(c.Platforms(), "mediasoup") {
 		t.Fatalf("Platforms() = %v", c.Platforms())
 	}
 	cfg := map[string]any{"url": "ws://localhost:4443", "room": "load010", "unlimited_room_secret": "s"}
@@ -105,5 +106,49 @@ func TestCatalog_Mediasoup(t *testing.T) {
 	}
 	if ps, ok := a.(platform.PublishSessionAdapter); !ok || !ps.PublishSession() {
 		t.Error("the mediasoup adapter does not use a publish session")
+	}
+}
+
+func TestCatalog_Janus(t *testing.T) {
+	c := New(nil)
+	if !slices.Equal(c.Platforms(), []string{"jitsi", "livekit", "mediasoup", "janus"}) {
+		t.Fatalf("Platforms() = %v", c.Platforms())
+	}
+	cfg := map[string]any{"url": "ws://localhost:8188", "room": float64(1011), "api_secret": "s", "pin": "p"}
+	if err := c.ValidateTestPlan("janus", scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, MaxReceivedStreams: 10}}); err != nil {
+		t.Errorf("valid janus plan: %v", err)
+	}
+	for _, tc := range []struct {
+		tp   scenario.TestPlan
+		want string
+	}{
+		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Simulcast: &scenario.SimulcastConfig{}}}, "media.simulcast is not supported on platform janus"},
+		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{RequestedHeights: []scenario.RequestedHeight{{Height: 180, Share: 1}}}}, "media.requested_heights is not supported on platform janus"},
+		{scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://localhost:8188"}}, "platform_config.room is required"},
+		{scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://localhost:8188", "room": "abc"}}, "platform_config.room must be a positive integer, got abc"},
+	} {
+		if err := c.ValidateTestPlan("janus", tc.tp); err == nil || err.Error() != tc.want {
+			t.Errorf("ValidateTestPlan = %v, want %q", err, tc.want)
+		}
+	}
+	if got := c.SecretKeys("janus"); !slices.Equal(got, []string{"api_secret", "token", "pin", "admin_key"}) {
+		t.Errorf("SecretKeys(janus) = %v", got)
+	}
+	a, err := c.NewAdapter("janus", scenario.TestPlan{Participants: 50, PlatformConfig: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ja, ok := a.(*janus.Adapter)
+	if !ok {
+		t.Fatalf("NewAdapter(janus) = %T", a)
+	}
+	if got := ja.Config().Participants; got != 50 {
+		t.Errorf("adapter sized for %d participants, want the plan's 50", got)
+	}
+	if ps, ok := a.(platform.PublishSessionAdapter); !ok || !ps.PublishSession() {
+		t.Error("the janus adapter does not use a publish session")
+	}
+	if _, err := c.NewAdapter("janus", scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://x"}}); err == nil {
+		t.Error("NewAdapter(janus) without room returned no error")
 	}
 }

@@ -55,6 +55,7 @@ set -a; . tests/platforms/livekit/.env; set +a; LIVEKIT_URL=ws://localhost:7880 
 go run ./cmd/jitsi-connect --domain meet.jitsi --muc muc.meet.jitsi --ws ws://localhost:8000/xmpp-websocket --room test --participants 2 --reports-dir /tmp/r   # every run writes <time>-<platform>-<name>-<run>.json/.md to ./reports (or --reports-dir / $REPORTS_DIR)
 MEDIASOUP_URL=ws://localhost:4443 MEDIASOUP_ROOM=load010 MEDIASOUP_PARTICIPANTS=10 MEDIASOUP_SERVER_CONTAINERS=mediasoup-demo go test -tags live -count=1 -v -run Mediasoup ./tests/live/   # mediasoup-demo live test (start tests/platforms/mediasoup first; variables at the top of tests/live/mediasoup_live_test.go)
 JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room test --jwt-app-id my_app   # token-auth Jitsi: one signed JWT per bot (or --jwt / $JITSI_JWT for a ready-made token)
+JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 JANUS_SERVER_CONTAINERS=janus go test -tags live -count=1 -v -run Janus ./tests/live/   # Janus live test (start tests/platforms/janus first; variables at the top of tests/live/janus_live_test.go; a new JANUS_ROOM when the bot count grows)
 ```
 
 ## Code Style
@@ -62,7 +63,7 @@ JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room
 : Follow standard conventions
 
 ## Recent Changes
-- 011-janus-platform (planned): Janus VideoRoom adapter (`src/platform/janus`), catalog entry, local server built from tag v1.4.3 in `tests/platforms/janus`, live test `tests/live/janus_live_test.go`
+- 011-janus-platform: Janus VideoRoom adapter (`src/platform/janus`), catalog entry (catalog `Entry.NewAdapter` now gets the test plan), local server built from tag v1.4.3 in `tests/platforms/janus`, live test `tests/live/janus_live_test.go`; media sources start RTP timestamps at 2^30 (`src/media/source.go`; 2^31 makes Jitsi's bridge rebase video)
 - 010-mediasoup-platform: mediasoup-demo adapter (`src/platform/mediasoup`), catalog entry, local server built from a pinned commit in `tests/platforms/mediasoup`; RFC 7675 consent checks on every PeerConnection (`src/execution/consent.go`); no publish session for receive-only peers
 - 009-run-report-files: JSON + Markdown report of every run in `reports/` (`src/report`), `RunResult` in the engine's completion callback, `report` in the scenario answer; no new module
 

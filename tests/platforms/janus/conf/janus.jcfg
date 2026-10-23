@@ -1,0 +1,42 @@
+# Janus core configuration for the local 011 server (from v1.4.3's
+# conf/janus.jcfg.sample.in; research R10). The debug level is set on the
+# command line from JANUS_DEBUG_LEVEL (.env).
+general: {
+	configs_folder = "/opt/janus/etc/janus"
+	plugins_folder = "/opt/janus/lib/janus/plugins"
+	transports_folder = "/opt/janus/lib/janus/transports"
+	events_folder = "/opt/janus/lib/janus/events"
+	loggers_folder = "/opt/janus/lib/janus/loggers"
+	debug_timestamps = true
+	admin_secret = "janusoverlord"	# Admin API is not enabled
+	# No api_secret and no token_auth: any client may create sessions.
+	session_timeout = 60
+}
+
+certificates: {
+}
+
+media: {
+	rtp_port_range = "20000-20999"
+}
+
+nat: {
+	# Janus never gathers on loopback (ice.c skips IFF_LOOPBACK interfaces),
+	# so the bots reach it on the host's own IPv4 address. Container bridges
+	# are ignored; JANUS_ICE_ENFORCE_LIST (.env) can name the one interface
+	# to use. IPv6 is off (media.ipv6 default).
+	ice_ignore_list = "vmnet,docker,br-,veth,virbr"
+	ignore_mdns = true
+}
+
+plugins: {
+}
+
+transports: {
+}
+
+loggers: {
+}
+
+events: {
+}

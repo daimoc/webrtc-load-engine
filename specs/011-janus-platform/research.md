@@ -135,7 +135,17 @@ dummy publisher: create it with dummy_publisher=true" (FR-009, edge case).
 - Waiting for the first other publisher: the first bot's
   connect time would depend on the second bot's.
 
-**Verify in T002**:
+**Found in T002**: the dummy's section is `sendonly` with an `a=ssrc` line
+(`cname:janus`). The engine counts every section with an SSRC as an offered
+stream (`execution.Peer.recordOffered`), so each bot would report one audio
+stream too many. **Decision**: before every subscriber offer goes to
+`OnOffer` or `Renegotiate`, the adapter removes the `a=ssrc`,
+`a=ssrc-group` and `a=msid` lines of the dummy's section. The section is
+found by its `mid`, the stream whose `feed_id` is the dummy in the
+`attached` or `updated` event. Pion answers the section all the same, and
+no RTP ever comes on it.
+
+**Verify in T002** (all held, see tasks.md T002):
 - Janus marks the dummy stream `active` and sends its offer with the
   section `sendonly`;
 - Pion answers it, and no `OnTrack` fires;
@@ -149,7 +159,7 @@ dummy publisher: create it with dummy_publisher=true" (FR-009, edge case).
    the session ID, then `attach` the publisher handle.
 2. **Room.** Send the synchronous `create`:
    - `room: <room>`, `permanent: false`;
-   - `publishers: participants + 1` (the dummy);
+   - `publishers: participants` (the dummy takes no place, T002);
    - `audiocodec: "opus"`, `videocodec: "vp8"`;
    - `bitrate: 0` (no REMB cap from Janus);
    - `dummy_publisher: true` and `dummy_streams: [{"codec":"opus"}]`;
@@ -179,7 +189,7 @@ dummy publisher: create it with dummy_publisher=true" (FR-009, edge case).
 `participants` comes from the test plan. `catalog.Entry.NewAdapter` today
 receives only `platform_config`, so it gains the test plan as a parameter
 (catalog-internal; the other entries ignore it). The room's publisher
-places then hold every bot of the plan plus the dummy.
+places then hold every bot of the plan.
 
 A fixed, large `publishers` value would avoid the catalog change, but the
 room would no longer reflect the test plan. Janus's own default is 3.
@@ -295,9 +305,46 @@ room would no longer reflect the test plan. Janus's own default is 3.
 - timestamps: to keep them continuous across source switches, it may
   rebase them from the first packet.
 
-**Verify in T002**: whether the forwarded RTP timestamps keep the
-publisher's values. If they don't, latency is left out with the 008
-`latency_reason` (FR-013). Freezes, frame rate, audio gaps, MOS and
+**Found in T002**: Janus rebases every forwarded stream. A publisher that
+sent timestamps from 1000 was received from 0, and sequence numbers from 1.
+The bots' sources start their timestamps at 0 and share them, so a bot
+that starts receiving a stream *t* seconds after the source started gets
+the timestamps of frames sent *t* seconds earlier. Within the source's
+10 s memory (`media.SendTimes`), the latency lookup would match them and
+report a wrong latency of about *t*, instead of leaving latency out.
+
+**Decision** (the user's, 2026-10-22): sources start their RTP timestamps
+at a fixed high value instead of 0, for every platform
+(`src/media/source.go`, task T026). The value is 2^30.
+- RFC 3550 already says the initial timestamp should not be predictable.
+- Janus's rebased values (below 2^30 for runs under about 3.3 h of video,
+  6.2 h of audio) then never match a recorded frame, and latency is left
+  out with the 008 `latency_reason` `frame_not_identified` (FR-013).
+- Platforms that keep timestamps (Jitsi, LiveKit, mediasoup) measure as
+  before.
+- The start stays fixed, so media stays deterministic (constitution II).
+
+**Found in T022**: T026 first used 2^31, and Jitsi's video latency was
+then left out too (`frame_not_identified` in all of T022's Jitsi runs),
+while audio was still measured. A probe printing received against sent
+timestamps showed why:
+- with sources at 2^31, the bridge forwarded video from 3001 (one frame
+  step after 0);
+- with sources at 0, and at 2^30, it kept the timestamps, also for a bot
+  that joined 8 s into the stream.
+
+The bridge's VP8 projection starts from timestamp 0 and keeps a stream's
+timestamps only when they are newer than that in RTP's modular order
+(from 1 to 2^31 - 1); 2^31 counts as older, so it rebases. The start was
+moved to 2^30: Jitsi measures video latency again, and Janus's rebased
+values (from 0) still never match. A Jitsi video stream that a bot starts
+receiving more than about 3.3 h after its source started would be rebased
+again; runs are much shorter.
+
+Alternatives considered:
+- An adapter capability that turns latency off. It adds a boundary method
+  for one platform.
+- Accepting the wrong values. Freezes, frame rate, audio gaps, MOS and
 keyframe requests are computed as before. Janus forwards a PLI from a
 subscriber to the publisher. It also sends its own PLI every `fir_freq`
 seconds when configured: the room is created without `fir_freq`, so it is
@@ -355,13 +402,21 @@ at creation (FR-010), as for mediasoup.
 - **`env.example`**: the debug level and the RTP port range. `.env` is not
   committed.
 - **`README.md`**: start, settings, container name, room sizing, how to
-  watch a room (`http://localhost:8090/videoroom.html?room=<room>`), stop.
+  watch a room (`http://localhost:8090/demos/videoroom.html?room=<room>`), stop.
 
-**Verify in T002**:
-- libnice gathers a loopback host candidate with `ice_enforce_list = "lo"`;
-  otherwise the host's LAN address is used, set in `.env`;
-- the demo page joins a room created by the bots (it creates rooms
-  only with its own settings).
+**Found in T001 and T002** (changes to the setup above):
+- **No loopback.** Janus never gathers on loopback: `ice.c` skips
+  `IFF_LOOPBACK` interfaces. With `ice_enforce_list = "lo"` nothing is
+  left, and libnice falls back to every address, IPv6 included. The config
+  therefore drops the enforce list and ignores container bridges
+  (`ice_ignore_list = "vmnet,docker,br-,veth,virbr"`, IPv6 off). Janus
+  offers one host candidate, on the host's IPv4 address (192.168.1.65
+  here), and the bots connect to it as on the LAN. `JANUS_ICE_ENFORCE_LIST`
+  in `.env` can name one interface (`--ice-enforce-list`). The machine
+  needs a non-loopback IPv4 interface that is up.
+- **No HTTP transport.** Port 8088 is taken on this machine, so the HTTP
+  transport is not built, and the demos' `settings.js` is replaced to use
+  `ws://<host>:8188`.
 
 **Rationale**:
 - FR-015. Janus has no official image, so building a pinned tag is the

@@ -1,0 +1,22 @@
+# Local Janus server for 011 (specs/011-janus-platform/research.md R10).
+# Settings come from .env (copy env.example; .env is not committed).
+services:
+  janus:
+    build: .
+    image: webrtc-load-engine/janus:v1.4.3
+    container_name: janus
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./conf:/opt/janus/etc/janus:ro
+    restart: unless-stopped
+  # Demo pages, in their own container so that the web server's CPU is not
+  # counted in the server's load.
+  janus-demos:
+    build:
+      context: .
+      target: demos
+    image: webrtc-load-engine/janus-demos:v1.4.3
+    container_name: janus-demos
+    network_mode: host
+    restart: unless-stopped

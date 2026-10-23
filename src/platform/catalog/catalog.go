@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"webrtc-load-engine/src/platform"
+	"webrtc-load-engine/src/platform/janus"
 	"webrtc-load-engine/src/platform/jitsi"
 	"webrtc-load-engine/src/platform/livekit"
 	"webrtc-load-engine/src/platform/mediasoup"
@@ -24,8 +25,9 @@ type Entry struct {
 	Validate func(scenario.TestPlan) error
 	// SecretKeys are the platform_config keys hidden in answers and logs.
 	SecretKeys []string
-	// NewAdapter builds the adapter of a run from its platform_config.
-	NewAdapter func(logger *slog.Logger, config map[string]any) (platform.PlatformAdapter, error)
+	// NewAdapter builds the adapter of a run from its test plan (its
+	// platform_config, and for Janus its participant count).
+	NewAdapter func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error)
 }
 
 // Catalog is the set of platforms the engine runs. It implements
@@ -42,7 +44,7 @@ func New(logger *slog.Logger) *Catalog {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Catalog{logger: logger, entries: []Entry{jitsiEntry(), livekitEntry(), mediasoupEntry()}}
+	return &Catalog{logger: logger, entries: []Entry{jitsiEntry(), livekitEntry(), mediasoupEntry(), janusEntry()}}
 }
 
 // jitsiEntry keeps Jitsi's behaviour: its config is parsed when the run
@@ -52,9 +54,9 @@ func jitsiEntry() Entry {
 	return Entry{
 		Name:       "jitsi",
 		SecretKeys: []string{"jwt_app_secret", "jwt"},
-		NewAdapter: func(logger *slog.Logger, config map[string]any) (platform.PlatformAdapter, error) {
+		NewAdapter: func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error) {
 			a := jitsi.NewAdapter(logger)
-			if err := a.ParseConfig(config); err != nil {
+			if err := a.ParseConfig(tp.PlatformConfig); err != nil {
 				return nil, err
 			}
 			return a, nil
@@ -68,8 +70,8 @@ func livekitEntry() Entry {
 		Name:       "livekit",
 		Validate:   livekit.Validate,
 		SecretKeys: []string{"api_secret", "token"},
-		NewAdapter: func(logger *slog.Logger, config map[string]any) (platform.PlatformAdapter, error) {
-			cfg, err := livekit.ParseConfig(config)
+		NewAdapter: func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error) {
+			cfg, err := livekit.ParseConfig(tp.PlatformConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -85,12 +87,30 @@ func mediasoupEntry() Entry {
 		Name:       "mediasoup",
 		Validate:   mediasoup.Validate,
 		SecretKeys: []string{"unlimited_room_secret"},
-		NewAdapter: func(logger *slog.Logger, config map[string]any) (platform.PlatformAdapter, error) {
-			cfg, err := mediasoup.ParseConfig(config)
+		NewAdapter: func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error) {
+			cfg, err := mediasoup.ParseConfig(tp.PlatformConfig)
 			if err != nil {
 				return nil, err
 			}
 			return mediasoup.NewAdapter(logger, cfg), nil
+		},
+	}
+}
+
+// janusEntry checks Janus plans at creation (011 FR-002, FR-010) and sizes
+// the room the bots create from the plan's participants (research R4).
+func janusEntry() Entry {
+	return Entry{
+		Name:       "janus",
+		Validate:   janus.Validate,
+		SecretKeys: []string{"api_secret", "token", "pin", "admin_key"},
+		NewAdapter: func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error) {
+			cfg, err := janus.ParseConfig(tp.PlatformConfig)
+			if err != nil {
+				return nil, err
+			}
+			cfg.Participants = tp.Participants
+			return janus.NewAdapter(logger, cfg), nil
 		},
 	}
 }
@@ -136,5 +156,5 @@ func (c *Catalog) NewAdapter(name string, tp scenario.TestPlan) (platform.Platfo
 	if !ok {
 		return nil, fmt.Errorf("unsupported platform adapter: %s", name)
 	}
-	return e.NewAdapter(c.logger, tp.PlatformConfig)
+	return e.NewAdapter(c.logger, tp)
 }

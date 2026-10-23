@@ -1,0 +1,14 @@
+{
+  "janus": "success",
+  "session_id": 8803482554973042,
+  "transaction": "t4015187140225746706",
+  "sender": 8342857347183459,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "created",
+      "room": 9002,
+      "permanent": false
+    }
+  }
+}

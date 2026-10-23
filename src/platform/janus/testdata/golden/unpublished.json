@@ -1,0 +1,14 @@
+{
+  "janus": "event",
+  "session_id": 6435936487302831,
+  "sender": 8268442820418709,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "event",
+      "room": 9002,
+      "display": "probe-b",
+      "unpublished": 7342466929253127
+    }
+  }
+}

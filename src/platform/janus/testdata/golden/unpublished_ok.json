@@ -1,0 +1,14 @@
+{
+  "janus": "event",
+  "session_id": 8803482554973042,
+  "transaction": "t8864965107391713344",
+  "sender": 8342857347183459,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "event",
+      "room": 9002,
+      "unpublished": "ok"
+    }
+  }
+}

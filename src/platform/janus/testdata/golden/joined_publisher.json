@@ -1,0 +1,32 @@
+{
+  "janus": "event",
+  "session_id": 6435936487302831,
+  "transaction": "t8232012874012497316",
+  "sender": 8268442820418709,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "joined",
+      "room": 9002,
+      "description": "Room 9002",
+      "id": 3524224005046046,
+      "private_id": 2667521802,
+      "publishers": [
+        {
+          "id": 2646808844340002,
+          "display": "Dummy publisher",
+          "dummy": true,
+          "audio_codec": "opus",
+          "streams": [
+            {
+              "type": "audio",
+              "mindex": 0,
+              "mid": "0",
+              "codec": "opus"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

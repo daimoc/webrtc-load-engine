@@ -23,7 +23,7 @@ established rule stays the same for every platform (R3). This is the
 Janus counterpart of 010's data-channel section.
 
 **Joining.** Every bot sends room `create`, sized for the test plan's bots
-plus the dummy. "Room exists" (427) counts as success, so concurrent joins
+(the dummy takes no publisher place, T002). "Room exists" (427) counts as success, so concurrent joins
 do not race (R4). Rooms use Opus and VP8 only (R5).
 
 **The receive cap** is applied in the multistream subscription (R6):
@@ -91,6 +91,11 @@ No new module, and no Janus client library (none is maintained in Go).
   `catalog.Entry.NewAdapter` also receives the test plan, so that the
   Janus entry can size the room from `Participants` (R4). The other three
   entries ignore it.
+- **Deviation, found in T002** (the user's decision, 2026-10-22): the
+  media sources start their RTP timestamps at 2^30 instead of 0
+  (`src/media/source.go`, research R8). It is platform-neutral, and
+  without it latency would be wrong on Janus. (First 2^31, which made
+  Jitsi's bridge rebase video timestamps; moved to 2^30 in T022.)
 - Jitsi, LiveKit and mediasoup behaviour, test plans and reports are
   unchanged (FR-011).
 - Secrets never appear in logs, API answers, metrics or reports (FR-002).

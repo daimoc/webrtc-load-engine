@@ -1,0 +1,14 @@
+{
+  "janus": "event",
+  "session_id": 2810128712974039,
+  "transaction": "t8429439463930790468",
+  "sender": 1555491394504143,
+  "plugindata": {
+    "plugin": "janus.plugin.videoroom",
+    "data": {
+      "videoroom": "event",
+      "error_code": 429,
+      "error": "Missing mandatory element (pin)"
+    }
+  }
+}

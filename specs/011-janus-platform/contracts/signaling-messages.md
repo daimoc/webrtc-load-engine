@@ -28,7 +28,7 @@ unknown session.
 
 | Request | When | Expected reply |
 |---|---|---|
-| `{"request":"create","room":R,"permanent":false,"publishers":P+1,"audiocodec":"opus","videocodec":"vp8","bitrate":0,"dummy_publisher":true,"dummy_streams":[{"codec":"opus"}],"pin"?,"admin_key"?}` | step 2 | `videoroom: "created"`; error 427 = exists, treated as success |
+| `{"request":"create","room":R,"permanent":false,"publishers":P,"audiocodec":"opus","videocodec":"vp8","bitrate":0,"dummy_publisher":true,"dummy_streams":[{"codec":"opus"}],"pin"?,"admin_key"?}` | step 2 | `videoroom: "created"`; error 427 = exists, treated as success |
 | `{"request":"join","ptype":"publisher","room":R,"display":"<peer ID>","pin"?}` | step 3 | `videoroom: "joined"`: `id`, `private_id`, `publishers[]` (each `id`, `display`, `dummy`, `streams[]` with `type`, `mid`, `disabled`) |
 | `{"request":"publish","audiocodec":"opus","videocodec":"vp8"}` + `jsep` offer | step 4, bots that send | `event` `configured: "ok"` + `jsep` answer |
 | `{"request":"join","ptype":"subscriber","room":R,"private_id":X,"use_msid":false,"autoupdate":false,"streams":[{"feed":D}],"pin"?}` | step 5 | `videoroom: "attached"`, `streams[]` + `jsep` offer |

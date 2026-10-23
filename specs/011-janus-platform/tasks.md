@@ -39,7 +39,7 @@ description: "Task list for 011 Janus platform"
 
 **Purpose**: the local server, and the real messages every later task is tested against. It also checks the research points marked "verify in T002" (research R3, R5, R8, R10).
 
-- [ ] T001 Create `tests/platforms/janus/` per research R10:
+- [X] T001 Create `tests/platforms/janus/` per research R10:
   - **`Dockerfile`**:
     - two stages from `debian:bookworm-slim`, with `ARG JANUS_VERSION=v1.4.3`;
     - the build stage `apt-get install`s `git build-essential autoconf automake libtool pkg-config gengetopt libnice-dev libsrtp2-dev libjansson-dev libconfig-dev libssl-dev libglib2.0-dev libcurl4-openssl-dev libwebsockets-dev libmicrohttpd-dev zlib1g-dev`;
@@ -68,10 +68,15 @@ description: "Task list for 011 Janus platform"
   - `docker logs janus` shows the WebSockets transport and the VideoRoom plugin loaded;
   - `ss -lntu` shows TCP 8188 and 8088 on 127.0.0.1;
   - `curl -s -X POST -d '{"janus":"info","transaction":"x"}' http://127.0.0.1:8088/janus` answers `server_info` with version 1.4.3;
-  - `http://localhost:8090/videoroom.html` loads.
+  - `http://localhost:8090/demos/videoroom.html` loads.
 
   Record under this task: the build time, the image size, and the libnice version (`docker exec janus dpkg -s libnice10 | grep Version`).
-- [ ] T002 In the scratchpad (never committed), write a throwaway Go probe with `nhooyr.io/websocket` (subprotocol `janus-protocol`) and Pion, against T001's server. Two clients, A and B, each with a session and a publisher handle, both send room `create` for room 9002 (sizing as research R4: `publishers: 3`, `dummy_publisher: true`, `dummy_streams: [{"codec":"opus"}]`, `audiocodec: "opus"`, `videocodec: "vp8"`, `bitrate: 0`, `permanent: false`) at the same time. Then:
+  - **Recorded 2026-10-22**:
+    - **Build and versions**: built in 109 s (cold), image 250 MB. Janus 1.4.3, commit `1f0b75c`, libnice 0.1.21-1 (bookworm). The bookworm package names of the task were right. Configured with `--disable-all-plugins --enable-plugin-videoroom --disable-all-transports --enable-websockets --disable-all-handlers --disable-all-loggers --disable-data-channels`, so only what is used is built.
+    - **No HTTP transport**: 127.0.0.1:8088 is taken on this machine by a process outside Docker. Janus's HTTP transport failed to bind, and the first container start restarted once. The HTTP transport and `libmicrohttpd` were dropped. The demos use the WebSocket transport through our `demos-settings.js`, which replaces `html/demos/settings.js`. The `curl` check is replaced by T002's probe, which talks to the server over WebSocket.
+    - **Listening and logs**: TCP 8188 and 8090 on 127.0.0.1. The demo page is at `http://localhost:8090/demos/videoroom.html` (200). The log has three WARN lines at start: mDNS off, no STUN server, data channels not compiled. Plugins are not listed at debug level 3.
+    - **ICE**: `ice_enforce_list = "lo"` does not work (T002), so the config now ignores the container bridges. See research R10.
+- [X] T002 In the scratchpad (never committed), write a throwaway Go probe with `nhooyr.io/websocket` (subprotocol `janus-protocol`) and Pion, against T001's server. Two clients, A and B, each with a session and a publisher handle, both send room `create` for room 9002 (sizing as research R4: `publishers: 3`, `dummy_publisher: true`, `dummy_streams: [{"codec":"opus"}]`, `audiocodec: "opus"`, `videocodec: "vp8"`, `bitrate: 0`, `permanent: false`) at the same time. Then:
   1. Both join as publishers (`display` `probe-a` and `probe-b`).
   2. B publishes audio and video from a Pion PeerConnection (sendonly Opus and VP8 tracks), writing RTP with known timestamps (start at 1000, +960 per 20 ms audio frame).
   3. A attaches a subscriber handle, joins with `streams: [{feed: dummy}]`, answers, and `start`s.
@@ -104,6 +109,38 @@ description: "Task list for 011 Janus platform"
   - whether `updated` arrives with the same `transaction` as the `update` request, or unsolicited.
 
   If a fact differs from research R1–R8 or [contracts/signaling-messages.md](contracts/signaling-messages.md), update them before Phase 2.
+  - **Recorded 2026-10-22** (Janus 1.4.3). The 25 goldens are saved, with SDP bodies replaced by placeholders. Two goldens were added beyond the list: `unpublished_second.json` and `updated_unsolicited.json`. `error_plugin_429_pin.json` comes from the PIN check below.
+    - **Race**: one `created`, and the other gets 427 "Room 9002 already exists" inside a `success` reply (synchronous plugin request).
+    - **Dummy subscription (R3) holds**:
+      - the `attached` offer has one audio section (`mid 0`, Opus 111, `sendonly`, extmaps transport-cc and mid), and Pion answers it;
+      - the subscriber transport is `connected` 50 ms after `start`, with nobody else publishing;
+      - no `OnTrack` fires in 3 s.
+    - **Room size**: **the dummy takes no publisher place**. In a room created with `publishers: 1` and the dummy, one real publisher publishes and the second gets 432 "Maximum number of active publishers (1) already reached" on `publish` (not on `join`). R4 now sizes `publishers: participants`.
+    - **Codecs (R5)**:
+      - Janus accepts Pion's publish offer unchanged and answers with Opus 111 and VP8 96 + rtx 97, `recvonly`;
+      - the subscriber offers carry Opus 111 and VP8 96, each section with transport-cc and mid extmaps;
+      - the `configured` event lists the published `streams` (Opus with `fec: true`).
+    - **ICE (R10)**:
+      - Janus skips loopback interfaces (`ice.c`, `IFF_LOOPBACK`). With `ice_enforce_list = "lo"` nothing is enforced, and libnice gathered every address: two global IPv6, 192.168.1.65 and a link-local one;
+      - after the config change, one candidate remains, `192.168.1.65` UDP in the RTP range, and the bots connect to it.
+    - **RTP timestamps (R8)**:
+      - B sent audio timestamps from 1000; A received 0, 960, 1920, with sequence numbers from 1 and SSRC rewritten;
+      - Janus rebases every forwarded stream, which would make latency wrong for early subscribers. Fixed by T026 (the user's decision).
+    - **PIN**: the subscriber `join` without the room's PIN fails with 429 "Missing mandatory element (pin)". The bots send `pin` on both joins. The publisher-join check of the probe used a handle that had already joined (425), so it proves nothing; the publisher join is documented to need the PIN too.
+    - **Handshake**: a WebSocket upgrade without `janus-protocol` is closed with no HTTP response (`curl` gets an empty reply), and a plain GET gets 403. The adapter reports a dial error without a status in that case.
+    - **`update` replies**:
+      - the first `update` got `updated` + jsep as its own event (same transaction);
+      - an `update` sent before that offer was answered got `updating`. Its `updated` + jsep came later, **unsolicited**, after the first `start`. The adapter must handle both (R6).
+    - **Leaving**:
+      - with `autoupdate: false`, B's departure sent A no offer;
+      - A's publisher handle got `unpublished: <B>` **twice** (once for unpublish, once more on leave), then `leaving: <B>`, so feed-gone handling must be idempotent;
+      - B's own replies were `unpublished: "ok"` and `leaving: "ok"`, plus a `hangup` with `reason: "Close PC"`.
+    - **IDs and other events**:
+      - session, handle and feed IDs are integers up to about 2^52 (for example 7342466929253127). Decode them as `uint64`, never `float64`;
+      - `media` events carry `mid`, `type` and `receiving`;
+      - `webrtcup` has only `sender`.
+    - **Timeout**: A, silent from 23:38:14.6, got `{"janus":"timeout"}` at 23:39:10.9 (56 s, Janus checks sessions periodically), then the server closed nothing else. The 25 s keepalive of R7 stands.
+    - **Core error**: a request on a destroyed session gets `{"janus":"error","error":{"code":458,"reason":"No such session …"}}`.
 
 ---
 
@@ -111,7 +148,7 @@ description: "Task list for 011 Janus platform"
 
 **Purpose**: config, the Janus JSON client, the message types, the catalog signature and the fake server that every story uses.
 
-- [ ] T003 [P] Write `src/platform/janus/config_test.go`, then `config.go`, per [contracts/janus-config.yaml](contracts/janus-config.yaml) and data-model "Config":
+- [X] T003 [P] Write `src/platform/janus/config_test.go`, then `config.go`, per [contracts/janus-config.yaml](contracts/janus-config.yaml) and data-model "Config":
   - `ParseConfig(map[string]any) (Config, error)`;
   - `Validate(scenario.TestPlan) error`;
   - `Config.LogValue` and `String` without the secrets.
@@ -125,7 +162,7 @@ description: "Task list for 011 Janus platform"
   - `media.simulcast` and `media.requested_heights` are rejected with the contract's messages.
 
   Each error message of the contract has a test. A test logs a config with all four secrets and greps the output for their values.
-- [ ] T004 [P] Write `src/platform/janus/messages.go`: Go structs with JSON tags for what [contracts/signaling-messages.md](contracts/signaling-messages.md) uses:
+- [X] T004 [P] Write `src/platform/janus/messages.go`: Go structs with JSON tags for what [contracts/signaling-messages.md](contracts/signaling-messages.md) uses:
   - `Message`: the envelope, with `janus`, `transaction`, `session_id`, `sender`, `data.id`, `error{code,reason}`, `plugindata{plugin,data}` and `jsep{type,sdp}`;
   - `RoomEvent`: the VideoRoom `data`, with `videoroom`, `room`, `id`, `private_id`, `publishers[]`, `streams[]`, `unpublished`, `leaving`, `kicked`, `configured`, `started`, `error_code` and `error`;
   - `Publisher` (`id`, `display`, `dummy`, `streams[]`);
@@ -133,7 +170,7 @@ description: "Task list for 011 Janus platform"
   - `SubStream` (`mid`, `type`, `feed_id`, `feed_mid`, `active`).
 
   `unpublished` and `leaving` are a number, or the string `"ok"`: give them a type that decodes both. In `messages_test.go`, decode every T002 golden file and check the fields the adapter uses.
-- [ ] T005 [P] Write `src/platform/janus/client_test.go`, then `client.go`: a Janus client over a `*websocket.Conn` (research R1).
+- [X] T005 [P] Write `src/platform/janus/client_test.go`, then `client.go`: a Janus client over a `*websocket.Conn` (research R1).
   - **Requests**:
     - `Request(ctx, body map[string]any) (Message, error)` adds a unique `transaction` and the configured `apisecret` and `token`, then waits up to 15 s for the reply: `success`, `error` or `ack`;
     - `Message(ctx, handle, body, jsep) (Message, error)` sends a plugin message:
@@ -156,12 +193,14 @@ description: "Task list for 011 Janus platform"
   - `apisecret` and `token` present on every frame when configured;
   - `Close` with pending requests;
   - the server closing the socket.
-- [ ] T006 Change `catalog.Entry.NewAdapter` in `src/platform/catalog/catalog.go` to `func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error)`. Each entry reads `tp.PlatformConfig` itself:
+- [X] T006 Change `catalog.Entry.NewAdapter` in `src/platform/catalog/catalog.go` to `func(logger *slog.Logger, tp scenario.TestPlan) (platform.PlatformAdapter, error)`. Each entry reads `tp.PlatformConfig` itself:
   - the Jitsi, LiveKit and mediasoup entries keep their behaviour;
   - `Catalog.NewAdapter` passes the plan.
 
   Update `catalog_test.go` if it builds entries. `go test -race ./src/platform/catalog/ ./src/...` passes, with no other change.
-- [ ] T007 Write `src/platform/janus/fakeserver_test.go`, a test helper (research R11): an `httptest` WebSocket server that speaks Janus as T002 recorded it, with subprotocol `janus-protocol`.
+- [X] T026 [P] (Added after T002; research R8, the user's decision.) In `src/media/source.go`, start each source's RTP timestamp at `1 << 30` instead of 0 (`ts uint32 = initialRTPTimestamp`, a named constant with a comment citing RFC 3550 and research R8). Test first in `src/media/source_test.go`: the first frame's packets carry timestamp 2^30, the second 2^30 + the first frame's samples, and `SendTimes` records the same values. Fix any media or execution test that assumed a start at 0. `go test -race ./...` passes.
+  - **Changed in T022**: first done with `1 << 31`. Jitsi's bridge rebases video timestamps that are not newer than 0 in RTP order, so Jitsi video latency was lost (research R8, "Found in T022"). Now `1 << 30`, checked with a timestamp probe on Jitsi (kept) and Janus (rebased, never matched).
+- [X] T007 Write `src/platform/janus/fakeserver_test.go`, a test helper (research R11): an `httptest` WebSocket server that speaks Janus as T002 recorded it, with subprotocol `janus-protocol`.
   - **Sessions and handles**: core `create`, `attach`, `keepalive`, `trickle`, `destroy`. The session expires after a configurable timeout without keepalive and sends `timeout`.
   - **Rooms**:
     - `create` with 427 on an existing room;
@@ -197,7 +236,7 @@ description: "Task list for 011 Janus platform"
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Write `src/platform/janus/streams_test.go` for the receive cap state of data-model "Receive cap". Cases:
+- [X] T008 [P] [US1] Write `src/platform/janus/streams_test.go` for the receive cap state of data-model "Receive cap". Cases:
   - streams are active up to `limit` per kind, with audio and video counted separately;
   - beyond it they wait, in FIFO order;
   - `limit` 0 means no limit;
@@ -209,7 +248,7 @@ description: "Task list for 011 Janus platform"
   - invariant: `len(active) ≤ limit` per kind when `limit > 0`.
 
   The state is pure data (no I/O): methods return the update for the adapter to send.
-- [ ] T009 [P] [US1] Write `src/platform/janus/adapter_test.go` against T007's fake server, with real `execution.Peer`s built as the engine builds them (`PeerMedia{Kinds, ReceiveLimit, PublishSession: true}`), plus the media sources of 004 writing to their tracks. Cases:
+- [X] T009 [P] [US1] Write `src/platform/janus/adapter_test.go` against T007's fake server, with real `execution.Peer`s built as the engine builds them (`PeerMedia{Kinds, ReceiveLimit, PublishSession: true}`), plus the media sources of 004 writing to their tracks. Cases:
   - (a) 3 bots `audio_video`, no cap, started together: one room `create` succeeds and the other two get 427. All reach `established`. Each receives RTP on 2 audio and 2 video streams (`MediaSnapshot`). The request order matches research R4;
   - (b) the first bot alone is `established` before the second joins: its subscription has only the dummy (research R3);
   - (c) a `receive_only` bot: no `publish`, no publish session; it is established and receives the senders' streams;
@@ -226,9 +265,9 @@ description: "Task list for 011 Janus platform"
     - a session `timeout`;
     - `hangup` on the subscriber handle;
   - (j) a room without a dummy publisher (the fake server's room created beforehand without it) fails the join with "has no dummy publisher";
-  - (k) the room is created with `publishers` = participants + 1 and with `admin_key` when configured;
+  - (k) the room is created with `publishers` = participants and with `admin_key` when configured;
   - (l) the bots' frames carry `apisecret`, `token` and `pin` when configured, and the captured logs contain none of their values.
-- [ ] T010 [P] [US1] Extend `src/platform/catalog/catalog_test.go` with `TestCatalog_Janus`:
+- [X] T010 [P] [US1] Extend `src/platform/catalog/catalog_test.go` with `TestCatalog_Janus`:
   - `Platforms()` lists `jitsi`, `livekit`, `mediasoup`, `janus`;
   - `ValidateTestPlan("janus", …)` accepts a valid plan, and returns the contract's messages for simulcast, requested heights, a missing room and `room: "abc"`;
   - `SecretKeys("janus")` is `[api_secret token pin admin_key]`;
@@ -238,8 +277,8 @@ description: "Task list for 011 Janus platform"
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Write `src/platform/janus/streams.go` to pass T008.
-- [ ] T012 [US1] Write `src/platform/janus/adapter.go` to pass T009. It implements `platform.PlatformAdapter` and `platform.PublishSessionAdapter`. `NewAdapter(logger, cfg Config)`, where `cfg.Participants` is set by the catalog.
+- [X] T011 [US1] Write `src/platform/janus/streams.go` to pass T008.
+- [X] T012 [US1] Write `src/platform/janus/adapter.go` to pass T009. It implements `platform.PlatformAdapter` and `platform.PublishSessionAdapter`. `NewAdapter(logger, cfg Config)`, where `cfg.Participants` is set by the catalog.
   - **`Connect`**:
     - dials `cfg.URL` with subprotocol `janus-protocol`, and `InsecureSkipVerify` when `insecure_tls`; a handshake error carries the HTTP status;
     - runs research R4 steps 1–6 in order, under the context;
@@ -247,6 +286,7 @@ description: "Task list for 011 Janus platform"
     - the dummy is the publisher with `dummy: true` in `joined` (R3);
     - senders `CreatePublishOffer`, `publish` it, then `ApplyPublishAnswer` the `configured` jsep;
     - the subscriber joins with `use_msid: false`, `autoupdate: false`, `streams: [{feed: dummy}]` and `private_id`; its offer goes to `OnOffer` and the answer to `start`;
+    - every subscriber offer (`attached`, `updated`) loses the `a=ssrc`, `a=ssrc-group` and `a=msid` lines of the dummy's section before `OnOffer` or `Renegotiate` (research R3), so that the dummy is not counted as an offered stream. Unit-test it on `testdata/golden/updated_offer.sdp` (the real offer of T002, candidates anonymized);
     - the publishers already in `joined` go to T011, then the first `update`;
     - each trickle function sends core `trickle` on its own handle (`sdpMid`, `sdpMLineIndex` from the mid's index in the SDP, `candidate`), then `{completed: true}` after gathering ends;
     - on any error, everything opened is closed before returning.
@@ -267,12 +307,12 @@ description: "Task list for 011 Janus platform"
   - **Loss**: the read loop ending, or a lost event after `Connect`, calls `OnSignalingLost(err)` once, unless `Disconnect` started.
   - **`Disconnect`**: sends `destroy` (2 s timeout), stops the goroutine and closes the WebSocket. It is idempotent and safe for unknown peers.
   - **Logging**: one logger per bot with `peer_id`, the session ID, and `Config.LogValue`.
-- [ ] T013 [US1] Add `janusEntry()` to `src/platform/catalog/catalog.go`:
+- [X] T013 [US1] Add `janusEntry()` to `src/platform/catalog/catalog.go`:
   - `Name: "janus"`, `Validate: janus.Validate`, `SecretKeys: []string{"api_secret", "token", "pin", "admin_key"}`;
   - `NewAdapter` parses `tp.PlatformConfig` with `janus.ParseConfig`, sets `cfg.Participants = tp.Participants`, and returns `janus.NewAdapter(logger, cfg)`.
 
   Append it to `New`'s entries. This passes T010.
-- [ ] T014 [US1] Write `tests/live/janus_live_test.go` (`//go:build live`), copied from `mediasoup_live_test.go` and adapted:
+- [X] T014 [US1] Write `tests/live/janus_live_test.go` (`//go:build live`), copied from `mediasoup_live_test.go` and adapted:
   - `TestJanusLive_JoinAndEstablishMedia` is skipped without `JANUS_URL`;
   - variables:
     - `JANUS_URL`, `JANUS_ROOM` (default `1011`), `JANUS_PARTICIPANTS`, `JANUS_RAMP_UP`, `JANUS_MEDIA`, `JANUS_MAX_RECEIVED`, `JANUS_HOLD`;
@@ -282,13 +322,13 @@ description: "Task list for 011 Janus platform"
   - the same checks, summary log and `writeReport` call, with scenario name `live-janus` and platform `janus`.
 
   Document the variables in the file's header comment, as the mediasoup one does. `go vet -tags live ./tests/live/` passes.
-- [ ] T015 [US1] Live check (quickstart steps 4, 6, 7). Start T001's server and run:
+- [X] T015 [US1] Live check (quickstart steps 4, 6, 7). Start T001's server and run:
   - 10 bots `audio_video` for 60 s;
   - 6 bots with cap 3 and `JANUS_LEAVE_ONE=1`;
   - 1 `receive_only` bot alone in a new room;
   - 2 bots with a 3-minute hold (longer than the 60 s session timeout).
 
-  During the 10-bot run, open `http://localhost:8090/videoroom.html?room=1011` and check that the page shows the bots.
+  During the 10-bot run, open `http://localhost:8090/demos/videoroom.html?room=1011` and check that the page shows the bots.
 
   Record under this task, for each run:
   - PASS/FAIL and the time to establish;
@@ -297,6 +337,27 @@ description: "Task list for 011 Janus platform"
   - the WARN and ERR lines of `docker logs janus`.
 
   If the real server differs from the fake one (message order, SDP accepted by Pion, ICE, `updated` without jsep), fix the adapter and add the case to T007 and T009.
+  - **Recorded 2026-10-23** (Janus 1.4.3, only `janus` and `janus-demos` running, screen unlocked). All four runs passed on the first try, with no adapter change:
+    - **10 bots `audio_video`, 60 s** (room 2001): **PASS**.
+      - Established in 1.22 s; video settled at 0.99 after 4 s.
+      - 9.0 audio and 9.0 video streams offered per bot. The dummy's section is not counted (research R3).
+      - 445 audio and 586 video packets/s per bot.
+      - 0 freezes, MOS p50 4.37, audio concealed 0%, 30.0 fps at 360p.
+      - Latency is left out with `frame_not_identified` for both kinds (T026, research R8).
+      - Server `janus` 0.76 threads on average (peak 0.78), 18 MB peak memory; engine 0.46 threads.
+      - Bots left in 2 ms. Reports `20261022T220002Z-janus-live-janus-60db2ce6.{json,md}`.
+    - **6 bots, cap 3, `JANUS_LEAVE_ONE=1`, 60 s** (room 2002): **PASS**.
+      - Established in 1.23 s.
+      - 3.0 streams per kind per bot after the extra bot left halfway, so the promotion worked: 148 audio and 195 video packets/s per bot.
+      - 0 freezes.
+    - **1 `receive_only` bot alone** (room 2003): **PASS**, established in 204 ms through the dummy subscription (research R3).
+    - **2 bots, 3-minute hold** (room 2004): **PASS**. No `timeout`, so the 25 s keepalive holds the sessions past Janus's 60 s timeout (FR-007). 0 freezes.
+    - **Janus log**, WARN and ERR lines over the four runs:
+      - `Room N already exists!`, one per bot after the first: the creation race of research R4, expected;
+      - 12 × `Publisher … not found, not unsubscribing…`: the bots' `unsubscribe` of the extra bot's streams, after Janus had already dropped that feed. The `subscribe` half of the same `update` was applied, and the promotion worked. Harmless; the adapter could skip unsubscribing feeds that left, if it ever matters;
+      - 8 × `Failed to add some remote candidates (added 0, expected 5)`: libnice drops the bots' candidates it cannot use (IPv6 and container-bridge addresses; Janus gathers on IPv4 only). The pair is found anyway, and every bot connected.
+    - **Demo page**: `videoroom.js` takes `?room=`, but no browser was available in this session, so the visual check (the page showing the bots) is **left to the user**: `http://localhost:8090/demos/videoroom.html?room=<room>` during a run.
+      - **Done later** (2026-10-23, headless Chrome 154 driven over the DevTools protocol, fake camera, 3 bots in room 5001): the page joined the room and played the 3 bots' videos (640x360, about 495 kbit/s each, labelled with their peer IDs). Its own camera publish was refused with `Maximum number of active publishers (3) already reached`, since the room has one place per bot; the README now says so, and that the display name must be alphanumeric.
 
 **Checkpoint**: Janus runs from the API and the live test. US1 is independently usable as a load test.
 
@@ -308,12 +369,21 @@ description: "Task list for 011 Janus platform"
 
 **Independent Test**: quickstart step 4's field-set diff against a mediasoup report is empty apart from indexes and `platform_config` keys; latency and server load are reported or explained.
 
-- [ ] T016 [P] [US2] Extend `src/report/writer_test.go` `TestWriteNoSecrets` with a `janus` scenario whose `platform_config` has `api_secret`, `token`, `pin` and `admin_key`. The values are absent from both files, and `"[redacted]"` is in their place.
-- [ ] T017 [US2] Field-set check (SC-004, FR-012). Run quickstart step 4's `jq` diff between T015's 10-bot Janus report and a 10-bot mediasoup report of the same plan, taken the same day with mediasoup started from `tests/platforms/mediasoup`. Record the diff under this task: only array indexes and `platform_config` keys may differ.
-- [ ] T018 [US2] Latency (FR-013, research R8, quickstart step 5). In T015's 10-bot summary, record whether `audio.latency` and `video.latency` are present and their p50s. Compare with T002's timestamp finding. If one is missing:
+- [X] T016 [P] [US2] Extend `src/report/writer_test.go` `TestWriteNoSecrets` with a `janus` scenario whose `platform_config` has `api_secret`, `token`, `pin` and `admin_key`. The values are absent from both files, and `"[redacted]"` is in their place.
+- [X] T017 [US2] Field-set check (SC-004, FR-012). Run quickstart step 4's `jq` diff between T015's 10-bot Janus report and a 10-bot mediasoup report of the same plan, taken the same day with mediasoup started from `tests/platforms/mediasoup`. Record the diff under this task: only array indexes and `platform_config` keys may differ.
+  - **Recorded 2026-10-23**:
+    - **Runs compared**: T015's 10-bot Janus report (`20261022T220002Z-janus-live-janus-60db2ce6.json`) and a 10-bot mediasoup run of the same plan, taken 7 minutes later with mediasoup-demo started from `tests/platforms/mediasoup` (`20261022T220654Z-mediasoup-live-mediasoup-d63e5419.json`, PASS: 9 + 9 streams per bot, 0 freezes, MOS 4.37).
+    - **Tool**: `jq` is not installed on this machine, so the paths were compared with an equivalent Python script (array indexes folded).
+    - **Result**: no difference except latency. mediasoup has `quality.{audio,video}.latency_seconds` and `worst.highest_latency_p95_seconds`. Janus has `quality.{audio,video}.latency_reason` in their place. This is FR-013's "left out with its reason" (research R8), the same optional fields as on any platform where latency is not measured. Every other field matches, `platform_config` keys included (`url`, `room`).
+- [X] T018 [US2] Latency (FR-013, research R8, quickstart step 5). In T015's 10-bot summary, record whether `audio.latency` and `video.latency` are present and their p50s. Compare with T002's timestamp finding. If one is missing:
   - check that the summary gives the 008 `latency_reason`;
   - say in research R8 which Janus behaviour removed it.
-- [ ] T019 [US2] Server monitoring (FR-014). In T015's 10-bot report, the server section lists `janus` as `measured`, with CPU and memory, and does not list `janus-demos`. Check the CPU against `docker stats janus` during a run (same order of magnitude). Record both under this task.
+  - **Recorded 2026-10-23**: in T015's 10-bot summary, `audio` and `video` both have `latency_available: false` and `latency_reason: frame_not_identified`. This matches T002: Janus rebases timestamps, so no received timestamp matches a sent frame since T026. mediasoup's run of T017, taken after T026, still measures latency (p50 1.5 ms audio, 2.5 ms video), so the new initial timestamp leaves platforms that keep timestamps unchanged. research R8 already names the Janus behaviour.
+    - **Corrected in T022**: true for mediasoup and LiveKit, not for Jitsi's video. With 2^31, Jitsi's bridge rebased video timestamps, so T022's Jitsi runs had no video latency. T026 now uses 2^30 (research R8, "Found in T022").
+- [X] T019 [US2] Server monitoring (FR-014). In T015's 10-bot report, the server section lists `janus` as `measured`, with CPU and memory, and does not list `janus-demos`. Check the CPU against `docker stats janus` during a run (same order of magnitude). Record both under this task.
+  - **Recorded 2026-10-23** (a 10-bot, 60 s run in room 2005, PASS):
+    - the server section lists `janus` as `measured`, with 0.743 threads on average (peak 0.78) and 17.8 MB peak memory. `janus-demos` is not listed: only named containers are sampled;
+    - `docker stats janus`, sampled 6 times during the hold, gave 73–79 % CPU (0.73–0.79 threads) and 16–17 MiB, which agrees with the report.
 
 ---
 
@@ -323,23 +393,29 @@ description: "Task list for 011 Janus platform"
 
 **Independent Test**: T021's clean-checkout run, and T022's alternated 50-bot runs.
 
-- [ ] T020 [US3] Complete `tests/platforms/janus/README.md`:
+- [X] T020 [US3] Complete `tests/platforms/janus/README.md`:
   - **start**: copy `env.example` to `.env`, `docker compose up -d --build`; the first build takes about T001's build time;
   - **settings**: the `platform_config` to use, with `url: ws://localhost:8188` and a numeric `room`;
   - **containers**: `janus` for server monitoring (`server_containers`); `janus-demos` is not part of the server's load;
-  - **rooms**: the bots create the room with the dummy publisher and one publisher place per bot plus one. A room keeps the size it was created with, so use a new room number when the bot count grows, or restart Janus (research R4);
-  - **watching a room**: `http://localhost:8090/videoroom.html?room=<room>`;
+  - **rooms**: the bots create the room with the dummy publisher and one publisher place per bot (the dummy takes none, T002). A room keeps the size it was created with, so use a new room number when the bot count grows, or restart Janus (research R4);
+  - **watching a room**: `http://localhost:8090/demos/videoroom.html?room=<room>`;
   - the RTP port range, and `ice_enforce_list` for bots on another network namespace;
   - **the live test command** of quickstart step 4;
   - **stop**: `docker compose down`.
-- [ ] T021 [US3] Clean-checkout run (SC-006):
+- [X] T021 [US3] Clean-checkout run (SC-006):
   1. In a fresh `git worktree` of the branch in the scratchpad, remove the image (`docker rmi webrtc-load-engine/janus:v1.4.3`).
   2. Follow only the README, up to the end of the 10-bot live test.
   3. Time it: it must take under 15 minutes.
   4. Run `go test -race ./src/platform/janus/` with the network off (`unshare -n` or no Janus running): it passes (SC-007).
 
   Record the times and any README fix under this task.
-- [ ] T022 [US3] 50 bots, alternated with the other three servers (SC-002, research R12, quickstart step 8):
+  - **Recorded 2026-10-23**:
+    - **Setup**: the worktree was made from HEAD (`68e7205`), with this feature's uncommitted changes applied on top (`git diff HEAD` plus the untracked files), so it is a clean checkout of the work as it stands. The `janus` and `janus-demos` images were removed first.
+    - **Timing**: following only the README, with `docker compose build --no-cache` for a worst-case build, Janus started in **95 s** and the README's 10-bot live test passed (established in 1.22 s, 9 + 9 streams per bot). That is **2 min 54 s** from `cp env.example .env` to PASS (SC-006: under 15 min). The Go module cache was warm, as it is on any machine that has built the engine.
+    - **README fix**: there are four start-up WARN lines, not three (also "Couldn't access logger plugins folder", since no loggers are built).
+    - **No server**: with both Janus containers stopped, `go test -race ./src/platform/janus/` passes (SC-007).
+    - **No network**: in a network namespace with only `lo` (`unshare -rn`), `TestAdapter_ReceiveOnlyBot` and `TestAdapter_ReceiveCapAndPromotion` fail: the bots are offered the streams but receive no packets. **mediasoup's tests of the same name fail in the same way there**, so this is not Janus-specific. The engine's test peers need a non-loopback interface, which every real machine has. Left as a follow-up of the engine's tests; SC-007's "no server" holds.
+- [X] T022 [US3] 50 bots, alternated with the other three servers (SC-002, research R12, quickstart step 8):
   - build the four live test binaries once;
   - run, in this order: Jitsi, LiveKit, mediasoup, Janus, then the same order again;
   - each run is 50 bots `audio_video`, cap 10, ramp-up 10 s, 10 min hold;
@@ -352,12 +428,15 @@ description: "Task list for 011 Janus platform"
   - engine CPU threads (average, checked against `/usr/bin/time`).
 
   Add a Janus column to the table in `specs/010-mediasoup-platform/validation-report.md` "Three servers, 50 bots", or repeat the table, with all eight runs, in 011's validation report (T024).
+  - **Recorded 2026-10-23** (22:15–23:40 UTC on 2026-10-22, screen unlocked in all eight runs): all eight runs **PASS**, 50/50 bots held for 10 min, 10 + 10 streams per bot, MOS p50 4.37 and 30 fps everywhere. Freezes: Jitsi 68 and 107, the others 0. Server CPU average: Jitsi 1.69 / 1.55, LiveKit 0.97 / 0.98, mediasoup 0.42 / 0.41, Janus 1.75 / 2.01 threads (Janus peak 7.1 / 6.9); Janus memory peak 62 MB. Engine 0.53–0.76 threads, agreeing with `/usr/bin/time`. The full table is in the validation report "Four servers, 50 bots".
+    - **Jitsi video latency** was `frame_not_identified` in both Jitsi runs: the 2^31 start of T026 makes the bridge rebase video timestamps. T026 moved to 2^30; a third 50-bot Jitsi run with it PASS, video latency p50 1.5 ms (research R8).
+    - **CPU against 010 T029**: 1.4–2.9 times lower for the same plan, with 10-bot runs unchanged: the machine under sustained load (thermal throttling), not the code. Only same-set comparisons are valid.
 
 ---
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T023 [P] Update the repository's `README.md`, in the style of the 010 entries:
+- [X] T023 [P] Update the repository's `README.md`, in the style of the 010 entries:
   - the features table gets a row "011 Janus";
   - "adapters for other platforms (Janus)" is removed from the "Not done yet" list;
   - a "**Janus (011).**" paragraph: platform, `platform_config`, rejected options, the local setup command and the live test command.
@@ -365,20 +444,21 @@ description: "Task list for 011 Janus platform"
   Update `CLAUDE.md`:
   - the "Commands" block gets the Janus live test command (`JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 JANUS_SERVER_CONTAINERS=janus go test -tags live -count=1 -v -run Janus ./tests/live/`);
   - the "Recent Changes" 011 line drops "(planned)".
-- [ ] T024 Write `specs/011-janus-platform/validation-report.md`, as 010's:
+- [X] T024 Write `specs/011-janus-platform/validation-report.md`, as 010's:
   - the setup (machine, Janus version, libnice version, screen state);
   - a table of SC-001 to SC-007 with result and evidence (T015, T017–T019, T021, T022, T025);
   - T002's findings (dummy subscription, timestamps, ICE), the latency finding (T018) and the four-server table (T022);
   - deviations from the plan.
-- [ ] T025 Final checks:
+- [X] T025 Final checks:
   - `go vet ./... && go vet -tags live ./tests/live/ && go test -race -count=1 ./...` all pass;
   - this prints nothing apart from test data in `src/report/writer_test.go` (boundary, constitution III):
     `grep -rni "janus\|videoroom" src --include=*.go | grep -v "src/platform/janus\|src/platform/catalog"`;
-  - `git diff <commit before T001> -- src/execution src/media src/scenario src/report` shows only test files;
+  - `git diff <commit before T001> -- src/execution src/media src/scenario src/report` shows only test files, and `src/media/source.go` (T026);
   - `go.mod` has no new requirement;
   - one 2-bot Jitsi live run, one 10-bot LiveKit live run and one 10-bot mediasoup live run still pass (FR-011).
 
   Record the results under this task.
+  - **Recorded 2026-10-23**: vet and race tests pass; the boundary grep shows only `writer_test.go` test data and the explanatory comment in `src/media/source.go`; the engine packages changed only in tests and `source.go` (T026); `go.mod` unchanged. Jitsi 2-bot, LiveKit 10-bot, mediasoup 10-bot and Janus 10-bot live runs (60 s) all PASS. Details in the validation report "Final checks".
 
 ---
 
@@ -388,6 +468,7 @@ description: "Task list for 011 Janus platform"
 - **Foundational (T003–T007)**:
   - T003, T004 and T005 are independent files and can run in parallel;
   - T006 touches only the catalog and can run alongside them;
+  - T026 (added after T002) touches only `src/media/source.go` and can run alongside them;
   - T007 needs T004 and T005.
 - **US1 (T008–T015)**:
   - the tests T008–T010 can run in parallel (T010 needs T006);
@@ -400,7 +481,7 @@ description: "Task list for 011 Janus platform"
 ### Parallel Example: Foundational
 
 ```text
-T003 config.go   T004 messages.go   T005 client.go   T006 catalog signature
+T003 config.go   T004 messages.go   T005 client.go   T006 catalog signature   T026 source timestamps
 then
 T007 fakeserver_test.go
 ```
@@ -426,7 +507,8 @@ T016 writer_test.go (after T013)   T017 field-set diff   T018 latency   T019 ser
 3. **US3** (T020–T022): reproducibility from a clean checkout, and the four-server comparison at 50 bots.
 4. **Polish** (T023–T025).
 
-The engine is not changed, so Jitsi, LiveKit and mediasoup cannot regress
-through shared code. The only shared change is the catalog signature (T006).
+The engine is not changed. The shared changes are the catalog signature
+(T006) and the sources' initial RTP timestamp (T026), so T025's checks on
+the other platforms matter.
 Still run T025's checks on the other platforms before calling the feature
 done.

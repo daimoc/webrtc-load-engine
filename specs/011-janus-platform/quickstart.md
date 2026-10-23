@@ -73,7 +73,7 @@ Expected:
 - the server section reports `janus` with CPU and memory;
 - one pair of files `reports/<time>-janus-live-janus-<run>.{json,md}`.
 
-During the hold, open `http://localhost:8090/videoroom.html?room=1011`: the
+During the hold, open `http://localhost:8090/demos/videoroom.html?room=1011`: the
 page shows the 10 bots' videos.
 
 Compare the JSON's field set with a mediasoup report of the same plan, as
