@@ -32,6 +32,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - Go 1.23.0 + `nhooyr.io/websocket` (protoo JSON, subprotocol `protoo`), `pion/sdp/v3` (SDP built from mediasoup's ICE/DTLS/RTP parameters, as mediasoup-client does), 008 publish session reused; no new module (010-mediasoup-platform)
 - Go 1.23.0 + `nhooyr.io/websocket` (Janus JSON API, subprotocol `janus-protocol`), 008 publish session and 010 consent checks reused; Janus v1.4.3 VideoRoom (multistream, dummy publisher); no new module (011-janus-platform)
 - Go 1.23.0 + standard library (`hash/fnv`), `pion/rtp`; 6-byte VP8 frame trailer (scenario tag + frame number) for video latency; no new module (012-video-frame-latency)
+- Go 1.23.0 + standard library (`os/exec`, `archive/tar`, `net/netip`, `crypto/rand`); OpenSSH client, Docker Compose on the target; `DOCKER_HOST=ssh://` for server load; no new module (013-remote-sfu-deployment)
 
 - (001-create-scenario-api)
 
