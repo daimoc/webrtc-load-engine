@@ -86,7 +86,7 @@ func BenchmarkSourceFanOut(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		f := c.Frames[i%len(c.Frames)]
-		s.fanOut([][]*rtp.Packet{s.packetize(s.layers[0], f.Data, &seq, ts)})
+		s.fanOut([][]*rtp.Packet{s.packetize(s.layers[0], f.Data, &seq, ts, uint32(i+1))})
 		ts += f.Samples
 	}
 }

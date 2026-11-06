@@ -60,7 +60,8 @@ type Source struct {
 	lateness prometheus.Observer
 	sent     prometheus.Counter
 	sentB    prometheus.Counter
-	times    *SendTimes // When each frame's write started, by RTP timestamp
+	times    *SendTimes // When each frame's write started
+	video    bool       // Frames carry a trailer (012 research R1)
 
 	mu   sync.Mutex
 	subs [][]TrackWriter // Guarded by mu; one writer per layer, in subscription order
@@ -86,6 +87,10 @@ func NewLayeredSource(scenarioID string, layers []*Content) *Source {
 		sent:     PacketsSent.WithLabelValues(scenarioID, kind),
 		sentB:    BytesSent.WithLabelValues(scenarioID, kind),
 		times:    NewSendTimes(),
+		video:    kind == KindVideo,
+	}
+	if s.video {
+		s.times = NewVideoSendTimes(scenarioTag(scenarioID))
 	}
 	for _, c := range layers {
 		var payload rtp.Payloader = &codecs.OpusPayloader{}
@@ -149,11 +154,11 @@ func (s *Source) Unsubscribe(w TrackWriter) {
 // initialRTPTimestamp is the RTP timestamp of a source's first frame. It is
 // not 0 (RFC 3550 5.1: the initial value should not be predictable) so that
 // a server which rebases forwarded timestamps from 0, as Janus does, never
-// yields timestamps of recently sent frames, which would give the latency
-// measure wrong values (011 research R8). It is below 2^31 because Jitsi's
-// bridge keeps a video stream's timestamps only when they are newer than 0
-// in RTP's modular order, and rebases them otherwise. Fixed, so media stays
-// deterministic.
+// yields timestamps of recently sent frames, which would give the audio
+// latency measure wrong values (011 research R8; video uses frame trailers,
+// 012). It is below 2^31 because Jitsi's bridge keeps a video stream's
+// timestamps only when they are newer than 0 in RTP's modular order, and
+// rebases them otherwise. Fixed, so media stays deterministic.
 const initialRTPTimestamp uint32 = 1 << 30
 
 // Run sends the content in a loop until ctx ends.
@@ -161,6 +166,7 @@ func (s *Source) Run(ctx context.Context) {
 	var (
 		seqs  = make([]uint16, len(s.layers))
 		ts    = initialRTPTimestamp
+		num   uint32 // Video frame number, the same on all layers
 		start = s.clock.Now()
 		base  = s.layers[0].content
 		frame = make([][]*rtp.Packet, len(s.layers))
@@ -174,9 +180,14 @@ func (s *Source) Run(ctx context.Context) {
 			}
 			now := s.clock.Now()
 			s.lateness.Observe(now.Sub(due).Seconds())
-			s.times.Record(ts, now)
+			if s.video {
+				num = (num + 1) & frameNumberMask
+				s.times.Record(num, now)
+			} else {
+				s.times.Record(ts, now)
+			}
 			for l, layer := range s.layers {
-				frame[l] = s.packetize(layer, layer.content.Frames[i].Data, &seqs[l], ts)
+				frame[l] = s.packetize(layer, layer.content.Frames[i].Data, &seqs[l], ts, num)
 			}
 			s.fanOut(frame)
 			ts += f.Samples
@@ -186,10 +197,19 @@ func (s *Source) Run(ctx context.Context) {
 }
 
 // packetize splits a frame into RTP packets with consecutive sequence
-// numbers, the frame's timestamp and the marker on the last packet. SSRC and
-// payload type are set per track by the writer.
-func (s *Source) packetize(layer sourceLayer, frame []byte, seq *uint16, ts uint32) []*rtp.Packet {
-	payloads := layer.payload.Payload(rtpPayloadMTU, frame)
+// numbers, the frame's timestamp and the marker on the last packet. Video
+// frames end with the trailer of frame num, always whole in the last packet.
+// SSRC and payload type are set per track by the writer.
+func (s *Source) packetize(layer sourceLayer, frame []byte, seq *uint16, ts, num uint32) []*rtp.Packet {
+	var payloads [][]byte
+	if s.video {
+		payloads = layer.payload.Payload(rtpPayloadMTU-frameTrailerSize, frame)
+		if last := len(payloads) - 1; last >= 0 {
+			payloads[last] = appendFrameTrailer(payloads[last], s.times.Tag(), num)
+		}
+	} else {
+		payloads = layer.payload.Payload(rtpPayloadMTU, frame)
+	}
 	packets := make([]*rtp.Packet, len(payloads))
 	for i, p := range payloads {
 		packets[i] = &rtp.Packet{

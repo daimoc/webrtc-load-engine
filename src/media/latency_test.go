@@ -23,6 +23,24 @@ func TestSendTimes_RecordAndLookup(t *testing.T) {
 	}
 }
 
+func TestVideoSendTimes_ByFrameNumber(t *testing.T) {
+	tag := [3]byte{1, 2, 3}
+	s := NewVideoSendTimes(tag)
+	if s.Tag() != tag {
+		t.Fatalf("tag %v, want %v", s.Tag(), tag)
+	}
+	t0 := time.Unix(1000, 0)
+	for n := uint32(1); n <= sendTimesSize+1; n++ {
+		s.Record(n, t0.Add(time.Duration(n)*33*time.Millisecond))
+	}
+	if _, ok := s.Lookup(1); ok {
+		t.Error("frame 1 still remembered after 512 newer frames")
+	}
+	if at, ok := s.Lookup(2); !ok || !at.Equal(t0.Add(66*time.Millisecond)) {
+		t.Errorf("frame 2: %v, %v", at, ok)
+	}
+}
+
 func TestSendTimes_ForgetsOldest(t *testing.T) {
 	s := NewSendTimes()
 	t0 := time.Unix(1000, 0)

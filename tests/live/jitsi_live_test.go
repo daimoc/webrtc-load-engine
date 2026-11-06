@@ -374,6 +374,14 @@ func qualityChecks(t *testing.T, q *scenario.QualitySummary, checkAudio, checkVi
 			if single && v.HeightShare["360"] < 0.99 {
 				t.Errorf("height 360 for %.1f%% of the received time, want 100%%", 100*v.HeightShare["360"])
 			}
+			// 012: on every platform, every bot that received video
+			// measures its latency (the ranking keeps 10 bots).
+			if !v.LatencyAvailable {
+				t.Errorf("no video latency: %q", v.LatencyReason)
+			}
+			if n, want := len(q.Worst.HighestLatencyP95Seconds), min(v.Bots, 10); n < want {
+				t.Errorf("%d bots with a latency, want at least %d", n, want)
+			}
 			t.Logf("video freezes: %.0f during the hold, %d over the whole run", holdFreezes, v.FreezesTotal)
 			if holdFreezes != 0 {
 				t.Errorf("%.0f freezes during the hold, want none", holdFreezes)

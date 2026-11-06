@@ -197,33 +197,187 @@ func TestVideoQuality_PeriodFrameRate(t *testing.T) {
 	}
 }
 
+// trailerFeed sends frames of 3 packets, the last with a frame trailer, as a
+// server that rewrites timestamps would forward them.
+type trailerFeed struct {
+	t   *testing.T
+	q   *VideoQuality
+	st  *SendTimes
+	tag [3]byte
+	seq uint16
+	ts  uint32
+	now time.Time
+}
+
+func newTrailerFeed(t *testing.T) *trailerFeed {
+	tag := [3]byte{0xa1, 0xb2, 0xc3}
+	f := &trailerFeed{t: t, q: NewVideoQuality(10 * time.Second), st: NewVideoSendTimes(tag), tag: tag, seq: 100, ts: 3001, now: time.Unix(1000, 0)}
+	f.q.SetLatency(f.st, Latency.WithLabelValues("video-latency-test", KindVideo))
+	return f
+}
+
+func vp8Packet(first bool) []byte {
+	if first {
+		return []byte{0x10, 0x01, 7, 7, 7, 7, 7, 7, 7}
+	}
+	return []byte{0x00, 0x01, 7, 7, 7, 7, 7, 7, 7}
+}
+
+// start sends a frame's first packets, gap after the previous frame.
+func (f *trailerFeed) start(gap time.Duration) {
+	f.now = f.now.Add(gap)
+	f.ts += 3000
+	f.q.UpdatePacket(f.seq, f.ts, vp8Packet(true), f.now)
+	f.q.UpdatePacket(f.seq+1, f.ts, vp8Packet(false), f.now.Add(time.Millisecond))
+	f.seq += 2
+}
+
+// finish sends the frame's last packet with the trailer of frame n.
+func (f *trailerFeed) finish(n uint32) {
+	f.q.UpdatePacket(f.seq, f.ts, appendFrameTrailer(vp8Packet(false), f.tag, n), f.now.Add(2*time.Millisecond))
+	f.seq++
+}
+
+// frame sends frame n, sent sendAge before its first packet arrives.
+func (f *trailerFeed) frame(n uint32, sendAge time.Duration) {
+	f.start(frameGap)
+	f.st.Record(n, f.now.Add(-sendAge))
+	f.finish(n)
+}
+
+func (f *trailerFeed) samples() uint64 { return f.q.Snapshot(false).Latency.N }
+
+// Latency runs to the arrival of the frame's first packet, though the
+// trailer comes in its last one.
 func TestVideoQuality_Latency(t *testing.T) {
-	st := NewSendTimes()
-	obs := Latency.WithLabelValues("video-latency-test", KindVideo)
-	f := newVideoFeed(10 * time.Second)
-	f.q.SetLatency(st, obs)
-	// Frames 1 to 10 were sent 40 ms before they arrive; frame 11 is
-	// unknown (another sender) and frame 12 "arrives" before it was sent.
-	for i := 1; i <= 12; i++ {
-		ts := f.ts + 3000
-		at := f.now.Add(frameGap - 40*time.Millisecond)
-		switch i {
-		case 11:
-		case 12:
-			st.Record(ts, f.now.Add(time.Second))
-		default:
-			st.Record(ts, at)
-		}
-		f.frame(frameGap, 0)
+	f := newTrailerFeed(t)
+	for n := uint32(1); n <= 10; n++ {
+		f.frame(n, 40*time.Millisecond)
 	}
 	s := f.q.Snapshot(false)
 	if s.Latency.N != 10 {
 		t.Fatalf("latency samples %d, want 10", s.Latency.N)
 	}
-	if s.LatencyLookups != 12 {
-		t.Errorf("latency lookups %d, want 12 (every frame, found or not)", s.LatencyLookups)
-	}
 	if q, _ := s.Latency.Quantile(0.5); q != 40500*time.Microsecond {
 		t.Fatalf("median %s, want 40.5ms", q)
+	}
+}
+
+// Frames with no sample still count as looked up: the summary's reason
+// depends on it.
+func TestVideoQuality_LatencyLookupsEveryFrame(t *testing.T) {
+	f := newTrailerFeed(t)
+	f.frame(1, 40*time.Millisecond)
+	f.start(frameGap)
+	f.finish(2) // Unknown: another sender, or forgotten
+	f.start(frameGap)
+	f.st.Record(3, f.now.Add(time.Second)) // "Arrives" before it was sent
+	f.finish(3)
+	f.start(frameGap) // Last packet lost
+	s := f.q.Snapshot(false)
+	if s.Latency.N != 1 {
+		t.Errorf("latency samples %d, want 1", s.Latency.N)
+	}
+	if s.LatencyLookups != 4 {
+		t.Errorf("latency lookups %d, want 4 (every frame, found or not)", s.LatencyLookups)
+	}
+}
+
+func TestVideoQuality_LatencyCountsRetransmissionOnce(t *testing.T) {
+	f := newTrailerFeed(t)
+	f.frame(1, 40*time.Millisecond)
+	f.seq-- // The last packet again
+	f.finish(1)
+	if n := f.samples(); n != 1 {
+		t.Fatalf("latency samples %d, want 1", n)
+	}
+}
+
+// A last packet that arrives after the next frame started cannot borrow
+// that frame's arrival.
+func TestVideoQuality_LatencyIgnoresReorderedLastPacket(t *testing.T) {
+	f := newTrailerFeed(t)
+	f.frame(1, 40*time.Millisecond)
+	f.start(frameGap)
+	f.st.Record(2, f.now.Add(-40*time.Millisecond))
+	oldTS, oldSeq := f.ts, f.seq
+	f.start(frameGap)
+	f.q.UpdatePacket(oldSeq, oldTS, appendFrameTrailer(vp8Packet(false), f.tag, 2), f.now.Add(2*time.Millisecond))
+	if n := f.samples(); n != 1 {
+		t.Fatalf("latency samples %d, want 1", n)
+	}
+}
+
+func TestVideoQuality_LatencyIgnoresWrongTag(t *testing.T) {
+	f := newTrailerFeed(t)
+	f.st.Record(1, f.now)
+	f.tag[2]++
+	f.frame(1, 40*time.Millisecond)
+	if n := f.samples(); n != 0 {
+		t.Fatalf("latency samples %d, want 0", n)
+	}
+}
+
+// Frame numbers forgotten by the send times give no sample.
+func TestVideoQuality_LatencyIgnoresForgottenFrame(t *testing.T) {
+	f := newTrailerFeed(t)
+	for n := uint32(1); n <= sendTimesSize+1; n++ {
+		f.st.Record(n, f.now)
+	}
+	f.start(frameGap)
+	f.finish(1)
+	if n := f.samples(); n != 0 {
+		t.Fatalf("latency samples %d, want 0", n)
+	}
+}
+
+// The picture sent again in a later content loop matches only its own frame
+// number, never the earlier send time.
+func TestVideoQuality_LatencyAcrossContentLoop(t *testing.T) {
+	f := newTrailerFeed(t)
+	f.start(frameGap)
+	f.st.Record(1, f.now.Add(-10*time.Second)) // The same picture, one loop ago
+	f.st.Record(301, f.now.Add(-40*time.Millisecond))
+	f.finish(301)
+	s := f.q.Snapshot(false)
+	if q, _ := s.Latency.Quantile(0.5); s.Latency.N != 1 || q != 40500*time.Microsecond {
+		t.Fatalf("%d samples, median %s, want 1 at 40.5ms", s.Latency.N, q)
+	}
+}
+
+// 012 FR-004: at a simulcast layer switch timestamps jump, while frame
+// numbers go on: both layers give samples, with no outlier at the switch.
+func TestVideoQuality_LatencyAcrossLayerSwitch(t *testing.T) {
+	f := newTrailerFeed(t)
+	for n := uint32(1); n <= 10; n++ {
+		f.frame(n, 40*time.Millisecond)
+	}
+	f.ts += 1 << 20
+	f.seq += 500
+	for n := uint32(11); n <= 20; n++ {
+		f.frame(n, 40*time.Millisecond)
+	}
+	s := f.q.Snapshot(false)
+	if s.Latency.N != 20 {
+		t.Fatalf("latency samples %d, want 20", s.Latency.N)
+	}
+	if s.Latency.Max != 40*time.Millisecond {
+		t.Fatalf("largest sample %s, want 40ms", s.Latency.Max)
+	}
+}
+
+type countingObserver struct{ n int }
+
+func (o *countingObserver) Observe(float64) { o.n++ }
+
+// A frame that seems to arrive before it was sent reaches neither the
+// buckets nor the Prometheus histogram.
+func TestVideoQuality_LatencyIgnoresFrameBeforeItsSendTime(t *testing.T) {
+	f := newTrailerFeed(t)
+	o := &countingObserver{}
+	f.q.SetLatency(f.st, o)
+	f.frame(1, -time.Second)
+	if n := f.samples(); n != 0 || o.n != 0 {
+		t.Fatalf("%d samples, %d observed, want 0", n, o.n)
 	}
 }

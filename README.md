@@ -178,6 +178,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 008 LiveKit | LiveKit adapter: the same test plan runs against a LiveKit server (`"platform": "livekit"`), with the same quality and server‑load report; a pinned local LiveKit in `tests/platforms/livekit` |
 | 010 mediasoup-demo | mediasoup-demo adapter (`"platform": "mediasoup"`): the demo web client's protoo signaling, SDP built from mediasoup's parameters, the same report; bots send RFC 7675 consent checks like browsers; a pinned local server built from the demo's commit in `tests/platforms/mediasoup` |
 | 011 Janus | Janus VideoRoom adapter (`"platform": "janus"`): the Janus API over WebSocket, one multistream subscription per bot that follows the receive cap, the same report; a pinned local Janus built from its tag in `tests/platforms/janus` |
+| 012 Video latency | Video latency on every platform, also with simulcast and on Janus: a 6-byte trailer after each frame identifies it where servers rewrite timestamps; audio is unchanged |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -273,7 +274,9 @@ Every bot measures the quality of what it receives, from packet headers only
 keyframe requests; for audio, the share it would not play in time with a
 60 ms playout delay, and an E‑model listening score (MOS, at most 4.41 with
 the values used for Opus). Between bots of the same process it also measures
-the latency through the media server, from the RTP timestamp of each frame.
+the latency through the media server: from the RTP timestamp of each audio
+frame, and from a 6-byte trailer after each video frame's data (012), which
+survives servers rewriting timestamps and does not change what decoders show.
 These are exported as `webrtc_media_*` series per scenario
 (`specs/006-media-quality/contracts/metrics.md`). At the end of a run,
 `GET /api/v1/scenarios/{id}/quality` returns a summary: percentiles over
@@ -284,7 +287,7 @@ plan makes the bots send three layers. `"requested_heights": [{"height": 360,
 "share": 0.5}, {"height": 90, "share": 0.5}]` sets the height each bot asks
 for. On Jitsi each bot then gets the layer it asks for (at 10 bots, 100% of
 the time with 360/90 requests). The bridge rewrites the timestamps of
-simulcast video, so video latency is not available with simulcast. At 100
+simulcast video; video latency is still measured, from the frame trailer. At 100
 bots the local bridge needs more than its default 3 GB heap; with 8 GB the
 bots take 2.49 cores at 360 (MOS 4.10) and 2.51 cores at 720 (MOS 3.84),
 no more than without simulcast on the same day, but the laptop they share
@@ -327,8 +330,8 @@ its tracks on a connection it offers and receives on the one the server
 offers. It subscribes to at most `max_received_streams` tracks per kind
 itself (auto-subscribe off), earliest first, and replaces one that ends.
 The quality summary has the same fields as on Jitsi. LiveKit rewrites the
-video RTP timestamps, so video latency is reported unavailable with
-`"latency_reason": "frame_not_identified"`; audio latency is measured.
+video RTP timestamps in some runs; audio and video latency are both measured,
+video from the frame trailer (012).
 
 ```bash
 cd tests/platforms/livekit && cp env.example .env   # set LIVEKIT_API_SECRET (32+ characters)
@@ -401,9 +404,8 @@ earliest waiting one when an accepted one closes.
 
 The demo closes a transport after 20 s without an ICE consent check. All
 bots, on every platform, now send one every 5 s (RFC 7675), as browsers do.
-The quality summary and report have the same fields as on LiveKit. mediasoup
-keeps the senders' timestamps, so audio and video latency are both
-measured.
+The quality summary and report have the same fields as on LiveKit. Audio and
+video latency are both measured.
 
 ```bash
 cd tests/platforms/mediasoup && cp env.example .env && docker compose up -d --build && cd -
@@ -442,10 +444,10 @@ applied in the subscription: one `update` per change, swapping an ended
 stream for the earliest waiting one.
 
 The quality summary and report have the same fields as on the other
-platforms. Janus rebases the RTP timestamps it forwards, so latency is left
-out with `frame_not_identified`. The bots' sources now start their
-timestamps at 2^30, so that a rebased timestamp never matches a recently
-sent frame. Not 2^31: Jitsi's bridge rebases video timestamps from 2^31 up.
+platforms. Janus rebases the RTP timestamps it forwards: video latency is
+measured from the frame trailer (012), and audio latency stays left out with
+`frame_not_identified`. The bots' sources start their timestamps at 2^30, so
+that a rebased audio timestamp never matches a recently sent frame.
 At 50 bots with receive cap 10, alternated with the other three servers,
 Janus held every bot for 10 minutes with the same quality, using about
 twice LiveKit's server CPU and 60 MB of memory

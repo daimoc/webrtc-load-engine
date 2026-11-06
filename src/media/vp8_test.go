@@ -145,3 +145,28 @@ func TestVP8LayerPayloader(t *testing.T) {
 		t.Errorf("next frame descriptor % x", next[0][:6])
 	}
 }
+
+// parseVP8Descriptor returns the size of an RTP payload's VP8 descriptor.
+func parseVP8Descriptor(p []byte) (int, bool) {
+	if len(p) < 2 {
+		return 0, false
+	}
+	n := 1
+	if p[0]&0x80 != 0 {
+		x := p[1]
+		n = 2
+		if x&0x80 != 0 {
+			n++
+			if p[2]&0x80 != 0 {
+				n++
+			}
+		}
+		if x&0x40 != 0 {
+			n++
+		}
+		if x&0x30 != 0 {
+			n++
+		}
+	}
+	return n, len(p) >= n
+}

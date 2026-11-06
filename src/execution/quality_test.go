@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/logging"
 	"github.com/pion/rtcp"
+	"github.com/pion/rtp"
 	"github.com/pion/transport/v2/vnet"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -188,6 +189,61 @@ func vnetPeerConnection(t *testing.T, net *vnet.Net) *webrtc.PeerConnection {
 // measures differs from 50 ms by at most 5 ms, for audio and video.
 func TestPeer_LatencyThroughDelay(t *testing.T) {
 	const delay = 50 * time.Millisecond
+	snap := throughDelay(t, delay, nil, func(s map[string]KindMediaSnapshot) bool {
+		return len(s["audio"].Audio) == 1 && s["audio"].Audio[0].Latency.N >= 100 &&
+			len(s["video"].Video) == 1 && s["video"].Video[0].Latency.N >= 60
+	})
+	for kind, l := range map[string]media.LatencyBuckets{"audio": snap["audio"].Audio[0].Latency, "video": snap["video"].Video[0].Latency} {
+		median, _ := l.Quantile(0.5)
+		t.Logf("%s: median latency %s over %d samples", kind, median, l.N)
+		if d := median - delay; d < -5*time.Millisecond || d > 5*time.Millisecond {
+			t.Errorf("%s: median latency %s, want %s ± 5 ms", kind, median, delay)
+		}
+	}
+}
+
+// rewriter forwards a stream as Janus does: timestamps restart from 0, and
+// sequence numbers move (011 research R8).
+type rewriter struct {
+	next media.TrackWriter
+	base uint32
+	set  bool
+}
+
+func (r *rewriter) WriteRTP(p *rtp.Packet) error {
+	if !r.set {
+		r.base, r.set = p.Timestamp, true
+	}
+	c := *p
+	c.Timestamp -= r.base
+	c.SequenceNumber += 1000
+	return r.next.WriteRTP(&c)
+}
+
+// 012 SC-003: video latency stays right through a path that rewrites
+// timestamps. Audio, which still relies on them, gets no sample, which also
+// shows that the rewrite defeats timestamp matching.
+func TestPeer_LatencyThroughRewrite(t *testing.T) {
+	const delay = 50 * time.Millisecond
+	rewrite := func(w media.TrackWriter) media.TrackWriter { return &rewriter{next: w} }
+	snap := throughDelay(t, delay, rewrite, func(s map[string]KindMediaSnapshot) bool {
+		return len(s["video"].Video) == 1 && s["video"].Video[0].Latency.N >= 60 && len(s["audio"].Audio) == 1
+	})
+	v := snap["video"].Video[0].Latency
+	median, _ := v.Quantile(0.5)
+	t.Logf("video: median latency %s over %d samples", median, v.N)
+	if d := median - delay; d < -5*time.Millisecond || d > 5*time.Millisecond {
+		t.Errorf("video: median latency %s, want %s ± 5 ms", median, delay)
+	}
+	if a := snap["audio"].Audio[0]; a.Latency.N != 0 || a.LatencyLookups == 0 {
+		t.Errorf("audio through a rewrite: %d samples of %d lookups, want 0 of some", a.Latency.N, a.LatencyLookups)
+	}
+}
+
+// throughDelay sends audio and video to a receiver over a delayed path,
+// through wrap when set, until ok.
+func throughDelay(t *testing.T, delay time.Duration, wrap func(media.TrackWriter) media.TrackWriter, ok func(map[string]KindMediaSnapshot) bool) map[string]KindMediaSnapshot {
+	t.Helper()
 	router, err := vnet.NewRouter(&vnet.RouterConfig{CIDR: "10.0.0.0/24", MinDelay: delay, LoggerFactory: logging.NewDefaultLoggerFactory()})
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +281,11 @@ func TestPeer_LatencyThroughDelay(t *testing.T) {
 			t.Fatal(err)
 		}
 		src := media.NewSource(scenarioID, content)
-		src.Subscribe(tr)
+		var w media.TrackWriter = tr
+		if wrap != nil {
+			w = wrap(tr)
+		}
+		src.Subscribe(w)
 		sources[kind], sendTimes[kind] = src, src.SendTimes()
 	}
 
@@ -239,15 +299,56 @@ func TestPeer_LatencyThroughDelay(t *testing.T) {
 		go src.Run(ctx)
 	}
 
-	snap := waitMedia(t, p, func(s map[string]KindMediaSnapshot) bool {
-		return len(s["audio"].Audio) == 1 && s["audio"].Audio[0].Latency.N >= 100 &&
-			len(s["video"].Video) == 1 && s["video"].Video[0].Latency.N >= 60
-	}, "latency samples")
-	for kind, l := range map[string]media.LatencyBuckets{"audio": snap["audio"].Audio[0].Latency, "video": snap["video"].Video[0].Latency} {
-		median, _ := l.Quantile(0.5)
-		t.Logf("%s: median latency %s over %d samples", kind, median, l.N)
-		if d := median - delay; d < -5*time.Millisecond || d > 5*time.Millisecond {
-			t.Errorf("%s: median latency %s, want %s ± 5 ms", kind, median, delay)
-		}
+	return waitMedia(t, p, ok, "latency samples")
+}
+
+// stripper removes the frame trailer: media from a publisher that is not a
+// bot of the scenario.
+type stripper struct{ next media.TrackWriter }
+
+func (s stripper) WriteRTP(p *rtp.Packet) error {
+	c := *p
+	if p.Marker {
+		c.Payload = p.Payload[:len(p.Payload)-6]
+	}
+	return s.next.WriteRTP(&c)
+}
+
+// 012 SC-004: frames of another scenario, and frames with no trailer, give
+// no latency value. The frames are still counted, which is what makes the
+// summary say frame_not_identified.
+func TestPeer_NoLatencyForForeignFrames(t *testing.T) {
+	for name, wrap := range map[string]func(media.TrackWriter) media.TrackWriter{
+		"another scenario": func(w media.TrackWriter) media.TrackWriter { return w },
+		"no trailer":       func(w media.TrackWriter) media.TrackWriter { return stripper{w} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			offerer, track, _ := videoOfferer(t)
+			content, err := media.LoadContent(media.KindVideo)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mine := media.NewSource("scenario-mine-"+uuid.NewString(), content)
+			src := mine
+			if name == "another scenario" {
+				src = media.NewSource("scenario-other-"+uuid.NewString(), content)
+			}
+			src.Subscribe(wrap(track))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			p := connectedReceiver(t, offerer, "scenario-q-"+uuid.NewString(), PeerMedia{
+				SendTimes: map[string]*media.SendTimes{media.KindVideo: mine.SendTimes()},
+			})
+			go src.Run(ctx)
+			if src != mine {
+				go mine.Run(ctx) // The bot's own send times keep filling
+			}
+			snap := waitMedia(t, p, func(s map[string]KindMediaSnapshot) bool {
+				return len(s["video"].Video) == 1 && s["video"].Video[0].LatencyLookups >= 30
+			}, "frames")
+			if n := snap["video"].Video[0].Latency.N; n != 0 {
+				t.Fatalf("%d latency samples, want 0", n)
+			}
+		})
 	}
 }

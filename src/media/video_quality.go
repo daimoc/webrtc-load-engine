@@ -46,8 +46,10 @@ type VideoQuality struct {
 	needKeyframe bool
 	lastRequest  time.Time
 
-	latency LatencyBuckets
-	lookups uint64 // Frames looked up in sendTimes
+	latency    LatencyBuckets
+	lookups    uint64 // Frames received while send times are known
+	numbered   bool   // A frame number was seen
+	lastNumber uint32 // Newest frame number seen
 }
 
 // VideoQualitySnapshot is a point-in-time copy of a VideoQuality. Counters
@@ -65,7 +67,7 @@ type VideoQualitySnapshot struct {
 	PeriodSpan      time.Duration // Their total duration
 
 	Latency        LatencyBuckets // Send-to-receive time of the frames found in the send times
-	LatencyLookups uint64         // Frames looked up in the send times, found or not
+	LatencyLookups uint64         // Frames received while send times are known, identified or not
 }
 
 // FrameRate returns the period's frames per second, or 0 without an
@@ -93,6 +95,7 @@ func (q *VideoQuality) UpdatePacket(seq uint16, ts uint32, payload []byte, arriv
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.updateLocked(seq, ts, info, arrival)
+	q.measureLatency(ts, payload)
 	return q.needKeyframeLocked(arrival)
 }
 
@@ -167,12 +170,6 @@ func (q *VideoQuality) newFrame(ts uint32, info vp8Info, arrival time.Time) {
 	q.lastFrame = arrival
 	if q.sendTimes != nil {
 		q.lookups++
-		if at, ok := q.sendTimes.Lookup(ts); ok {
-			if d := arrival.Sub(at); d >= 0 {
-				q.latency.Add(d)
-				q.observer.Observe(d.Seconds())
-			}
-		}
 	}
 
 	switch {
@@ -188,6 +185,27 @@ func (q *VideoQuality) newFrame(ts uint32, info vp8Info, arrival time.Time) {
 		q.needKeyframe = true
 	}
 	q.missing = 0
+}
+
+// measureLatency takes the current frame's latency sample from a packet with
+// a frame trailer (012 data model): from the send time of the frame it names
+// to the arrival of the frame's first packet. A last packet that arrives
+// after the next frame began gives no sample, and neither does a repeated one.
+func (q *VideoQuality) measureLatency(ts uint32, payload []byte) {
+	if q.sendTimes == nil || ts != q.lastTS {
+		return
+	}
+	n, ok := readFrameTrailer(payload, q.sendTimes.Tag())
+	if !ok || (q.numbered && !newerFrame(n, q.lastNumber)) {
+		return
+	}
+	q.numbered, q.lastNumber = true, n
+	if at, ok := q.sendTimes.Lookup(n); ok {
+		if d := q.lastFrame.Sub(at); d >= 0 {
+			q.latency.Add(d)
+			q.observer.Observe(d.Seconds())
+		}
+	}
 }
 
 // NeedKeyframe reports whether a keyframe request should be sent now: the

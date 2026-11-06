@@ -31,6 +31,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - files: two per run in the reports folder (`reports/` by default); the scenario keeps only the paths in memory (009-run-report-files)
 - Go 1.23.0 + `nhooyr.io/websocket` (protoo JSON, subprotocol `protoo`), `pion/sdp/v3` (SDP built from mediasoup's ICE/DTLS/RTP parameters, as mediasoup-client does), 008 publish session reused; no new module (010-mediasoup-platform)
 - Go 1.23.0 + `nhooyr.io/websocket` (Janus JSON API, subprotocol `janus-protocol`), 008 publish session and 010 consent checks reused; Janus v1.4.3 VideoRoom (multistream, dummy publisher); no new module (011-janus-platform)
+- Go 1.23.0 + standard library (`hash/fnv`), `pion/rtp`; 6-byte VP8 frame trailer (scenario tag + frame number) for video latency; no new module (012-video-frame-latency)
 
 - (001-create-scenario-api)
 
@@ -63,6 +64,7 @@ JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 JANUS_SERVER
 : Follow standard conventions
 
 ## Recent Changes
+- 012-video-frame-latency: 6-byte trailer after each video frame's data (scenario tag + frame number, `src/media/frame_trailer.go`); video latency comes from it on every platform, including Jitsi simulcast and Janus; audio still matches RTP timestamps, so Janus audio stays `frame_not_identified`
 - 011-janus-platform: Janus VideoRoom adapter (`src/platform/janus`), catalog entry (catalog `Entry.NewAdapter` now gets the test plan), local server built from tag v1.4.3 in `tests/platforms/janus`, live test `tests/live/janus_live_test.go`; media sources start RTP timestamps at 2^30 (`src/media/source.go`; 2^31 makes Jitsi's bridge rebase video)
 - 010-mediasoup-platform: mediasoup-demo adapter (`src/platform/mediasoup`), catalog entry, local server built from a pinned commit in `tests/platforms/mediasoup`; RFC 7675 consent checks on every PeerConnection (`src/execution/consent.go`); no publish session for receive-only peers
 - 009-run-report-files: JSON + Markdown report of every run in `reports/` (`src/report`), `RunResult` in the engine's completion callback, `report` in the scenario answer; no new module

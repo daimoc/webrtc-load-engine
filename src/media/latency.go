@@ -10,22 +10,35 @@ import (
 const sendTimesSize = 512
 
 // SendTimes records when the scenario's source started writing each frame,
-// by RTP timestamp, so that receivers can tell how long a frame took to
-// reach them (research R5): every bot sends the same frames with the same
-// timestamps at the same time. One per scenario and kind.
+// so that receivers can tell how long a frame took to reach them (research
+// R5): every bot sends the same frames at the same time. Audio frames are
+// keyed by RTP timestamp, video frames by frame number, which servers do not
+// rewrite (012 research R4). One per scenario and kind.
 type SendTimes struct {
+	tag   [3]byte // Video: the scenario tag of the frame trailers
 	mu    sync.RWMutex
 	at    map[uint32]time.Time
-	order [sendTimesSize]uint32 // Timestamps in recording order, to forget the oldest
+	order [sendTimesSize]uint32 // Keys in recording order, to forget the oldest
 	n     int                   // Frames recorded
 }
 
-// NewSendTimes creates an empty registry.
+// NewSendTimes creates an empty registry for audio.
 func NewSendTimes() *SendTimes {
 	return &SendTimes{at: make(map[uint32]time.Time, sendTimesSize)}
 }
 
-// Record records that the frame with RTP timestamp ts was sent at at.
+// NewVideoSendTimes creates an empty registry for video frames carrying a
+// trailer with this tag.
+func NewVideoSendTimes(tag [3]byte) *SendTimes {
+	s := NewSendTimes()
+	s.tag = tag
+	return s
+}
+
+// Tag returns the scenario tag of the frame trailers.
+func (s *SendTimes) Tag() [3]byte { return s.tag }
+
+// Record records that the frame with this key was sent at at.
 func (s *SendTimes) Record(ts uint32, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -38,7 +51,7 @@ func (s *SendTimes) Record(ts uint32, at time.Time) {
 	s.n++
 }
 
-// Lookup returns the send time of the frame with timestamp ts, or false
+// Lookup returns the send time of the frame with this key, or false
 // when it is not one of the recorded frames (never a guess).
 func (s *SendTimes) Lookup(ts uint32) (time.Time, bool) {
 	s.mu.RLock()

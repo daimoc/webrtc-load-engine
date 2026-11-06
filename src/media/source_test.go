@@ -219,7 +219,7 @@ func TestSource_RunStopsOnCancel(t *testing.T) {
 	}
 }
 
-// Each frame's timestamp is recorded with the time its write started.
+// Each video frame's number is recorded with the time its write started.
 func TestSource_RecordsSendTimes(t *testing.T) {
 	w := &recorder{}
 	s := runSource(t, "send-times-"+t.Name(), testContent(), 250*time.Millisecond, nil, w)
@@ -227,10 +227,138 @@ func TestSource_RecordsSendTimes(t *testing.T) {
 	if len(packets) == 0 {
 		t.Fatal("nothing sent")
 	}
+	tag := s.SendTimes().Tag()
 	for i, p := range packets {
-		sent, ok := s.SendTimes().Lookup(p.Timestamp)
+		if !p.Marker {
+			continue
+		}
+		n, ok := readFrameTrailer(p.Payload, tag)
+		if !ok {
+			t.Fatalf("packet %d: no trailer", i)
+		}
+		sent, ok := s.SendTimes().Lookup(n)
 		if !ok || !sent.Equal(at[i]) {
-			t.Fatalf("packet %d (ts %d): send time %v %v, written at %v", i, p.Timestamp, sent, ok, at[i])
+			t.Fatalf("packet %d (frame %d): send time %v %v, written at %v", i, n, sent, ok, at[i])
+		}
+	}
+}
+
+// Every video frame ends with a trailer numbered from 1, across the content
+// loop, and only its last packet carries one.
+func TestSource_FramesCarryTrailer(t *testing.T) {
+	w := &recorder{}
+	id := "trailer-" + t.Name()
+	s := runSource(t, id, testContent(), 250*time.Millisecond, nil, w)
+	if got, want := s.SendTimes().Tag(), scenarioTag(id); got != want {
+		t.Fatalf("tag % x, want % x", got, want)
+	}
+	packets, _ := w.snapshot()
+	want := uint32(1)
+	for i, p := range packets {
+		n, ok := readFrameTrailer(p.Payload, s.SendTimes().Tag())
+		if ok != p.Marker {
+			t.Fatalf("packet %d: trailer %v, last of its frame %v", i, ok, p.Marker)
+		}
+		if !ok {
+			continue
+		}
+		if n != want {
+			t.Fatalf("packet %d: frame %d, want %d", i, n, want)
+		}
+		want++
+	}
+	if want != 9 { // 3 frames per loop, 2 loops and 2 frames of a third
+		t.Fatalf("%d frames, want 8", want-1)
+	}
+}
+
+// Whatever the frame's size, the trailer stays whole in the last packet, no
+// payload passes the limit, and the frame's data comes through unchanged.
+func TestSource_TrailerStaysWithinMTU(t *testing.T) {
+	var sizes []int
+	for k := 1; k <= 3; k++ {
+		for _, base := range []int{1188, 1190, 1194, 1196} { // Room per packet, with and without simulcast and the trailer
+			for d := -8; d <= 8; d++ {
+				sizes = append(sizes, k*base+d)
+			}
+		}
+	}
+	for _, layers := range []int{1, 2} {
+		c := &Content{Kind: KindVideo, LoopDuration: time.Duration(len(sizes)) * 10 * time.Millisecond}
+		for i, size := range sizes {
+			data := make([]byte, size)
+			for j := range data {
+				data[j] = byte(i + j)
+			}
+			c.Frames = append(c.Frames, Frame{Data: data, Duration: 10 * time.Millisecond, Samples: 900})
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		start := time.Unix(1000, 0)
+		clock := &fakeClock{now: start, limit: start.Add(c.LoopDuration - time.Millisecond), cancel: cancel}
+		var contents []*Content
+		var writers []TrackWriter
+		w := &recorder{clock: clock}
+		for l := 0; l < layers; l++ {
+			contents = append(contents, c)
+			writers = append(writers, &recorder{clock: clock})
+		}
+		writers[layers-1] = w
+		s := NewLayeredSource("trailer-mtu", contents)
+		s.clock = clock
+		s.SubscribeLayers(writers)
+		s.Run(ctx)
+		cancel()
+
+		packets, _ := w.snapshot()
+		tag := s.SendTimes().Tag()
+		frame, data := 0, []byte(nil)
+		for i, p := range packets {
+			if len(p.Payload) > rtpPayloadMTU {
+				t.Fatalf("%d layers, packet %d: %d bytes", layers, i, len(p.Payload))
+			}
+			info, ok := parseVP8Descriptor(p.Payload)
+			if !ok {
+				t.Fatalf("%d layers, packet %d: bad descriptor", layers, i)
+			}
+			data = append(data, p.Payload[info:]...)
+			if !p.Marker {
+				continue
+			}
+			n, ok := readFrameTrailer(p.Payload, tag)
+			if !ok || n != uint32(frame+1) {
+				t.Fatalf("%d layers, frame %d (%d bytes): trailer %d, %v", layers, frame, sizes[frame], n, ok)
+			}
+			data = data[:len(data)-frameTrailerSize]
+			if string(data) != string(c.Frames[frame].Data) {
+				t.Fatalf("%d layers, frame %d (%d bytes): data changed", layers, frame, sizes[frame])
+			}
+			frame, data = frame+1, nil
+		}
+		if frame != len(sizes) {
+			t.Fatalf("%d layers: %d frames, want %d", layers, frame, len(sizes))
+		}
+	}
+}
+
+// Audio stays as it was: no trailer, send times by RTP timestamp.
+func TestSource_AudioHasNoTrailer(t *testing.T) {
+	c := &Content{
+		Kind:         KindAudio,
+		Frames:       []Frame{{Data: []byte{1, 2, 3}, Duration: 20 * time.Millisecond, Samples: 960}},
+		LoopDuration: 20 * time.Millisecond,
+	}
+	w := &recorder{}
+	s := runSource(t, "audio-"+t.Name(), c, 90*time.Millisecond, nil, w)
+	packets, at := w.snapshot()
+	if len(packets) == 0 {
+		t.Fatal("nothing sent")
+	}
+	for i, p := range packets {
+		if string(p.Payload) != string(c.Frames[0].Data) {
+			t.Fatalf("packet %d: payload % x", i, p.Payload)
+		}
+		if sent, ok := s.SendTimes().Lookup(p.Timestamp); !ok || !sent.Equal(at[i]) {
+			t.Fatalf("packet %d: send time %v %v", i, sent, ok)
 		}
 	}
 }
@@ -259,6 +387,17 @@ func TestSource_LayersInLockstep(t *testing.T) {
 	if len(pl) == 0 || len(ph) <= len(pl) {
 		t.Fatalf("low layer %d packets, high %d (high has a multi-packet frame)", len(pl), len(ph))
 	}
+	// All layers of a frame carry the same number.
+	frames := func(ps []rtp.Packet) map[uint32]uint32 {
+		m := map[uint32]uint32{}
+		for _, p := range ps {
+			if n, ok := readFrameTrailer(p.Payload, s.SendTimes().Tag()); ok {
+				m[p.Timestamp] = n
+			}
+		}
+		return m
+	}
+	nl, nh := frames(pl), frames(ph)
 	timestamps := func(ps []rtp.Packet, at []time.Time) map[uint32]time.Time {
 		m := map[uint32]time.Time{}
 		for i, p := range ps {
@@ -274,7 +413,10 @@ func TestSource_LayersInLockstep(t *testing.T) {
 		if !th[ts].Equal(at) {
 			t.Fatalf("frame %d: low at %v, high at %v", ts, at, th[ts])
 		}
-		if _, ok := s.SendTimes().Lookup(ts); !ok {
+		if nl[ts] == 0 || nl[ts] != nh[ts] {
+			t.Fatalf("frame %d: number %d on the low layer, %d on the high one", ts, nl[ts], nh[ts])
+		}
+		if _, ok := s.SendTimes().Lookup(nl[ts]); !ok {
 			t.Fatalf("frame %d: no send time", ts)
 		}
 	}
