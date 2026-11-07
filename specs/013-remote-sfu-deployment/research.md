@@ -211,7 +211,7 @@ real machine is available, and the stand-in's networking would not match it.
 | Memory, disk | 18 GiB, 201 GB free | Passes R7, Jitsi included |
 | Software | Linux Mint 22.3, Docker 29.9.3, Compose v5.7.0, `ip -j` works | Passes R7 |
 | Access | Key login, `docker` group; `sudo` asks for a password | Passes R7; only `--allow` needs passwordless `sudo` |
-| Addresses | One private IPv4 address; no public or global IPv6 address | Restricted under R3, so no `--allow` |
+| Addresses | One private IPv4 address and **two global IPv6 addresses** (`2a01:e0a:…`), with an IPv6 default route | **Not restricted under R3**: `deploy` refuses it. The first survey missed this: `grep -v fe80` dropped the interface's whole `ip -br` line. Found by T009's fixture Disabled on `enp2s0f0` by the user on 2026-11-07, leaving the private IPv4 address only. |
 | Docker over SSH | Docker CLI through `ssh://`: 0.34–0.41 s for a fresh connection | R5's 4 s timeout holds; the Go client is still to be written |
 | Network | 1000 Mb/s at both ends; 871 Mbps down, 824 Mbps up, through SSH over TCP | Enough for 100 bots (560 Mbps plus headers); UDP loss is not measured |
 | `ufw` | `ENABLED=no` | Nothing visible blocks media; `iptables` itself needs root, so the first run proves it |
@@ -224,8 +224,7 @@ iptables`, which this machine does not grant, and the operator chose not to add
 it. They keep their unit tests, which prove what is sent, not that it blocks.
 Run it on a machine first before relying on it.
 
-**Limits**: this machine's private address means every device on the LAN can reach
-a deployed server. Q2 accepts a private network as restricted access, and no
-secret protects media beyond the local setups'. The router must not forward these
-ports. The time to build Janus and mediasoup on these cores is unknown; SC-001
+**Limits**: every device on the LAN can reach a deployed server. Q2 accepts a
+private network as restricted access, and no secret protects media beyond the
+local setups'. The router must not forward these ports. The time to build Janus and mediasoup on these cores is unknown; SC-001
 counts deployment with images already built.

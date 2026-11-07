@@ -19,6 +19,7 @@ Thumbs.db
 # Local media servers: only the minimal setup is committed (.env holds secrets)
 tests/platforms/docker-jitsi-meet/*
 !tests/platforms/docker-jitsi-meet/docker-compose.yml
+!tests/platforms/docker-jitsi-meet/docker-compose.remote.yml
 !tests/platforms/docker-jitsi-meet/env.example
 !tests/platforms/docker-jitsi-meet/setup.sh
 !tests/platforms/docker-jitsi-meet/README.md

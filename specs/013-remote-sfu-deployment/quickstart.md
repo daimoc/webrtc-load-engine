@@ -32,8 +32,9 @@ go run ./cmd/sfu-remote deploy janus --host $T
 go run ./cmd/sfu-remote status --host $T
 ```
 
-Expected: the server running, its signaling port reachable, no secret printed. On
-a machine with a public address, add `--allow $(curl -s ifconfig.me)/32`.
+Expected: the server running, its signaling port reachable, no secret printed.
+With any public address, IPv6 included, `deploy` refuses until that address is
+gone, or `--allow` or `--external-firewall` is given.
 
 ## 3. Run (SC-002)
 

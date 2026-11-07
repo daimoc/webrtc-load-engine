@@ -19,7 +19,8 @@ unmodified.
     web server's CPU is not counted in the server's load.
 
 Ports:
-- 8188/tcp on 127.0.0.1: the Janus API over WebSocket (`janus-protocol`),
+- 8188/tcp on 127.0.0.1 (every interface when deployed by `sfu-remote`, through
+  `remote/janus.transport.websockets.jcfg`): the Janus API over WebSocket (`janus-protocol`),
   plain `ws://`;
 - 8090/tcp on 127.0.0.1: the demo pages;
 - 20000–20999/udp, on the host's IPv4 address: media, one port per

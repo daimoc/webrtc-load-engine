@@ -37,8 +37,8 @@ bandwidth limits large runs before the server does.
 
 **The validation machine is on the LAN** (R11): `fetis@192.168.1.95`, 4 low-power
 cores, at least 824 Mbps each way. There the bots' bandwidth is not the limit;
-the server's CPU likely is. It has only a private address, so it deploys without
-`--allow`, and every access prerequisite was checked on it.
+the server's CPU likely is. It has global IPv6 addresses, so it needs a decision
+before `deploy` accepts it (R11); the access prerequisites were checked on it.
 
 ## Technical Context
 

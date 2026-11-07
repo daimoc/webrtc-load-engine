@@ -147,4 +147,16 @@ func TestDockerClient_Host(t *testing.T) {
 	if _, _, reason := c.stats(context.Background(), "jvb"); reason != scenario.ReasonRemoteDockerHost {
 		t.Errorf("tcp://: %q, want remote_docker_host", reason)
 	}
+	if c := newDockerClient("ssh://user@host:2222", time.Second); c.remote {
+		t.Errorf("ssh://: refused as remote")
+	}
+	// A host that ssh would read as an option starts nothing.
+	dir := fakeSSH(t, "exit 0")
+	c = newDockerClient("ssh://-oProxyCommand=x", time.Second)
+	if _, _, reason := c.stats(context.Background(), "jvb"); reason != scenario.ReasonDockerUnreachable {
+		t.Errorf("ssh://-x: %q, want docker_unreachable", reason)
+	}
+	if got := pids(t, dir); len(got) != 0 {
+		t.Errorf("ssh started: %v", got)
+	}
 }

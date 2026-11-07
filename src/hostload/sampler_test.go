@@ -349,3 +349,26 @@ func TestSampler_TickCancelledByRunEnd(t *testing.T) {
 		t.Errorf("cancelled tick counted: %d samples, %d missed", c.Samples, c.Missed)
 	}
 }
+
+// No ssh outlives a run (research R5).
+func TestSampler_NoSSHAfterRun(t *testing.T) {
+	dir := fakeSSH(t, serveStats(1, 1))
+	s := NewSampler(uuid.NewString(), &scenario.ServerMonitoringConfig{Containers: []string{"jvb"}, IntervalSeconds: 1}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s.registry = newOverlapRegistry()
+	s.docker = newDockerClient("ssh://box", time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); s.Run(ctx) }()
+	deadline := time.Now().Add(3 * time.Second)
+	for len(pids(t, dir)) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("ssh never started")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	for _, p := range pids(t, dir) {
+		waitGone(t, p)
+	}
+}

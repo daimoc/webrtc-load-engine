@@ -22,37 +22,58 @@ const defaultDockerSocket = "/var/run/docker.sock"
 // is not running.
 var errNoFigures = errors.New("stats without figures")
 
-// dockerClient reads container statistics from the local Docker Engine API
-// over its Unix socket (research R1). No Docker SDK: two figures are needed.
+// sshRequestTimeout replaces the local timeout on SSH: the first sample of a
+// run includes a handshake (013 research R5).
+const sshRequestTimeout = 4 * time.Second
+
+// dockerClient reads container statistics from the Docker Engine API, over
+// its Unix socket (007 research R1) or, for a DOCKER_HOST of ssh://, through
+// ssh (013 research R5). No Docker SDK: two figures are needed.
 type dockerClient struct {
 	socket  string
-	remote  bool // DOCKER_HOST is not a unix:// URL: out of scope
+	remote  bool // DOCKER_HOST is neither unix:// nor ssh://: out of scope
 	timeout time.Duration
 	http    *http.Client
 }
 
 // newDockerClient returns a client for dockerHost (the DOCKER_HOST value;
-// empty for the default socket). Each request gives up after timeout.
+// empty for the default socket). Each request gives up after timeout, or
+// sshRequestTimeout on SSH.
 func newDockerClient(dockerHost string, timeout time.Duration) *dockerClient {
 	c := &dockerClient{socket: defaultDockerSocket, timeout: timeout}
-	if dockerHost != "" {
-		if path, ok := strings.CutPrefix(dockerHost, "unix://"); ok {
-			c.socket = path
-		} else {
-			c.remote = true
-		}
-	}
 	socket := c.socket
+	dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "unix", socket)
+	}
+	switch {
+	case dockerHost == "":
+	case strings.HasPrefix(dockerHost, "unix://"):
+		c.socket = strings.TrimPrefix(dockerHost, "unix://")
+		socket = c.socket
+	case strings.HasPrefix(dockerHost, "ssh://"):
+		c.timeout = sshRequestTimeout
+		args, err := sshArgs(dockerHost)
+		dial = func(context.Context, string, string) (net.Conn, error) {
+			if err != nil {
+				return nil, err
+			}
+			return dialSSH(args)
+		}
+	default:
+		c.remote = true
+	}
 	c.http = &http.Client{Transport: &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", socket)
-		},
-		MaxIdleConns:    32,
-		IdleConnTimeout: time.Minute,
+		DialContext:         dial,
+		MaxIdleConns:        32,
+		MaxIdleConnsPerHost: 8, // Jitsi can name more containers than the default 2
+		IdleConnTimeout:     time.Minute,
 	}}
 	return c
 }
+
+// close ends idle connections, and with them any ssh process.
+func (c *dockerClient) close() { c.http.CloseIdleConnections() }
 
 // stats returns a container's cumulative CPU time and its memory as
 // docker stats shows it, or why they could not be read (a scenario.Reason*).

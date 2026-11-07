@@ -1,0 +1,21 @@
+# WebSocket transport, used by the bots (subprotocol janus-protocol).
+# Remote copy: bots are on another machine. No ws_ip, so Janus binds every
+# interface; it refuses "0.0.0.0" ("No interface associated with 0.0.0.0?").
+# Access is limited by the machine's private network or its firewall (research R4).
+general: {
+	json = "compact"
+	ws = true
+	ws_port = 8188
+	wss = false
+}
+
+admin: {
+	admin_ws = false
+	admin_wss = false
+}
+
+cors: {
+}
+
+certificates: {
+}

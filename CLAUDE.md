@@ -58,6 +58,9 @@ go run ./cmd/jitsi-connect --domain meet.jitsi --muc muc.meet.jitsi --ws ws://lo
 MEDIASOUP_URL=ws://localhost:4443 MEDIASOUP_ROOM=load010 MEDIASOUP_PARTICIPANTS=10 MEDIASOUP_SERVER_CONTAINERS=mediasoup-demo go test -tags live -count=1 -v -run Mediasoup ./tests/live/   # mediasoup-demo live test (start tests/platforms/mediasoup first; variables at the top of tests/live/mediasoup_live_test.go)
 JITSI_APP_SECRET=... go run ./cmd/jitsi-connect --domain meet.example.org --room test --jwt-app-id my_app   # token-auth Jitsi: one signed JWT per bot (or --jwt / $JITSI_JWT for a ready-made token)
 JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 JANUS_SERVER_CONTAINERS=janus go test -tags live -count=1 -v -run Janus ./tests/live/   # Janus live test (start tests/platforms/janus first; variables at the top of tests/live/janus_live_test.go; a new JANUS_ROOM when the bot count grows)
+go run ./cmd/sfu-remote deploy janus --host user@host   # one server of tests/platforms on a remote machine; also status, allow, remove (specs/013-remote-sfu-deployment/contracts/sfu-remote-cli.md); refuses a machine with any public address, IPv6 included, without --allow or --external-firewall
+set -a; . ~/.config/webrtc-load-engine/sfu-remote/<host>.env; set +a   # settings for the live tests, DOCKER_HOST=ssh:// included
+SFU_REMOTE_HOST=user@host SFU_REMOTE_SERVER=janus go test -tags live -count=1 -v -run Remote_ ./tests/live/   # deploy, status, remove on a real machine
 ```
 
 ## Code Style
@@ -65,6 +68,7 @@ JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 JANUS_SERVER
 : Follow standard conventions
 
 ## Recent Changes
+- 013-remote-sfu-deployment: `cmd/sfu-remote` and `src/remote` deploy a server over the operator's ssh with a per-server `docker-compose.remote.yml`; `src/hostload` reads server load through `DOCKER_HOST=ssh://` (`ssh host docker system dial-stdio`, one process per connection, closed at the end of the run); `.env`, `*.pem` and `*.key` are never sent; secrets travel on stdin; Janus gets a remote websockets config because its local one binds loopback; the Jitsi overlay sets `JVB_CC_TRUST_BWE=false` (the bridge otherwise drops streams on a low estimate on a real LAN) and `deploy` waits for jicofo to have a bridge; Jitsi's `PUBLIC_URL` is the machine's address, or the page sends browsers to localhost (validation-report.md)
 - 012-video-frame-latency: 6-byte trailer after each video frame's data (scenario tag + frame number, `src/media/frame_trailer.go`); video latency comes from it on every platform, including Jitsi simulcast and Janus; audio still matches RTP timestamps, so Janus audio stays `frame_not_identified`
 - 011-janus-platform: Janus VideoRoom adapter (`src/platform/janus`), catalog entry (catalog `Entry.NewAdapter` now gets the test plan), local server built from tag v1.4.3 in `tests/platforms/janus`, live test `tests/live/janus_live_test.go`; media sources start RTP timestamps at 2^30 (`src/media/source.go`; 2^31 makes Jitsi's bridge rebase video)
 - 010-mediasoup-platform: mediasoup-demo adapter (`src/platform/mediasoup`), catalog entry, local server built from a pinned commit in `tests/platforms/mediasoup`; RFC 7675 consent checks on every PeerConnection (`src/execution/consent.go`); no publish session for receive-only peers

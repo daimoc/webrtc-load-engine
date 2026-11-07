@@ -1,0 +1,5 @@
+# Applied by sfu-remote only (specs/013-remote-sfu-deployment/research.md R4).
+# A reboot must not bring a server back: firewall rules do not survive one.
+services:
+  mediasoup:
+    restart: "no"

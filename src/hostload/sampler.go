@@ -50,7 +50,9 @@ type totalFigures struct {
 }
 
 // NewSampler returns a sampler for the containers of cfg (nil: none, the
-// server section says not_requested). DOCKER_HOST selects the socket.
+// server section says not_requested). DOCKER_HOST selects the socket, or
+// ssh:// a remote machine. It comes from whoever runs the engine and never
+// from a test plan, so that an API caller cannot make the engine start ssh.
 func NewSampler(scenarioID string, cfg *scenario.ServerMonitoringConfig, logger *slog.Logger) *Sampler {
 	if logger == nil {
 		logger = slog.Default()
@@ -119,6 +121,7 @@ func (s *Sampler) finish() {
 		s.stopWatch = nil
 	}
 	deleteSeries(s.scenarioID, s.containers)
+	s.docker.close() // no ssh outlives the run
 }
 
 // tick samples every container at once. A tick still running when the next

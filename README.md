@@ -466,6 +466,52 @@ IPv4 address (`tests/platforms/janus/README.md`).
 
 ---
 
+### Remote servers
+
+`sfu-remote` runs one server of `tests/platforms` on another Linux machine, so that bots and server stop sharing a CPU. It drives the machine with your own `ssh`, and opens no Docker port.
+
+A deployed Jitsi ignores its bridge's bandwidth estimate (`JVB_CC_TRUST_BWE=false` in `docker-compose.remote.yml`): on a real LAN that estimate stayed below what some bots need, and the bridge dropped their streams while the other servers forward every stream. Remote Jitsi figures therefore are not Jitsi's default behaviour; the local setup keeps it.
+
+```bash
+go run ./cmd/sfu-remote deploy janus --host user@host   # or jitsi, livekit, mediasoup
+go run ./cmd/sfu-remote status --host user@host
+set -a; . ~/.config/webrtc-load-engine/sfu-remote/host.env; set +a   # settings for the live tests
+JANUS_ROOM=2013 JANUS_PARTICIPANTS=10 JANUS_HOLD=60s go test -tags live -count=1 -v -run Janus ./tests/live/
+go run ./cmd/sfu-remote remove --host user@host
+```
+
+**Preparing the machine**: Linux on x86_64, SSH key login, Docker with the Compose plugin, the user in the `docker` group (which is equivalent to root on that machine). For mediasoup, raise the socket buffers, or `deploy` warns:
+
+```bash
+printf 'net.core.rmem_max=4194304\nnet.core.wmem_max=4194304\n' | sudo tee /etc/sysctl.d/90-sfu-remote.conf
+sudo sysctl --system
+```
+
+**Who can reach the server**: servers listen on every interface, so `deploy` judges the machine by all its addresses. If any is public, **IPv6 included**, it refuses unless given one of:
+
+* `--allow <cidr>` (repeatable): firewall rules let only these addresses reach the server's ports. Needs passwordless `sudo iptables`, and `ip6tables` with public IPv6. `allow` changes the addresses while a server runs. **These rules have unit tests only: they have not been run on a real machine yet, so check them with an outside port scan before relying on them.**
+* `--external-firewall`: you state that a firewall outside the machine restricts access. Nothing checks this: only a scan from outside proves it.
+
+Every device on a private network can reach a deployed server, and signaling is `ws://`, as in the local setups.
+
+**Good to know**:
+
+* A reboot leaves nothing running, on purpose: firewall rules do not survive one. Run `deploy` again.
+* Sourcing the settings file sets `DOCKER_HOST` in that shell, so its own `docker` commands also go to the machine.
+* The file holds the deployment's secrets (mode 0600), and `remove` deletes it.
+* For a browser check on Jitsi, open `https://<address>:8443/<room>` and accept the self-signed certificate.
+* Reports read server CPU and memory over SSH, through `DOCKER_HOST=ssh://...`. It is an environment variable and not a test plan field, so that an API caller cannot make the engine start `ssh`.
+
+**Traffic**, from the bundled media, before packet headers:
+
+| Bots | Cap | Bots' upload | Bots' download | Downloaded per hour |
+|---|---|---|---|---|
+| 10 | none (9) | 6 Mbps | 50 Mbps | about 25 GB |
+| 50 | 10 | 28 Mbps | 280 Mbps | about 125 GB |
+| 100 | 10 | 56 Mbps | 560 Mbps | about 250 GB |
+
+Over a home connection or a metered provider, start with 10 bots. Latency includes the real network path, so compare it between servers on one path, not with local figures.
+
 ## AI-assisted development
 
 This project may experiment with an **AI agent–guided coding workflow** if it proves effective.

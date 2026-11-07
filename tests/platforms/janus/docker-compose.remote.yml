@@ -1,0 +1,16 @@
+# Applied by sfu-remote only (specs/013-remote-sfu-deployment/research.md R2, R4).
+# A reboot must not bring a server back: firewall rules do not survive one.
+services:
+  janus:
+    restart: "no"
+    # conf/ binds the WebSocket to 127.0.0.1, out of the bots' reach.
+    volumes:
+      - ./remote/janus.transport.websockets.jcfg:/opt/janus/etc/janus/janus.transport.websockets.jcfg:ro
+    # The Dockerfile's command, plus --nat-1-1 when the announced address is on
+    # no interface of the machine.
+    command:
+      - sh
+      - -c
+      - exec /opt/janus/bin/janus --configs-folder=/opt/janus/etc/janus --debug-level=$${JANUS_DEBUG_LEVEL} $${JANUS_ICE_ENFORCE_LIST:+--ice-enforce-list=$$JANUS_ICE_ENFORCE_LIST} $${JANUS_NAT_1_1:+--nat-1-1=$$JANUS_NAT_1_1}
+  janus-demos:
+    restart: "no"
