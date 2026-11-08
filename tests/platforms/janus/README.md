@@ -65,8 +65,19 @@ Expected:
 `token`, `pin`, `admin_key`) are in
 `specs/011-janus-platform/contracts/janus-config.yaml`. The four secrets are
 never logged, and show as `[redacted]` in answers and reports. This server
-needs none of them. Simulcast and requested heights are rejected on Janus
-in this version.
+needs none of them.
+
+## Video codecs (014)
+
+`media.video_codec` is `vp8` (default), `vp9`, `av1` or `h264`; the bots
+create the room with that codec only (`videocodec`, VP9 profile 0, H.264
+`42e01f`). With `media.simulcast`, VP8 and H.264 are sent as simulcast (RID
+or SSRC, any codec), VP9 and AV1 as SVC (`"svc"` in `publish`); requested
+heights become `substream` or `spatial_layer`. Janus reads VP9 layers from
+the payload descriptor and AV1 layers from the dependency descriptor. All
+four codecs are forwarded layered (specs/014-video-codec-comparison/
+validation-report.md, T059). Janus keeps the RTP padding, so VP9 latency is
+measured.
 
 Live test, from the repository root:
 
@@ -87,7 +98,7 @@ configured. Every bot asks for it, one wins, and the others get "room
 exists". Each such answer logs one `Room N already exists!` ERR line in
 Janus's log, which is expected. The room is created:
 - with one publisher place per bot of the test plan;
-- with Opus and VP8 only, and no bitrate cap;
+- with Opus and the plan's video codec only (VP8 by default), and no bitrate cap;
 - with a **dummy publisher**: a silent audio placeholder that every bot
   subscribes to at join, so that it is connected even alone in the room
   (research R3). It takes no publisher place.

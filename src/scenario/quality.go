@@ -1,6 +1,9 @@
 package scenario
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Quality summary of a run (specs/006-media-quality/contracts/quality-summary.yaml).
 // The engine builds it at the end of a run; the service keeps it with the
@@ -52,6 +55,33 @@ type VideoQuality struct {
 	// RequestedHeightShare is over bots, of the share of each bot's
 	// received video time at the height it asked for.
 	RequestedHeightShare *Percentiles `json:"requested_height_share,omitempty"`
+	// Codec is what the run sent and received (014); nil for runs without
+	// video.
+	Codec *VideoCodecResult `json:"codec,omitempty"`
+}
+
+// VideoCodecResult is the codec part of the video summary
+// (specs/014-video-codec-comparison/contracts/report-codec.md).
+type VideoCodecResult struct {
+	Sent        string `json:"sent"`        // The plan's video codec
+	Arrangement string `json:"arrangement"` // single, simulcast or svc
+	// ContentBitrateKbps is, by height, the bitrate of the content sent.
+	ContentBitrateKbps map[string]int `json:"content_bitrate_kbps"`
+	// Received is, by codec, the number of bots that received video in it.
+	Received map[string]int `json:"received"`
+	// Mismatch lists the bots whose codec was not the plan's.
+	Mismatch []CodecMismatch `json:"mismatch"`
+	// LayersNotForwarded: a layered run in which no bot received a layer
+	// above the lowest.
+	LayersNotForwarded bool `json:"layers_not_forwarded"`
+}
+
+// CodecMismatch is one bot that sent or received another codec than the
+// plan's.
+type CodecMismatch struct {
+	Bot       string `json:"bot"`
+	Direction string `json:"direction"` // "sent" or "received"
+	Codec     string `json:"codec"`     // The codec found, e.g. "vp8"
 }
 
 // AudioQuality is the audio part of the summary.
@@ -172,4 +202,31 @@ type LoadMachine struct {
 	Engine          LoadFigures `json:"engine"`
 	HardwareThreads int         `json:"hardware_threads"`
 	UsableThreads   int         `json:"usable_threads"` // Threads the engine may run on (CPU affinity)
+}
+
+// MarkLayersNotForwarded sets the codec result's LayersNotForwarded when
+// a layered run's bots received video only at the content's lowest layer
+// although some asked for more: maxRequested is the highest height a bot
+// asked for (014 T058). A run without received video is left alone; its
+// video is not available anyway.
+func (v *VideoQuality) MarkLayersNotForwarded(maxRequested int) {
+	c := v.Codec
+	if c == nil || c.Arrangement == "single" || len(c.ContentBitrateKbps) < 2 || len(v.HeightShare) == 0 {
+		return
+	}
+	lowest := 0
+	for h := range c.ContentBitrateKbps {
+		if n, err := strconv.Atoi(h); err == nil && (lowest == 0 || n < lowest) {
+			lowest = n
+		}
+	}
+	if maxRequested <= lowest {
+		return
+	}
+	for h, share := range v.HeightShare {
+		if n, err := strconv.Atoi(h); err != nil || (n > lowest && share > 0) {
+			return
+		}
+	}
+	c.LayersNotForwarded = true
 }

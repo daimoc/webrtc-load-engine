@@ -23,8 +23,15 @@ package live
 // engine that joins first and leaves halfway through the hold: the bots must
 // replace its streams by waiting ones (receive cap, 011 FR-006).
 //
-// Janus rooms keep the size they were created with: use a new JANUS_ROOM
-// when JANUS_PARTICIPANTS grows (research R4).
+// JANUS_VIDEO_CODEC (vp8, vp9, av1 or h264; default vp8) is the video codec
+// the bots send (feature 014). JANUS_SIMULCAST (360 or 720) makes them send
+// three layers up to that height (simulcast in VP8 and H.264, SVC in VP9
+// and AV1); JANUS_REQUESTED_HEIGHTS ("180:0.5,720:0.5") sets the heights
+// they ask for, by shares in launch order. With either, every bot must
+// receive its height at least 95% of the time (SC-008).
+//
+// Janus rooms keep the size and codec they were created with: use a new
+// JANUS_ROOM when JANUS_PARTICIPANTS grows or the codec changes (research R4).
 
 import (
 	"context"
@@ -88,11 +95,14 @@ func TestJanusLive_JoinAndEstablishMedia(t *testing.T) {
 	// HTTP API.
 	cat := catalog.New(logger)
 	sc, err := scenario.NewScenario("live-janus", "janus", scenario.TestPlan{
-		Participants: participants, RampUpSeconds: rampUp, DurationSeconds: 3600,
+		Participants: participants, RampUpSeconds: rampUp, DurationSeconds: scenarioSeconds(rampUp, hold),
 		PlatformConfig: config,
 		Media: &scenario.MediaConfig{
 			Profile:            envOr("JANUS_MEDIA", scenario.MediaProfileAudioVideo),
 			MaxReceivedStreams: envInt(t, "JANUS_MAX_RECEIVED", 0),
+			VideoCodec:         os.Getenv("JANUS_VIDEO_CODEC"),
+			Simulcast:          layersFrom(t, "JANUS"),
+			RequestedHeights:   requestedHeightsFrom(t, "JANUS"),
 		},
 		ServerMonitoring: monitoring,
 	})
@@ -140,7 +150,11 @@ func TestJanusLive_JoinAndEstablishMedia(t *testing.T) {
 		if time.Since(stopped) > 10*time.Second {
 			t.Errorf("bots took %s to leave, want under 10 s (SC-001)", time.Since(stopped).Round(time.Second))
 		}
-		qualityChecks(t, quality, participants > 1 && len(kinds) > 0, checkVideo, true, holdFreezes)
+		single := plan.Media.Simulcast == nil && plan.Media.RequestedHeights == nil
+		qualityChecks(t, quality, participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
+		if checkVideo && !single {
+			requestedHeightChecks(t, quality)
+		}
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)
 		}
@@ -171,7 +185,7 @@ func TestJanusLive_JoinAndEstablishMedia(t *testing.T) {
 		want = limit
 	}
 	if checkVideo {
-		waitVideoSettled(t, scenarioID, participants, want, false)
+		waitVideoSettled(t, scenarioID, participants, want, plan.Media.Simulcast != nil)
 	}
 
 	recvBefore := map[string]float64{}

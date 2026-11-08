@@ -50,7 +50,7 @@ type trickleRequest struct {
 }
 
 // addTrackRequest is AddTrackRequest: 1 cid, 2 name, 3 type, 4 width,
-// 5 height, 8 source, 13 disable_red.
+// 5 height, 8 source, 9 layers, 10 simulcast_codecs, 13 disable_red.
 type addTrackRequest struct {
 	CID        string
 	Name       string
@@ -58,7 +58,76 @@ type addTrackRequest struct {
 	Width      uint32
 	Height     uint32
 	Source     int32
+	Layers     []videoLayer
+	Codecs     []simulcastCodec
 	DisableRed bool
+}
+
+// simulcastCodec is SimulcastCodec: 1 codec, 2 cid, 4 layers,
+// 5 video_layer_mode. The client names the codec it publishes a track in
+// (014 research R10) and, for a layered track, its layers.
+type simulcastCodec struct {
+	Codec  string
+	CID    string
+	Layers []videoLayer
+	Mode   int32 // VideoLayer.Mode
+}
+
+func (c *simulcastCodec) encode() []byte {
+	var b []byte
+	b = appendString(b, 1, c.Codec)
+	b = appendString(b, 2, c.CID)
+	for i := range c.Layers {
+		b = appendMessage(b, 4, c.Layers[i].encode())
+	}
+	return appendInt32(b, 5, c.Mode)
+}
+
+// videoLayer is VideoLayer: 1 quality, 2 width, 3 height, 4 bitrate (bit/s),
+// 7 rid.
+type videoLayer struct {
+	Quality int32
+	Width   uint32
+	Height  uint32
+	Bitrate uint32
+	RID     string
+}
+
+func (l *videoLayer) encode() []byte {
+	var b []byte
+	b = appendInt32(b, 1, l.Quality)
+	b = appendVarint(b, 2, uint64(l.Width))
+	b = appendVarint(b, 3, uint64(l.Height))
+	b = appendVarint(b, 4, uint64(l.Bitrate))
+	return appendString(b, 7, l.RID)
+}
+
+// VideoQuality and VideoLayer.Mode values.
+const (
+	qualityLow    int32 = 0
+	qualityMedium int32 = 1
+	qualityHigh   int32 = 2
+
+	layerModeOnePerStream      int32 = 1 // Simulcast: one spatial layer per RID
+	layerModeMultiplePerStream int32 = 2 // SVC: every spatial layer in one stream
+)
+
+// updateTrackSettings is UpdateTrackSettings: 1 track_sids, 5 width,
+// 6 height: the size a subscriber wants of video tracks.
+type updateTrackSettings struct {
+	TrackSIDs []string
+	Width     uint32
+	Height    uint32
+}
+
+func (u *updateTrackSettings) encode() []byte {
+	var b []byte
+	for _, sid := range u.TrackSIDs {
+		b = protowire.AppendTag(b, 1, protowire.BytesType)
+		b = protowire.AppendString(b, sid)
+	}
+	b = appendVarint(b, 5, uint64(u.Width))
+	return appendVarint(b, 6, uint64(u.Height))
 }
 
 // updateSubscription is UpdateSubscription: 1 track_sids, 2 subscribe.
@@ -81,13 +150,15 @@ type ping struct {
 }
 
 // signalRequest is SignalRequest; exactly one field is set: 1 offer,
-// 2 answer, 3 trickle, 4 add_track, 6 subscription, 8 leave, 16 ping_req.
+// 2 answer, 3 trickle, 4 add_track, 6 subscription, 7 track_setting,
+// 8 leave, 16 ping_req.
 type signalRequest struct {
 	Offer        *sessionDescription
 	Answer       *sessionDescription
 	Trickle      *trickleRequest
 	AddTrack     *addTrackRequest
 	Subscription *updateSubscription
+	TrackSetting *updateTrackSettings
 	Leave        *leaveRequest
 	PingReq      *ping
 }
@@ -214,6 +285,12 @@ func (a *addTrackRequest) encode() []byte {
 	b = appendVarint(b, 4, uint64(a.Width))
 	b = appendVarint(b, 5, uint64(a.Height))
 	b = appendInt32(b, 8, a.Source)
+	for i := range a.Layers {
+		b = appendMessage(b, 9, a.Layers[i].encode())
+	}
+	for i := range a.Codecs {
+		b = appendMessage(b, 10, a.Codecs[i].encode())
+	}
 	return appendBool(b, 13, a.DisableRed)
 }
 
@@ -257,6 +334,7 @@ func encodeSignalRequest(r signalRequest) ([]byte, error) {
 	pick(3, r.Trickle != nil, func() []byte { return r.Trickle.encode() })
 	pick(4, r.AddTrack != nil, func() []byte { return r.AddTrack.encode() })
 	pick(6, r.Subscription != nil, func() []byte { return r.Subscription.encode() })
+	pick(7, r.TrackSetting != nil, func() []byte { return r.TrackSetting.encode() })
 	pick(8, r.Leave != nil, func() []byte { return r.Leave.encode() })
 	pick(16, r.PingReq != nil, func() []byte { return r.PingReq.encode() })
 	if set != 1 {

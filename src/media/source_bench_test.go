@@ -90,3 +90,42 @@ func BenchmarkSourceFanOut(b *testing.B) {
 		ts += f.Samples
 	}
 }
+
+// benchArrangements are the arrangements benchmarked per codec (014 T062):
+// single stream, and layered up to 720 (simulcast or SVC).
+func benchArrangements(c VideoCodec) []Arrangement {
+	return []Arrangement{ArrangementSingle, c.Arrangement(true)}
+}
+
+// BenchmarkSourcePacketize measures packetizing one picture of each codec's
+// content, trailer included, every layer of it (what a source does per
+// frame before fanning out; per codec, 014 T062).
+func BenchmarkSourcePacketize(b *testing.B) {
+	for _, c := range VideoCodecs() {
+		for _, arr := range benchArrangements(c) {
+			b.Run(string(c)+"/"+string(arr), func(b *testing.B) {
+				layers, err := LoadVideo(c, arr, 720)
+				if err != nil {
+					b.Fatal(err)
+				}
+				s := NewLayeredSource("bench", layers)
+				seqs := make([]uint16, len(s.layers))
+				frames := len(s.layers[0].content.Frames)
+				var ts uint32
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					f := i % frames
+					for l, layer := range s.layers {
+						if layer.svc {
+							s.packetizeSVC(layer, f, &seqs[l], ts, uint32(i+1))
+						} else {
+							s.packetize(layer, layer.content.Frames[f].Data, &seqs[l], ts, uint32(i+1))
+						}
+					}
+					ts += 3000
+				}
+			})
+		}
+	}
+}

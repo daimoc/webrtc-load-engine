@@ -275,3 +275,46 @@ func TestPeer_SimulcastLayersReceived(t *testing.T) {
 		t.Fatalf("switches %d, time at 360 %s", v.Switches, v.HeightTime[360])
 	}
 }
+
+// Layered video per codec (014): VP8 and H.264 as three RID layers, VP9
+// and AV1 as one scalable stream; the layer heights in both.
+func TestEngine_PeerMediaArrangement(t *testing.T) {
+	for codec, svc := range map[string]bool{"vp8": false, "h264": false, "vp9": true, "av1": true} {
+		plan := scenario.TestPlan{Participants: 2, DurationSeconds: 1, Media: &scenario.MediaConfig{
+			Profile:    scenario.MediaProfileAudioVideo,
+			VideoCodec: codec,
+			Simulcast:  &scenario.SimulcastConfig{MaxHeight: 720},
+		}}
+		m := NewEngine("arr-"+codec, plan, nil, quietLogger, func(string, scenario.RunResult) {}).peerMedia(0)
+		if m.Simulcast == svc || m.SVC != svc || fmt.Sprint(m.LayerHeights) != "[180 360 720]" {
+			t.Errorf("%s: simulcast %v, svc %v, heights %v", codec, m.Simulcast, m.SVC, m.LayerHeights)
+		}
+	}
+}
+
+// A scalable peer sends one video track; an H.264 simulcast peer three,
+// each bound to H.264.
+func TestPeer_LayerTracksPerArrangement(t *testing.T) {
+	svc, err := NewPeer("peer-svc", "scenario-arr", PeerMedia{Kinds: []string{media.KindVideo}, SVC: true, LayerHeights: []int{180, 360, 720}, VideoCodec: media.CodecVP9}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { svc.Close() })
+	if n := len(svc.LocalLayerTracks()); n != 0 || svc.LocalTracks()[media.KindVideo] == nil {
+		t.Fatalf("SVC peer: %d layer tracks, video track %v", n, svc.LocalTracks()[media.KindVideo])
+	}
+	h264, err := NewPeer("peer-h264", "scenario-arr", PeerMedia{Kinds: []string{media.KindVideo}, Simulcast: true, LayerHeights: []int{180, 360, 720}, VideoCodec: media.CodecH264}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { h264.Close() })
+	tracks := h264.LocalLayerTracks()
+	if len(tracks) != 3 {
+		t.Fatalf("H.264 simulcast: %d layer tracks", len(tracks))
+	}
+	for i, tr := range tracks {
+		if tr.RID() != simulcastRIDs[i] || !strings.EqualFold(tr.(*videoTrack).codec.MimeType(), webrtc.MimeTypeH264) {
+			t.Fatalf("layer %d: rid %q, codec %s", i, tr.RID(), tr.(*videoTrack).codec)
+		}
+	}
+}

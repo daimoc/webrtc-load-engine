@@ -51,10 +51,22 @@ type PluginData struct {
 	Data   RoomEvent `json:"data"`
 }
 
-// JSEP is an SDP offer or answer.
+// JSEP is an SDP offer or answer. A publish offer also says how its
+// layers are sent (014 T054): the order of its RIDs, from which the Janus
+// core numbers the simulcast substreams, and which sections are scalable.
 type JSEP struct {
-	Type string `json:"type"`
-	SDP  string `json:"sdp"`
+	Type     string    `json:"type"`
+	SDP      string    `json:"sdp"`
+	RIDOrder string    `json:"rid_order,omitempty"` // "lmh" or "hml" (Janus's default)
+	SVC      []JSEPSVC `json:"svc,omitempty"`
+}
+
+// JSEPSVC says a published section (VP9 or AV1) is scalable, in a
+// scalability mode.
+type JSEPSVC struct {
+	MIndex int    `json:"mindex"`
+	MID    string `json:"mid"`
+	Mode   string `json:"svc"`
 }
 
 // Candidate is a trickled ICE candidate, or the end of candidates.

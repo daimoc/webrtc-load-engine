@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"webrtc-load-engine/src/media"
 
 	"webrtc-load-engine/src/scenario"
 )
@@ -25,6 +26,12 @@ type Config struct {
 	InsecureTLS         bool
 	UnlimitedRoomSecret string // Never logged
 	UsePipeTransports   bool
+	// VideoCodec is the test plan's video codec, not a platform_config
+	// key (014). Empty is VP8.
+	VideoCodec media.VideoCodec
+	// Arrangement is how the test plan layers the video (single,
+	// simulcast, SVC), not a platform_config key (014).
+	Arrangement media.Arrangement
 }
 
 var configKeys = []string{"url", "room", "origin", "insecure_tls", "unlimited_room_secret", "use_pipe_transports"}
@@ -141,20 +148,10 @@ func wsURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-// Validate checks a mediasoup test plan when its scenario is created: its
-// platform_config, and the media options this version does not support on
-// mediasoup (FR-008).
+// Validate checks a mediasoup test plan's platform_config when its
+// scenario is created. Layers and requested heights are accepted since 014
+// (T053).
 func Validate(tp scenario.TestPlan) error {
-	if _, err := ParseConfig(tp.PlatformConfig); err != nil {
-		return err
-	}
-	if m := tp.Media; m != nil {
-		if m.Simulcast != nil {
-			return errors.New("media.simulcast is not supported on platform mediasoup")
-		}
-		if len(m.RequestedHeights) > 0 {
-			return errors.New("media.requested_heights is not supported on platform mediasoup")
-		}
-	}
-	return nil
+	_, err := ParseConfig(tp.PlatformConfig)
+	return err
 }

@@ -77,14 +77,19 @@ func TestValidate(t *testing.T) {
 	if err := Validate(scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Profile: "audio_video", MaxReceivedStreams: 10}}); err != nil {
 		t.Errorf("valid plan: %v", err)
 	}
+	// Layers and requested heights are accepted since 014 (T053).
+	for name, m := range map[string]*scenario.MediaConfig{
+		"simulcast":         {Simulcast: &scenario.SimulcastConfig{MaxHeight: 720}},
+		"requested heights": {RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}},
+	} {
+		if err := Validate(scenario.TestPlan{PlatformConfig: cfg, Media: m}); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
 	for name, tc := range map[string]struct {
 		tp   scenario.TestPlan
 		want string
 	}{
-		"simulcast": {scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Simulcast: &scenario.SimulcastConfig{}}},
-			"media.simulcast is not supported on platform mediasoup"},
-		"requested heights": {scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{RequestedHeights: []scenario.RequestedHeight{{Height: 360}}}},
-			"media.requested_heights is not supported on platform mediasoup"},
 		"config": {scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://x"}}, "platform_config.room is required"},
 	} {
 		t.Run(name, func(t *testing.T) {

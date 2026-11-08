@@ -6,6 +6,8 @@ import (
 	"os"
 	"slices"
 	"time"
+
+	"webrtc-load-engine/src/media"
 )
 
 // Scenario represents a load test configuration.
@@ -124,6 +126,27 @@ type MediaConfig struct {
 	// and, for audio_video, its first video stream. The engine transcodes
 	// it with ffmpeg when the scenario starts. Empty: built-in content.
 	SourceFile string `json:"source_file,omitempty"`
+	// VideoCodec is the codec the bots send video in: vp8 (empty), vp9,
+	// av1 or h264 (specs/014-video-codec-comparison). With Simulcast, VP8
+	// and H.264 send simulcast and VP9 and AV1 scalable layers.
+	VideoCodec string `json:"video_codec,omitempty"`
+}
+
+// Codec returns the video codec the bots send; VP8 when none is named.
+func (m *MediaConfig) Codec() media.VideoCodec {
+	if m == nil {
+		return media.CodecVP8
+	}
+	c, err := media.ParseVideoCodec(m.VideoCodec)
+	if err != nil {
+		return media.CodecVP8 // Refused at creation
+	}
+	return c
+}
+
+// Arrangement returns how the bots' video is layered.
+func (m *MediaConfig) Arrangement() media.Arrangement {
+	return m.Codec().Arrangement(m != nil && m.Simulcast != nil)
 }
 
 // SimulcastConfig is the media.simulcast part of a test plan
@@ -237,7 +260,20 @@ func (m *MediaConfig) withDefaults() (*MediaConfig, error) {
 			return nil, fmt.Errorf("media.requested_heights: shares must sum to 1, got %g", sum)
 		}
 	}
+	if c.VideoCodec != "" {
+		if _, err := media.ParseVideoCodec(c.VideoCodec); err != nil {
+			return nil, fmt.Errorf("media.video_codec: %w", err)
+		}
+		if c.Profile != MediaProfileAudioVideo {
+			return nil, fmt.Errorf("media.video_codec needs profile %s, got %q", MediaProfileAudioVideo, c.Profile)
+		}
+	}
 	if c.SourceFile != "" {
+		if c.Arrangement() == media.ArrangementSVC {
+			// ffmpeg cannot write spatial layers; the SVC encoders are
+			// build-time tools (specs/014 research R13).
+			return nil, fmt.Errorf("media.source_file cannot be sent as %s scalable layers (simulcast with vp9 or av1): only the built-in content has them", c.VideoCodec)
+		}
 		if c.Profile == MediaProfileReceiveOnly {
 			return nil, fmt.Errorf("media.source_file needs profile %s or %s", MediaProfileAudio, MediaProfileAudioVideo)
 		}

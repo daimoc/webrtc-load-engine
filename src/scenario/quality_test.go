@@ -130,3 +130,37 @@ func TestKindQuality_LatencyReasonJSON(t *testing.T) {
 		t.Errorf("JSON %s has latency_reason without a reason", raw)
 	}
 }
+
+// A layered run whose bots received only the lowest layer, though some
+// asked for more, sets layers_not_forwarded (014 T057); a single-stream
+// run, a run asking only for the lowest layer, and a run where a higher
+// layer arrived do not.
+func TestVideoQuality_MarkLayersNotForwarded(t *testing.T) {
+	layered := map[string]int{"180": 150, "360": 500, "720": 1500}
+	cases := []struct {
+		name         string
+		arrangement  string
+		bitrates     map[string]int
+		heightShare  map[string]float64
+		maxRequested int
+		want         bool
+	}{
+		{"only lowest", "simulcast", layered, map[string]float64{"180": 1}, 720, true},
+		{"svc only lowest", "svc", layered, map[string]float64{"180": 1}, 720, true},
+		{"higher layer arrived", "simulcast", layered, map[string]float64{"180": 0.5, "720": 0.5}, 720, false},
+		{"all asked lowest", "simulcast", layered, map[string]float64{"180": 1}, 180, false},
+		{"single stream", "single", map[string]int{"360": 500}, map[string]float64{"360": 1}, 360, false},
+		{"no video received", "simulcast", layered, nil, 720, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := VideoQuality{HeightShare: tc.heightShare, Codec: &VideoCodecResult{Arrangement: tc.arrangement, ContentBitrateKbps: tc.bitrates}}
+			v.MarkLayersNotForwarded(tc.maxRequested)
+			if v.Codec.LayersNotForwarded != tc.want {
+				t.Errorf("layers_not_forwarded %v, want %v", v.Codec.LayersNotForwarded, tc.want)
+			}
+		})
+	}
+	var none VideoQuality
+	none.MarkLayersNotForwarded(720) // No codec result: nothing to mark
+}

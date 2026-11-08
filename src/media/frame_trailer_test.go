@@ -3,6 +3,8 @@ package media
 import (
 	"bytes"
 	"testing"
+
+	"github.com/pion/rtp/codecs"
 )
 
 func TestFrameTrailer_Layout(t *testing.T) {
@@ -68,4 +70,82 @@ func TestNewerFrame(t *testing.T) {
 			t.Errorf("newerFrame(%d, %d) = %v, want %v", c.n, c.last, got, c.want)
 		}
 	}
+}
+
+// Each codec carries the trailer where its decoders skip it (specs/014
+// data-model "Frame trailer carrier"), and reads it back.
+func TestTrailerCarrier_RoundTrip(t *testing.T) {
+	tag := scenarioTag("carrier")
+	other := scenarioTag("someone else")
+	for _, c := range VideoCodecs() {
+		for _, n := range []uint32{1, 0x000001, 0x00ffff, 0x123456, frameNumberMask} {
+			payloads := addTrailer(c, [][]byte{{0x10, 1, 2}, {0x10, 3, 4}}, tag, n)
+			last := payloads[len(payloads)-1]
+			got, ok := readWireTrailer(c, last, tag)
+			if !ok || got != n {
+				t.Fatalf("%s frame %#x: read %#x, %v", c, n, got, ok)
+			}
+			if _, ok := readWireTrailer(c, last, other); ok {
+				t.Fatalf("%s: another scenario's tag read as ours", c)
+			}
+			if _, ok := readTrailer(c, payloads[0], nil, tag); ok {
+				t.Fatalf("%s: a packet without a trailer read as one", c)
+			}
+			switch c {
+			case CodecVP9:
+				// RTP padding (RFC 3550 5.1): the trailer, then the padding
+				// length; the frame data before it is unchanged, so libvpx
+				// never sees the trailer (014 T051).
+				if !trailerIsPadding(c) || last[len(last)-1] != frameTrailerSize+1 || !bytes.Equal(last[:3], []byte{0x10, 3, 4}) {
+					t.Fatalf("VP9 last payload % x", last)
+				}
+				if _, ok := readTrailer(c, last, nil, tag); ok {
+					t.Fatal("VP9: a trailer read from frame data without padding")
+				}
+			case CodecH264:
+				if len(payloads) != 3 || nalType(last) != nalSEI {
+					t.Fatalf("H.264: the trailer is not its own SEI packet: %d packets, type %d", len(payloads), nalType(last))
+				}
+				if bytes.Contains(last, []byte{0, 0, 0}) || bytes.Contains(last, []byte{0, 0, 1}) || bytes.Contains(last, []byte{0, 0, 2}) {
+					t.Fatalf("H.264 SEI % x without emulation prevention", last)
+				}
+			}
+		}
+	}
+}
+
+// AV1's trailer is a padding OBU, the last element of the last packet:
+// Pion's depacketizer sees it as an OBU element of type OBU_PADDING.
+func TestTrailerCarrier_AV1Padding(t *testing.T) {
+	c := loadSingle(t, CodecAV1)
+	payloads := (&av1Payloader{}).Payload(1000, c.Frames[1].Data)
+	payloads = addTrailer(CodecAV1, payloads, scenarioTag("x"), 7)
+	var pkt codecs.AV1Packet
+	if _, err := pkt.Unmarshal(payloads[len(payloads)-1]); err != nil {
+		t.Fatal(err)
+	}
+	last := pkt.OBUElements[len(pkt.OBUElements)-1]
+	if int(last[0]>>3)&0x0f != obuPadding || len(last) != 7 {
+		t.Fatalf("last element % x, want a 7-byte padding OBU", last)
+	}
+}
+
+// What the trailer costs in each codec's packets.
+func TestTrailerRoom(t *testing.T) {
+	for c, want := range map[VideoCodec]int{CodecVP8: 6, CodecVP9: 7, CodecAV1: 8, CodecH264: 0} {
+		if got := trailerRoom(c); got != want {
+			t.Errorf("%s: %d bytes, want %d", c, got, want)
+		}
+	}
+}
+
+// readWireTrailer reads the trailer of a sent payload as it goes on the
+// wire: for codecs carrying it as RTP padding, the payload ends with the
+// padding.
+func readWireTrailer(c VideoCodec, wire []byte, tag [3]byte) (uint32, bool) {
+	if trailerIsPadding(c) && len(wire) > 0 && int(wire[len(wire)-1]) <= len(wire) {
+		k := len(wire) - int(wire[len(wire)-1])
+		return readTrailer(c, wire[:k], wire[k:], tag)
+	}
+	return readTrailer(c, wire, nil, tag)
 }

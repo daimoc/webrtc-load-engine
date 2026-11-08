@@ -68,3 +68,21 @@ func (c *capState) closed(id string) []capAction {
 	}
 	return nil
 }
+
+// preferredLayersFor is the preferred layers of a newConsumer for a bot
+// asking for height requested (014 T053): on a layered video consumer
+// (type simulcast or svc), the highest of the sender's layer heights (low
+// first) not above the request, or the lowest. Nil when the bot takes the
+// top layer (requested 0), and for audio and single streams.
+func preferredLayersFor(nc NewConsumerRequest, heights []int, requested int) *preferredLayers {
+	if nc.Kind != "video" || (nc.Type != "simulcast" && nc.Type != "svc") || requested <= 0 || len(heights) == 0 {
+		return nil
+	}
+	layer := 0
+	for i, h := range heights {
+		if h <= requested {
+			layer = i
+		}
+	}
+	return &preferredLayers{ConsumerID: nc.ConsumerID, SpatialLayer: layer}
+}

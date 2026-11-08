@@ -113,3 +113,47 @@ func TestLoadFile_NoFFmpeg(t *testing.T) {
 		t.Errorf("no ffmpeg: %v", err)
 	}
 }
+
+// A file is sent in the run's codec, with the settings and bitrates of the
+// built-in content of that codec (specs/014 FR-010).
+func TestLoadFileAs_EveryCodec(t *testing.T) {
+	needFFmpeg(t)
+	path := makeClip(t, false)
+	for _, c := range []VideoCodec{CodecVP9, CodecAV1, CodecH264} {
+		fc, err := LoadFileAs(context.Background(), path, false, []int{180, 360}, c)
+		if err != nil {
+			t.Fatalf("%s: %v", c, err)
+		}
+		if len(fc.Video) != 2 {
+			t.Fatalf("%s: %d layers", c, len(fc.Video))
+		}
+		for i, v := range fc.Video {
+			if v.VideoCodec != c || !strings.EqualFold(v.Codec.MimeType, c.MimeType()) {
+				t.Fatalf("%s layer %d: %q %+v", c, i, v.VideoCodec, v.Codec)
+			}
+			if n := len(v.Frames); n < 88 || n > 92 {
+				t.Errorf("%s layer %d: %d frames, want about 90", c, i, n)
+			}
+			for j, f := range v.Frames {
+				if key := isKeyframe(c, f.Data); key != (j%30 == 0) {
+					t.Fatalf("%s layer %d frame %d: keyframe %v", c, i, j, key)
+				}
+			}
+			if v.Height != []int{180, 360}[i] {
+				t.Errorf("%s layer %d: height %d", c, i, v.Height)
+			}
+		}
+		again, err := LoadFileAs(context.Background(), path, false, []int{180, 360}, c)
+		if err != nil || again != fc {
+			t.Errorf("%s: second load not reused", c)
+		}
+	}
+}
+
+func TestFileBitrates(t *testing.T) {
+	for c, want := range map[VideoCodec]int{CodecVP8: 500, CodecVP9: 200, CodecAV1: 400, CodecH264: 500} {
+		if got := fileBitrate(c, 360); got != want {
+			t.Errorf("%s 360: %d kbit/s, want %d (content.json)", c, got, want)
+		}
+	}
+}

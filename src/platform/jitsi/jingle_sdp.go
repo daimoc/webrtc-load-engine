@@ -385,6 +385,9 @@ func rtpDescriptionFromSDP(md *sdp.MediaDescription) *JingleDescription {
 		case "fmtp":
 			if pt := byID[id]; pt != nil {
 				for _, kv := range strings.Split(rest, ";") {
+					if strings.TrimSpace(kv) == "" {
+						continue // jicofo ends H.264's parameters with ';'
+					}
 					k, v, found := strings.Cut(strings.TrimSpace(kv), "=")
 					if !found {
 						pt.Parameters = append(pt.Parameters, Parameter{Value: k})

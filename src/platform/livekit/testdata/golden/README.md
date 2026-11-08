@@ -28,6 +28,25 @@ add_track:  {
 
 ```
 
+## req_add_track_vp9.bin (58 bytes)
+
+Generated the same way for 014 (T029).
+
+```text
+add_track: {
+  cid: "video-track-id"
+  name: "video"
+  type: VIDEO
+  width: 640
+  height: 360
+  source: CAMERA
+  simulcast_codecs: {
+    codec: "vp9"
+    cid: "video-track-id"
+  }
+}
+```
+
 ## req_answer.bin (27 bytes)
 
 ```text
@@ -329,5 +348,131 @@ update:  {
   }
 }
 
+```
+
+## req_add_track_simulcast.bin (159 bytes)
+
+Generated the same way for 014 (T052).
+
+```text
+add_track: {
+  cid: "video-track-id"
+  name: "video"
+  type: VIDEO
+  width: 1280
+  height: 720
+  source: CAMERA
+  layers: {
+    width: 320
+    height: 180
+    bitrate: 150000
+    rid: "l"
+  }
+  layers: {
+    quality: MEDIUM
+    width: 640
+    height: 360
+    bitrate: 500000
+    rid: "m"
+  }
+  layers: {
+    quality: HIGH
+    width: 1280
+    height: 720
+    bitrate: 1500000
+    rid: "h"
+  }
+  simulcast_codecs: {
+    codec: "vp8"
+    cid: "video-track-id"
+    layers: {
+      width: 320
+      height: 180
+      bitrate: 150000
+      rid: "l"
+    }
+    layers: {
+      quality: MEDIUM
+      width: 640
+      height: 360
+      bitrate: 500000
+      rid: "m"
+    }
+    layers: {
+      quality: HIGH
+      width: 1280
+      height: 720
+      bitrate: 1500000
+      rid: "h"
+    }
+    video_layer_mode: ONE_SPATIAL_LAYER_PER_STREAM
+  }
+}
+```
+
+## req_add_track_svc.bin (141 bytes)
+
+Generated the same way for 014 (T052).
+
+```text
+add_track: {
+  cid: "video-track-id"
+  name: "video"
+  type: VIDEO
+  width: 1280
+  height: 720
+  source: CAMERA
+  layers: {
+    width: 320
+    height: 180
+    bitrate: 168000
+  }
+  layers: {
+    quality: MEDIUM
+    width: 640
+    height: 360
+    bitrate: 750000
+  }
+  layers: {
+    quality: HIGH
+    width: 1280
+    height: 720
+    bitrate: 2062000
+  }
+  simulcast_codecs: {
+    codec: "vp9"
+    cid: "video-track-id"
+    layers: {
+      width: 320
+      height: 180
+      bitrate: 168000
+    }
+    layers: {
+      quality: MEDIUM
+      width: 640
+      height: 360
+      bitrate: 750000
+    }
+    layers: {
+      quality: HIGH
+      width: 1280
+      height: 720
+      bitrate: 2062000
+    }
+    video_layer_mode: MULTIPLE_SPATIAL_LAYERS_PER_STREAM
+  }
+}
+```
+
+## req_track_setting.bin (15 bytes)
+
+Generated the same way for 014 (T052).
+
+```text
+track_setting: {
+  track_sids: "TR_v2"
+  width: 320
+  height: 180
+}
 ```
 

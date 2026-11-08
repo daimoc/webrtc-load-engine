@@ -1,10 +1,14 @@
 package scenario
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"webrtc-load-engine/src/media"
 )
 
 func validPlan(media *MediaConfig) TestPlan {
@@ -198,5 +202,85 @@ func TestNewScenario_ServerMonitoring(t *testing.T) {
 				t.Fatalf("error %v, want %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+// media.video_codec (specs/014-video-codec-comparison/contracts/test-plan-codec.md).
+func TestNewScenario_VideoCodec(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "clip.mp4")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sim := &SimulcastConfig{MaxHeight: 720}
+	cases := map[string]struct {
+		media   MediaConfig
+		wantErr string // "" accepts
+	}{
+		"vp8":             {MediaConfig{Profile: "audio_video", VideoCodec: "vp8"}, ""},
+		"vp9":             {MediaConfig{Profile: "audio_video", VideoCodec: "vp9"}, ""},
+		"av1":             {MediaConfig{Profile: "audio_video", VideoCodec: "av1"}, ""},
+		"h264":            {MediaConfig{Profile: "audio_video", VideoCodec: "h264"}, ""},
+		"absent":          {MediaConfig{Profile: "audio_video"}, ""},
+		"unknown":         {MediaConfig{Profile: "audio_video", VideoCodec: "vp10"}, "vp8, vp9, av1, h264"},
+		"upper case":      {MediaConfig{Profile: "audio_video", VideoCodec: "VP9"}, "media.video_codec"},
+		"audio profile":   {MediaConfig{Profile: "audio", VideoCodec: "vp9"}, "media.video_codec"},
+		"receive only":    {MediaConfig{Profile: "receive_only", VideoCodec: "vp8"}, "media.video_codec"},
+		"vp9 svc":         {MediaConfig{Profile: "audio_video", VideoCodec: "vp9", Simulcast: sim}, ""},
+		"h264 simulcast":  {MediaConfig{Profile: "audio_video", VideoCodec: "h264", Simulcast: sim}, ""},
+		"h264 480":        {MediaConfig{Profile: "audio_video", VideoCodec: "h264", Simulcast: &SimulcastConfig{MaxHeight: 480}}, "360 or 720"},
+		"file vp9 single": {MediaConfig{Profile: "audio_video", VideoCodec: "vp9", SourceFile: file}, ""},
+		"file h264 simul": {MediaConfig{Profile: "audio_video", VideoCodec: "h264", SourceFile: file, Simulcast: sim}, ""},
+		"file vp9 svc":    {MediaConfig{Profile: "audio_video", VideoCodec: "vp9", SourceFile: file, Simulcast: sim}, "media.source_file"},
+		"file av1 svc":    {MediaConfig{Profile: "audio_video", VideoCodec: "av1", SourceFile: file, Simulcast: sim}, "media.source_file"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			media := tc.media
+			sc, err := NewScenario("s", "jitsi", validPlan(&media))
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			case tc.wantErr != "" && err == nil:
+				t.Fatal("expected an error")
+			case tc.wantErr != "" && !strings.Contains(err.Error(), tc.wantErr):
+				t.Fatalf("error %q does not contain %q", err, tc.wantErr)
+			case err == nil && sc.TestPlan.Media.VideoCodec != tc.media.VideoCodec:
+				t.Fatalf("video_codec changed to %q", sc.TestPlan.Media.VideoCodec)
+			}
+		})
+	}
+}
+
+func TestMediaConfig_CodecAndArrangement(t *testing.T) {
+	sim := &SimulcastConfig{MaxHeight: 360}
+	cases := []struct {
+		m     *MediaConfig
+		codec media.VideoCodec
+		arr   media.Arrangement
+	}{
+		{nil, media.CodecVP8, media.ArrangementSingle},
+		{&MediaConfig{}, media.CodecVP8, media.ArrangementSingle},
+		{&MediaConfig{Simulcast: sim}, media.CodecVP8, media.ArrangementSimulcast},
+		{&MediaConfig{VideoCodec: "av1"}, media.CodecAV1, media.ArrangementSingle},
+		{&MediaConfig{VideoCodec: "av1", Simulcast: sim}, media.CodecAV1, media.ArrangementSVC},
+		{&MediaConfig{VideoCodec: "h264", Simulcast: sim}, media.CodecH264, media.ArrangementSimulcast},
+	}
+	for _, c := range cases {
+		if got := c.m.Codec(); got != c.codec {
+			t.Errorf("%+v: Codec() = %q, want %q", c.m, got, c.codec)
+		}
+		if got := c.m.Arrangement(); got != c.arr {
+			t.Errorf("%+v: Arrangement() = %q, want %q", c.m, got, c.arr)
+		}
+	}
+}
+
+func TestMediaConfig_NoVideoCodecInJSON(t *testing.T) {
+	b, err := json.Marshal(MediaConfig{Profile: "audio_video"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "video_codec") {
+		t.Fatalf("a plan without video_codec gained it: %s", b)
 	}
 }

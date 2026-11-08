@@ -1,6 +1,8 @@
 package mediasoup
 
 import (
+	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +12,7 @@ import (
 
 	"webrtc-load-engine/src/execution"
 	"webrtc-load-engine/src/media"
+	"webrtc-load-engine/src/platform"
 )
 
 // audioConsumer returns the golden newConsumer (Opus, mid "0").
@@ -214,7 +217,7 @@ func producerTransport(t *testing.T) TransportInfo {
 func TestProducerParams(t *testing.T) {
 	_, offer := publishOffer(t, []string{media.KindAudio, media.KindVideo})
 	d := parseSDP(t, offer)
-	specs, err := producerParams(offer, routerCaps(t))
+	specs, err := producerParams(offer, routerCaps(t), media.CodecVP8, media.ArrangementSingle)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,19 +263,19 @@ func TestProducerParams(t *testing.T) {
 func TestProducerParams_MissingCodec(t *testing.T) {
 	_, offer := publishOffer(t, []string{media.KindAudio})
 	noOpus := strings.ReplaceAll(offer, "opus/48000/2", "speex/48000/2")
-	if _, err := producerParams(noOpus, routerCaps(t)); err == nil || !strings.Contains(err.Error(), "opus") {
+	if _, err := producerParams(noOpus, routerCaps(t), media.CodecVP8, media.ArrangementSingle); err == nil || !strings.Contains(err.Error(), "opus") {
 		t.Errorf("err = %v, want one naming opus", err)
 	}
 	caps := routerCaps(t)
 	caps.Codecs = slices.DeleteFunc(caps.Codecs, func(c RtpCodecCapability) bool { return c.MimeType == "audio/opus" })
-	if _, err := producerParams(offer, caps); err == nil || !strings.Contains(err.Error(), "opus") {
+	if _, err := producerParams(offer, caps, media.CodecVP8, media.ArrangementSingle); err == nil || !strings.Contains(err.Error(), "opus") {
 		t.Errorf("err = %v, want one naming opus (router)", err)
 	}
 }
 
 func TestPublishAnswer(t *testing.T) {
 	p, offer := publishOffer(t, []string{media.KindAudio, media.KindVideo})
-	specs, err := producerParams(offer, routerCaps(t))
+	specs, err := producerParams(offer, routerCaps(t), media.CodecVP8, media.ArrangementSingle)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,5 +332,203 @@ func TestLocalDtlsRole(t *testing.T) {
 	}
 	if _, err := localDtlsRole("v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\n"); err == nil {
 		t.Error("no setup: no error")
+	}
+}
+
+// routerCaps014 is the golden router with the codecs config.mjs adds in 014
+// (T030): VP9 profile 0 and AV1, each with RTX.
+func routerCaps014(t *testing.T) RtpCapabilities {
+	t.Helper()
+	caps := routerCaps(t)
+	fb := []RtcpFeedback{{Type: "nack"}, {Type: "nack", Parameter: "pli"}, {Type: "ccm", Parameter: "fir"}, {Type: "transport-cc"}}
+	caps.Codecs = append(caps.Codecs,
+		RtpCodecCapability{Kind: "video", MimeType: "video/VP9", ClockRate: 90000, PreferredPayloadType: 120, Parameters: map[string]any{"profile-id": float64(0)}, RtcpFeedback: fb},
+		RtpCodecCapability{Kind: "video", MimeType: "video/rtx", ClockRate: 90000, PreferredPayloadType: 121, Parameters: map[string]any{"apt": float64(120)}, RtcpFeedback: []RtcpFeedback{}},
+		RtpCodecCapability{Kind: "video", MimeType: "video/AV1", ClockRate: 90000, PreferredPayloadType: 122, Parameters: map[string]any{}, RtcpFeedback: fb},
+		RtpCodecCapability{Kind: "video", MimeType: "video/rtx", ClockRate: 90000, PreferredPayloadType: 123, Parameters: map[string]any{"apt": float64(122)}, RtcpFeedback: []RtcpFeedback{}},
+	)
+	caps.HeaderExtensions = append(caps.HeaderExtensions, RtpHeaderExtension{Kind: "video", URI: media.DependencyDescriptorURI, PreferredID: 7, Direction: "recvonly"})
+	return caps
+}
+
+func codecPublishOffer(t *testing.T, codec media.VideoCodec) string {
+	t.Helper()
+	p, err := execution.NewPeer("bot-1", "sdp-test", execution.PeerMedia{Kinds: []string{media.KindAudio, media.KindVideo}, PublishSession: true, VideoCodec: codec}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.Close() })
+	offer, err := p.CreatePublishOffer(func(string, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return offer
+}
+
+func TestProducerParams_EveryCodec(t *testing.T) {
+	for _, c := range []media.VideoCodec{media.CodecVP8, media.CodecVP9, media.CodecAV1, media.CodecH264} {
+		offer := codecPublishOffer(t, c)
+		specs, err := producerParams(offer, routerCaps014(t), c, media.ArrangementSingle)
+		if err != nil {
+			t.Fatalf("%s: %v", c, err)
+		}
+		v := specs[1].RtpParameters
+		if !strings.EqualFold(v.Codecs[0].MimeType, c.MimeType()) {
+			t.Fatalf("%s: produced %+v", c, v.Codecs)
+		}
+		if !strings.Contains(offer, "a=rtpmap:"+itoa(v.Codecs[0].PayloadType)+" ") {
+			t.Fatalf("%s: payload type %d not in the offer", c, v.Codecs[0].PayloadType)
+		}
+		if len(v.Codecs) != 2 || v.Codecs[1].MimeType != "video/rtx" || v.Codecs[1].Parameters["apt"] != v.Codecs[0].PayloadType {
+			t.Errorf("%s: RTX %+v", c, v.Codecs)
+		}
+		switch c {
+		case media.CodecVP9:
+			if p, ok := v.Codecs[0].Parameters["profile-id"]; ok && p != 0 {
+				t.Errorf("VP9 profile %v", p)
+			}
+		case media.CodecH264:
+			if v.Codecs[0].Parameters["profile-level-id"] != "42e01f" || v.Codecs[0].Parameters["packetization-mode"] != 1 {
+				t.Errorf("H.264 parameters %v", v.Codecs[0].Parameters)
+			}
+		}
+		dd := slices.ContainsFunc(v.HeaderExtensions, func(h RtpHeaderExtensionParameters) bool { return h.URI == media.DependencyDescriptorURI })
+		if dd != (c == media.CodecAV1) {
+			t.Errorf("%s: dependency descriptor produced %v", c, dd)
+		}
+	}
+}
+
+func TestBotCaps_EveryCodec(t *testing.T) {
+	router := routerCaps014(t)
+	for _, c := range []media.VideoCodec{media.CodecVP8, media.CodecVP9, media.CodecAV1, media.CodecH264} {
+		caps, err := botCaps(router, c)
+		if err != nil {
+			t.Fatalf("%s: %v", c, err)
+		}
+		var video []string
+		for _, rc := range caps.Codecs {
+			if rc.Kind == "video" && !strings.EqualFold(rc.MimeType, "video/rtx") {
+				video = append(video, rc.MimeType)
+			}
+		}
+		if len(video) != 1 || !strings.EqualFold(video[0], c.MimeType()) {
+			t.Errorf("%s: bot announces %v", c, video)
+		}
+	}
+	if caps, _ := botCaps(routerCaps(t), media.CodecVP8); !reflect.DeepEqual(caps, botCapsVP8(t)) {
+		t.Errorf("VP8 caps changed from 010")
+	}
+}
+
+func TestBotCaps_RouterWithoutCodec(t *testing.T) {
+	// The 010 router: VP9 profile 2 only, no AV1.
+	for _, c := range []media.VideoCodec{media.CodecVP9, media.CodecAV1} {
+		_, err := botCaps(routerCaps(t), c)
+		if !errors.Is(err, platform.ErrCodecMismatch) {
+			t.Fatalf("%s: %v, want a codec mismatch", c, err)
+		}
+		if !strings.Contains(err.Error(), "VP8") || !strings.Contains(err.Error(), string(c)) {
+			t.Errorf("%s: %q names neither the router's codecs nor the plan's", c, err)
+		}
+	}
+}
+
+// botCapsVP8 is what 010's botCaps announced: the router's Opus, VP8 and
+// VP8's RTX, and the bot's header extensions.
+func botCapsVP8(t *testing.T) RtpCapabilities {
+	t.Helper()
+	router := routerCaps(t)
+	caps := RtpCapabilities{Codecs: []RtpCodecCapability{}, HeaderExtensions: []RtpHeaderExtension{}}
+	vp8 := -1
+	for _, c := range router.Codecs {
+		switch strings.ToLower(c.MimeType) {
+		case "audio/opus":
+			caps.Codecs = append(caps.Codecs, c)
+		case "video/vp8":
+			caps.Codecs = append(caps.Codecs, c)
+			if vp8 < 0 {
+				vp8 = c.PreferredPayloadType
+			}
+		}
+	}
+	for _, c := range router.Codecs {
+		if strings.EqualFold(c.MimeType, "video/rtx") && aptOf(c.Parameters) == vp8 {
+			caps.Codecs = append(caps.Codecs, c)
+		}
+	}
+	for _, h := range router.HeaderExtensions {
+		if slices.Contains(botHeaderExtensions, h.URI) {
+			caps.HeaderExtensions = append(caps.HeaderExtensions, h)
+		}
+	}
+	return caps
+}
+
+func layeredPublishOffer(t *testing.T, codec media.VideoCodec, simulcast, svc bool) string {
+	t.Helper()
+	p, err := execution.NewPeer("bot-1", "sdp-test", execution.PeerMedia{Kinds: []string{media.KindAudio, media.KindVideo}, PublishSession: true, VideoCodec: codec,
+		Simulcast: simulcast, SVC: svc, LayerHeights: []int{180, 360, 720}}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.Close() })
+	offer, err := p.CreatePublishOffer(func(string, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return offer
+}
+
+// Simulcast produces one encoding per layer, low first, with the offer's
+// RIDs and SSRCs; the RID extension is kept (014 T053).
+func TestProducerParams_Simulcast(t *testing.T) {
+	for _, c := range []media.VideoCodec{media.CodecVP8, media.CodecH264} {
+		offer := layeredPublishOffer(t, c, true, false)
+		specs, err := producerParams(offer, routerCaps014(t), c, media.ArrangementSimulcast)
+		if err != nil {
+			t.Fatalf("%s: %v", c, err)
+		}
+		v := specs[1].RtpParameters
+		if len(v.Encodings) != 3 {
+			t.Fatalf("%s: encodings %+v", c, v.Encodings)
+		}
+		seen := map[uint32]bool{}
+		for i, e := range v.Encodings {
+			if e.RID != media.SimulcastRIDs[i] || e.SSRC == 0 || seen[e.SSRC] || e.ScalabilityMode != "" || !strings.Contains(offer, "a=ssrc:"+itoa(int(e.SSRC))+" ") {
+				t.Errorf("%s: encoding %d = %+v", c, i, e)
+			}
+			seen[e.SSRC] = true
+		}
+		if !slices.ContainsFunc(v.HeaderExtensions, func(h RtpHeaderExtensionParameters) bool {
+			return h.URI == "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id"
+		}) {
+			t.Errorf("%s: no RID extension in %+v", c, v.HeaderExtensions)
+		}
+		if a := specs[0].RtpParameters.Encodings; len(a) != 1 || a[0].RID != "" {
+			t.Errorf("%s: audio encodings %+v", c, a)
+		}
+	}
+}
+
+// SVC produces one encoding with the scalability mode, and the dependency
+// descriptor.
+func TestProducerParams_SVC(t *testing.T) {
+	for _, c := range []media.VideoCodec{media.CodecVP9, media.CodecAV1} {
+		offer := layeredPublishOffer(t, c, false, true)
+		specs, err := producerParams(offer, routerCaps014(t), c, media.ArrangementSVC)
+		if err != nil {
+			t.Fatalf("%s: %v", c, err)
+		}
+		v := specs[1].RtpParameters
+		if len(v.Encodings) != 1 || v.Encodings[0].ScalabilityMode != "L3T3_KEY" || v.Encodings[0].RID != "" || v.Encodings[0].SSRC == 0 {
+			t.Errorf("%s: encodings %+v", c, v.Encodings)
+		}
+		if !slices.ContainsFunc(v.HeaderExtensions, func(h RtpHeaderExtensionParameters) bool { return h.URI == media.DependencyDescriptorURI }) {
+			t.Errorf("%s: no dependency descriptor", c)
+		}
+		if a := specs[0].RtpParameters.Encodings; a[0].ScalabilityMode != "" {
+			t.Errorf("%s: audio encodings %+v", c, a)
+		}
 	}
 }

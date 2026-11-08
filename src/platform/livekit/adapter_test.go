@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -477,5 +478,63 @@ func TestEngine_LiveKitQualitySummary(t *testing.T) {
 		if !got[k] {
 			t.Errorf("summary has no %s", k)
 		}
+	}
+}
+
+// A video track names its codec when it is not VP8, as LiveKit's clients
+// do; VP8 sends 008's request (014 research R10).
+func TestAddTrackFor_VideoCodec(t *testing.T) {
+	vp8 := addTrackFor("video", "cid-v", 640, 360, "", media.ArrangementSingle, nil)
+	if vp8.Codecs != nil || vp8.Type != trackVideo || vp8.Width != 640 || vp8.Height != 360 || vp8.Source != sourceCamera {
+		t.Fatalf("VP8: %+v", vp8)
+	}
+	if got := addTrackFor("video", "cid-v", 640, 360, media.CodecVP8, media.ArrangementSingle, nil); got.Codecs != nil {
+		t.Fatalf("explicit VP8: %+v", got)
+	}
+	for _, c := range []media.VideoCodec{media.CodecVP9, media.CodecAV1, media.CodecH264} {
+		got := addTrackFor("video", "cid-v", 640, 360, c, media.ArrangementSingle, nil)
+		if len(got.Codecs) != 1 || got.Codecs[0].Codec != string(c) || got.Codecs[0].CID != "cid-v" {
+			t.Fatalf("%s: %+v", c, got)
+		}
+	}
+	a := addTrackFor("audio", "cid-a", 0, 0, media.CodecAV1, media.ArrangementSVC, []int{180, 360, 720})
+	if a.Codecs != nil || a.Type != trackAudio || !a.DisableRed || a.Source != sourceMicrophone {
+		t.Fatalf("audio: %+v", a)
+	}
+}
+
+// A layered track announces its layers, with content.json's bitrates, in
+// the request and in its codec (014 T052): simulcast by the RIDs the bot
+// sends, SVC as several spatial layers in one stream. The track's size is
+// the top layer's.
+func TestAddTrackFor_Layers(t *testing.T) {
+	sim := addTrackFor("video", "video-track-id", 640, 360, media.CodecVP8, media.ArrangementSimulcast, []int{180, 360, 720})
+	want := &addTrackRequest{CID: "video-track-id", Name: "video", Type: trackVideo, Width: 1280, Height: 720, Source: sourceCamera,
+		Layers: goldenSimulcastLayers, Codecs: []simulcastCodec{{Codec: "vp8", CID: "video-track-id", Layers: goldenSimulcastLayers, Mode: layerModeOnePerStream}}}
+	if !reflect.DeepEqual(sim, want) {
+		t.Errorf("simulcast:\n got %+v\nwant %+v", sim, want)
+	}
+	svc := addTrackFor("video", "video-track-id", 640, 360, media.CodecVP9, media.ArrangementSVC, []int{180, 360, 720})
+	want = &addTrackRequest{CID: "video-track-id", Name: "video", Type: trackVideo, Width: 1280, Height: 720, Source: sourceCamera,
+		Layers: goldenSVCLayers, Codecs: []simulcastCodec{{Codec: "vp9", CID: "video-track-id", Layers: goldenSVCLayers, Mode: layerModeMultiplePerStream}}}
+	if !reflect.DeepEqual(svc, want) {
+		t.Errorf("SVC:\n got %+v\nwant %+v", svc, want)
+	}
+	if h := addTrackFor("video", "v", 640, 360, media.CodecH264, media.ArrangementSimulcast, []int{90, 180, 360}); h.Width != 640 || h.Height != 360 || len(h.Layers) != 3 || h.Layers[0].RID != "l" || h.Codecs[0].Codec != "h264" || h.Codecs[0].Mode != layerModeOnePerStream {
+		t.Errorf("H.264 simulcast: %+v", h)
+	}
+}
+
+// A bot asking for a height sends it for the video tracks it subscribes
+// to; one asking for the top layer (0) sends nothing.
+func TestTrackSettings(t *testing.T) {
+	if got := trackSettings([]string{"TR_v2", "TR_v3"}, 180); !reflect.DeepEqual(got, &updateTrackSettings{TrackSIDs: []string{"TR_v2", "TR_v3"}, Width: 320, Height: 180}) {
+		t.Errorf("180: %+v", got)
+	}
+	if got := trackSettings([]string{"TR_v2"}, 0); got != nil {
+		t.Errorf("top layer: %+v", got)
+	}
+	if got := trackSettings(nil, 180); got != nil {
+		t.Errorf("no video track: %+v", got)
 	}
 }

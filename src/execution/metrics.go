@@ -73,6 +73,7 @@ const (
 	stageNegotiation   = "negotiation"
 	stageTransport     = "transport"
 	stageSignalingLost = "signaling_lost"
+	stageMedia         = "media" // The negotiated or received codec is not the plan's (014)
 )
 
 func init() {

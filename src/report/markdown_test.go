@@ -155,3 +155,80 @@ func TestMarkdownTimes(t *testing.T) {
 		t.Errorf("subtitle missing %q:\n%s", want, md[:200])
 	}
 }
+
+// The codec rows after Outcome (specs/014 contracts/report-codec.md).
+func TestMarkdownVideoCodec(t *testing.T) {
+	q := loadSummary(t, "full.json")
+	q.Video.Codec = &scenario.VideoCodecResult{
+		Sent: "vp9", Arrangement: "svc",
+		ContentBitrateKbps: map[string]int{"720": 800, "180": 95, "360": 260},
+		Received:           map[string]int{"vp9": 10},
+		Mismatch:           []scenario.CodecMismatch{},
+	}
+	_, md := markdownRun(t, q, "completed", "")
+	if got, want := row(t, md, "Video codec"), "vp9 (svc: 180, 360, 720) · received vp9 by 10 bots"; got != want {
+		t.Errorf("Video codec = %q, want %q", got, want)
+	}
+	if got, want := row(t, md, "Video content bitrate"), "180: 95 kbit/s, 360: 260 kbit/s, 720: 800 kbit/s"; got != want {
+		t.Errorf("Video content bitrate = %q, want %q", got, want)
+	}
+	if i, j := strings.Index(md, "| Outcome |"), strings.Index(md, "| Video codec |"); i < 0 || j < i {
+		t.Error("codec rows not after Outcome")
+	}
+
+	q.Video.Codec = &scenario.VideoCodecResult{Sent: "h264", Arrangement: "single", ContentBitrateKbps: map[string]int{"360": 500},
+		Received: map[string]int{"h264": 2}, Mismatch: []scenario.CodecMismatch{}}
+	_, md = markdownRun(t, q, "completed", "")
+	if got := row(t, md, "Video codec"); got != "h264 (single) · received h264 by 2 bots" {
+		t.Errorf("single: %q", got)
+	}
+}
+
+func TestMarkdownCodecMismatch(t *testing.T) {
+	q := loadSummary(t, "full.json")
+	q.Video.Codec = &scenario.VideoCodecResult{
+		Sent: "av1", Arrangement: "single", ContentBitrateKbps: map[string]int{"360": 400},
+		Received: map[string]int{"av1": 7, "vp8": 3},
+		Mismatch: []scenario.CodecMismatch{
+			{Bot: "bot-1", Direction: "sent", Codec: "vp8"},
+			{Bot: "bot-2", Direction: "received", Codec: "vp8"},
+			{Bot: "bot-3", Direction: "received", Codec: "vp8"},
+		},
+	}
+	_, md := markdownRun(t, q, "completed", "")
+	if got := row(t, md, "Video codec"); got != "av1 asked · 3 bots on another codec: see Video" {
+		t.Errorf("Video codec = %q", got)
+	}
+	for _, want := range []string{"Codec mismatch", "bot-1 | sent | vp8", "bot-3 | received | vp8"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("Video section lacks %q:\n%s", want, md)
+		}
+	}
+}
+
+func TestMarkdownNoCodecRowsWithoutVideo(t *testing.T) {
+	_, md := markdownRun(t, loadSummary(t, "full.json"), "completed", "")
+	if strings.Contains(md, "| Video codec |") {
+		t.Error("a summary without a codec result shows codec rows")
+	}
+}
+
+// layers_not_forwarded: the Video section says so, naming the codec and
+// the platform (014 T057); without it the line is absent.
+func TestMarkdownLayersNotForwarded(t *testing.T) {
+	q := loadSummary(t, "full.json")
+	q.Video.Codec = &scenario.VideoCodecResult{Sent: "h264", Arrangement: "simulcast",
+		ContentBitrateKbps: map[string]int{"180": 150, "360": 500, "720": 1350},
+		Received:           map[string]int{"h264": 10}, Mismatch: []scenario.CodecMismatch{}, LayersNotForwarded: true}
+	_, md := markdownRun(t, q, "completed", "")
+	video := md[strings.Index(md, "\n## Video\n"):]
+	want := "The server forwarded only the lowest layer: layered result not available. Codec h264 (simulcast) on jitsi.\n"
+	if !strings.Contains(video, want) {
+		t.Errorf("Video section lacks %q:\n%s", want, video)
+	}
+
+	q.Video.Codec.LayersNotForwarded = false
+	if _, md = markdownRun(t, q, "completed", ""); strings.Contains(md, "forwarded only the lowest layer") {
+		t.Error("the line shows without layers_not_forwarded")
+	}
+}

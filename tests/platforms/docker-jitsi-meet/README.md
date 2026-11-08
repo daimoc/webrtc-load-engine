@@ -43,6 +43,24 @@ The live test lists its other variables at the top of
 Each run writes its report (JSON and Markdown) to the repository's
 `reports/` folder (feature 009).
 
+## Video codecs (014)
+
+`media.video_codec` (`JITSI_VIDEO_CODEC`, `jitsi-connect --video-codec`) is
+`vp8` (default), `vp9`, `av1` or `h264`. Jicofo `stable-11248` offers all
+four by default (`ENABLE_CODEC_*` is not set in `.env`), with the AV1
+dependency descriptor. With `media.simulcast`, VP8 and H.264 are sent as
+simulcast (SIM group) and VP9 and AV1 as SVC (one source and its RTX);
+requested heights go through `ReceiverVideoConstraints`.
+
+Limits found (specs/014-video-codec-comparison/validation-report.md):
+- H.264 simulcast: the bridge forwards only the lowest layer (it has no
+  H.264 packet parser); reports set `layers_not_forwarded`.
+- The bridge drops RTP padding, so VP9 latency is `frame_not_identified`.
+- At 10 bots locally, the default bandwidth estimate made the bridge stop
+  some streams in VP8 and AV1 runs; the 014 figures are with
+  `JVB_CC_TRUST_BWE=false` (a compose override; the remote overlay sets
+  it). This setup keeps the default.
+
 ## Token authentication
 
 Uncomment the JWT block of `.env` (set `JWT_APP_SECRET`), then

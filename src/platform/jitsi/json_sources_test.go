@@ -101,3 +101,23 @@ func TestApplyJSONSources_Rejects(t *testing.T) {
 		t.Fatalf("expected a no-op, got %v %+v", err, j.Content)
 	}
 }
+
+// An SVC source in JSON: one source and its FID group, no SIM (014 T055).
+func TestApplyJSONSources_SVCSource(t *testing.T) {
+	j := JingleIQ{Action: "source-add", SID: "s1", JSONMessage: &JSONMessage{Text: `{"sources":{"abcd1234":[[{"s":1,"n":"abcd1234-v0"},{"s":2,"n":"abcd1234-v0"}],[["f",1,2]],[]]}}`}}
+	if err := applyJSONSources(&j); err != nil {
+		t.Fatal(err)
+	}
+	d := j.Content[0].Description
+	if len(d.Sources) != 2 || len(d.SSRCGroups) != 1 || d.SSRCGroups[0].Semantics != "FID" {
+		t.Fatalf("unexpected description %+v", d)
+	}
+	for _, s := range d.Sources {
+		if s.VideoType != "camera" {
+			t.Errorf("source %+v, want videoType camera", s)
+		}
+	}
+	if got := splitSources(d); len(got) != 1 || len(got[0].sources) != 2 {
+		t.Errorf("an SVC source is one stream with its RTX, got %+v", got)
+	}
+}

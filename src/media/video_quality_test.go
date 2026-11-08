@@ -3,6 +3,10 @@ package media
 import (
 	"testing"
 	"time"
+
+	"github.com/pion/rtp"
+	"github.com/pion/rtp/codecs"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // videoFeed sends frames of 3 packets to a VideoQuality at 30 fps.
@@ -379,5 +383,184 @@ func TestVideoQuality_LatencyIgnoresFrameBeforeItsSendTime(t *testing.T) {
 	f.frame(1, -time.Second)
 	if n := f.samples(); n != 0 || o.n != 0 {
 		t.Fatalf("%d samples, %d observed, want 0", n, o.n)
+	}
+}
+
+// Every codec's stream is measured as VP8's (specs/014 FR-007): frames,
+// height, freezes, no keyframe request on a clean stream.
+func TestVideoQuality_EveryCodec(t *testing.T) {
+	for _, c := range VideoCodecs() {
+		ddID := uint8(0)
+		if c == CodecAV1 {
+			ddID = SourceDDExtID
+		}
+		frames := sourcePacketsFor(t, c, 2*time.Second)
+		q := NewVideoQualityFor(c, ddID, 10*time.Second)
+		at := time.Unix(1000, 0)
+		requests := 0
+		for i, f := range frames {
+			// 500 ms without frames 20 to 34: one freeze. They are not
+			// lost (same sequence numbers skipped), only late.
+			if i >= 20 && i < 35 {
+				continue
+			}
+			at = time.Unix(1000, 0).Add(time.Duration(i) * time.Second / 30)
+			for j := range f {
+				if q.UpdateRTP(&f[j].Header, f[j].Payload, at) {
+					requests++
+				}
+			}
+		}
+		s := q.Snapshot(false)
+		want := uint64(len(frames) - 15)
+		if s.Frames != want {
+			t.Errorf("%s: %d frames, want %d", c, s.Frames, want)
+		}
+		if s.Height != 360 {
+			t.Errorf("%s: height %d, want 360", c, s.Height)
+		}
+		if s.Freezes != 1 {
+			t.Errorf("%s: %d freezes, want 1", c, s.Freezes)
+		}
+		// Frames 20-34 were skipped with their sequence numbers: they count
+		// as lost, so one keyframe request (then frame 30's keyframe... was
+		// skipped too) is expected; never more than one per second.
+		if requests > 2 {
+			t.Errorf("%s: %d keyframe requests", c, requests)
+		}
+	}
+}
+
+// Latency comes from each codec's trailer carrier (specs/014 FR-007, R9).
+func TestVideoQuality_LatencyEveryCodec(t *testing.T) {
+	for _, c := range VideoCodecs() {
+		w := &recorder{}
+		s := runSource(t, "latency-"+string(c), loadSingle(t, c), time.Second, nil, w)
+		packets, at := w.snapshot()
+		ddID := uint8(0)
+		if c == CodecAV1 {
+			ddID = SourceDDExtID
+		}
+		q := NewVideoQualityFor(c, ddID, 10*time.Second)
+		q.SetLatency(s.SendTimes(), prometheus.NewHistogram(prometheus.HistogramOpts{Name: "x"}))
+		for i := range packets {
+			q.UpdateRTP(&packets[i].Header, packets[i].Payload, at[i].Add(20*time.Millisecond))
+		}
+		snap := q.Snapshot(false)
+		if snap.Latency.N < 25 {
+			t.Errorf("%s: %d latency samples over %d frames", c, snap.Latency.N, snap.Frames)
+			continue
+		}
+		if p50, _ := snap.Latency.Quantile(0.5); p50 < 15*time.Millisecond || p50 > 25*time.Millisecond {
+			t.Errorf("%s: median latency %s, want 20 ms", c, p50)
+		}
+	}
+}
+
+// spatialLayer returns the spatial layer of a scalable source packet, read
+// with the codecs' own fields: VP9's payload descriptor, AV1's descriptor.
+func spatialLayer(t *testing.T, c VideoCodec, p *rtp.Packet, structure **DDStructure) int {
+	t.Helper()
+	if c == CodecVP9 {
+		var pkt codecs.VP9Packet
+		if _, err := pkt.Unmarshal(p.Payload); err != nil {
+			t.Fatal(err)
+		}
+		return int(pkt.SID)
+	}
+	d, err := ParseDD(p.Header.GetExtension(SourceDDExtID), *structure)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Structure != nil {
+		*structure = d.Structure
+	}
+	return d.Layer(*structure).SpatialID
+}
+
+// On a scalable stream the picture's height is its highest spatial layer's
+// (014 T050): 720 with every layer; when the server stops forwarding the
+// top layer the height drops to 360, one switch, no freeze, the frame rate
+// unchanged; latency is measured once per picture from its first trailer.
+func TestVideoQuality_SVC(t *testing.T) {
+	for _, c := range []VideoCodec{CodecVP9, CodecAV1} {
+		t.Run(string(c), func(t *testing.T) {
+			w := &recorder{}
+			s := runSource(t, "svc-quality-"+t.Name(), loadSVC(t, c, 720), 4*time.Second, nil, w)
+			packets, at := w.snapshot()
+			q := NewVideoQualityFor(c, SourceDDExtID, 10*time.Second)
+			q.SetLatency(s.SendTimes(), prometheus.NewHistogram(prometheus.HistogramOpts{Name: "x"}))
+			var structure *DDStructure
+			half := at[0].Add(2 * time.Second)
+			var mid VideoQualitySnapshot
+			for i := range packets {
+				p := &packets[i]
+				sid := spatialLayer(t, c, p, &structure)
+				if !at[i].Before(half) {
+					if mid.Frames == 0 {
+						mid = q.Snapshot(false)
+					}
+					if sid == 2 {
+						continue // The server forwards up to the 360 layer from here
+					}
+				}
+				q.UpdateRTP(&p.Header, p.Payload, at[i].Add(20*time.Millisecond))
+			}
+			end := q.Snapshot(false)
+			if mid.Height != 720 || mid.Switches != 0 {
+				t.Fatalf("every layer: height %d, %d switches", mid.Height, mid.Switches)
+			}
+			if mid.Frames < 58 || mid.Frames > 61 {
+				t.Fatalf("every layer: %d pictures in 2 s, want 60 (one per picture, not per layer frame)", mid.Frames)
+			}
+			if end.Height != 360 || end.Switches != 1 || end.Freezes != 0 {
+				t.Fatalf("top layer dropped: height %d, %d switches, %d freezes", end.Height, end.Switches, end.Freezes)
+			}
+			if end.Frames < 118 || end.Frames > 121 || end.HeightTime[720] < 1900*time.Millisecond || end.HeightTime[360] < 1900*time.Millisecond {
+				t.Fatalf("%d pictures, time per height %v", end.Frames, end.HeightTime)
+			}
+			if end.Latency.N < 110 || end.Latency.N > end.Frames {
+				t.Fatalf("%d latency samples over %d pictures", end.Latency.N, end.Frames)
+			}
+			if p50, _ := end.Latency.Quantile(0.5); p50 < 15*time.Millisecond || p50 > 25*time.Millisecond {
+				t.Fatalf("median latency %s, want 20 ms", p50)
+			}
+		})
+	}
+}
+
+// Janus does not forward the dependency descriptor to subscribers: an AV1
+// receiver without it takes each layer frame's spatial layer from its OBU
+// extension headers and the layer's height from the run's layer heights
+// (every bot sends the same content).
+func TestVideoQuality_SVCWithoutDescriptor(t *testing.T) {
+	w := &recorder{}
+	runSource(t, "svc-nodd-"+t.Name(), loadSVC(t, CodecAV1, 720), 4*time.Second, nil, w)
+	packets, at := w.snapshot()
+	q := NewVideoQualityFor(CodecAV1, 0, 10*time.Second) // Not negotiated
+	q.SetLayerHeights([]int{180, 360, 720})
+	var structure *DDStructure
+	half := at[0].Add(2 * time.Second)
+	var mid VideoQualitySnapshot
+	for i := range packets {
+		p := packets[i]
+		sid := spatialLayer(t, CodecAV1, &p, &structure)
+		p.Header.Extension, p.Header.Extensions = false, nil
+		if !at[i].Before(half) {
+			if mid.Frames == 0 {
+				mid = q.Snapshot(false)
+			}
+			if sid > 0 {
+				continue // The server forwards the lowest layer from here
+			}
+		}
+		q.UpdateRTP(&p.Header, p.Payload, at[i].Add(20*time.Millisecond))
+	}
+	end := q.Snapshot(false)
+	if mid.Height != 720 || mid.Switches != 0 || mid.Frames < 58 || mid.Frames > 61 {
+		t.Fatalf("every layer: height %d, %d switches, %d pictures", mid.Height, mid.Switches, mid.Frames)
+	}
+	if end.Height != 180 || end.Switches != 1 || end.Freezes != 0 {
+		t.Fatalf("lowest layer only: height %d, %d switches, %d freezes", end.Height, end.Switches, end.Freezes)
 	}
 }

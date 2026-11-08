@@ -2,11 +2,13 @@ package mediasoup
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	"webrtc-load-engine/src/platform"
 
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
@@ -343,8 +345,8 @@ func TestAdapter_JoinFailures(t *testing.T) {
 		a := newTestAdapter(t, fake, nil, nil)
 		b := newBot(t, uuid.NewString(), "bot-1", audioVideo, 0)
 		err := a.Connect(context.Background(), b.ID(), &capture{SignalingHandler: b, s: fake, id: b.ID()})
-		if err == nil || !strings.Contains(err.Error(), "VP8") {
-			t.Fatalf("err = %v, want one naming VP8", err)
+		if !errors.Is(err, platform.ErrCodecMismatch) || !strings.Contains(err.Error(), "vp8") {
+			t.Fatalf("err = %v, want a codec mismatch naming vp8 (014)", err)
 		}
 	})
 }

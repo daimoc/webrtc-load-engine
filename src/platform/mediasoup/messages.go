@@ -65,8 +65,10 @@ type RtpHeaderExtensionParameters struct {
 // RtpEncodingParameters is one encoding of RtpParameters (one, without
 // simulcast).
 type RtpEncodingParameters struct {
-	SSRC uint32   `json:"ssrc"`
-	RTX  *RtxSSRC `json:"rtx,omitempty"`
+	SSRC            uint32   `json:"ssrc"`
+	RID             string   `json:"rid,omitempty"`
+	RTX             *RtxSSRC `json:"rtx,omitempty"`
+	ScalabilityMode string   `json:"scalabilityMode,omitempty"`
 }
 
 // RtxSSRC is an encoding's retransmission SSRC.
@@ -193,6 +195,14 @@ type produceResponse struct {
 // consumerRef is the data of consumerClosed and resumeConsumer.
 type consumerRef struct {
 	ConsumerID string `json:"consumerId"`
+}
+
+// preferredLayers is the data of the demo's setConsumerPreferredLayers
+// notification: the spatial layer a consumer should forward; the temporal
+// layer is left to the server (the highest).
+type preferredLayers struct {
+	ConsumerID   string `json:"consumerId"`
+	SpatialLayer int    `json:"spatialLayer"`
 }
 
 // peerRef is the data of peerClosed.

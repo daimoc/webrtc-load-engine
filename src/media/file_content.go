@@ -40,6 +40,21 @@ var (
 // size and modification time stay the same, so a scenario run again does not
 // transcode again.
 func LoadFile(ctx context.Context, path string, audio bool, heights []int) (*FileContent, error) {
+	return LoadFileAs(ctx, path, audio, heights, CodecVP8)
+}
+
+// LoadFileAs is LoadFile with the video in codec c, encoded as
+// scripts/gen-media.sh encodes the built-in content of that codec, at its
+// bitrate for each height (content.json; specs/014 FR-010). Scalable layers
+// cannot be made from a file: VP9 and AV1 files are single-stream or
+// simulcast layers.
+func LoadFileAs(ctx context.Context, path string, audio bool, heights []int, c VideoCodec) (*FileContent, error) {
+	if c == "" {
+		c = CodecVP8
+	}
+	if _, err := ParseVideoCodec(string(c)); err != nil {
+		return nil, err
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("media file: %w", err)
@@ -52,24 +67,59 @@ func LoadFile(ctx context.Context, path string, audio bool, heights []int) (*Fil
 			return nil, fmt.Errorf("media file: no video height %d (90, 180, 360 or 720)", h)
 		}
 	}
-	key := fmt.Sprintf("%s|%d|%d|%t|%v", path, info.Size(), info.ModTime().UnixNano(), audio, heights)
+	key := fmt.Sprintf("%s|%d|%d|%t|%v|%s", path, info.Size(), info.ModTime().UnixNano(), audio, heights, c)
 
 	filesMu.Lock()
 	defer filesMu.Unlock()
 	if c := files[key]; c != nil {
 		return c, nil
 	}
-	c, err := transcodeFile(ctx, path, audio, heights)
+	fc, err := transcodeFile(ctx, path, audio, heights, c)
 	if err != nil {
 		return nil, err
 	}
-	files[key] = c
-	return c, nil
+	files[key] = fc
+	return fc, nil
+}
+
+// fileBitrate is a file's video bitrate in kbit/s at a height: the built-in
+// content's in that codec.
+func fileBitrate(c VideoCodec, height int) int {
+	if m, err := loadManifest(); err == nil {
+		if e, err := m.lookup(c, ArrangementSingle, height); err == nil {
+			return e.BitrateKbps
+		}
+	}
+	return videoBitrates[height]
+}
+
+// encoderArgs are the ffmpeg encoder options of codec c at k kbit/s:
+// scripts/gen-media.sh's. Every frame is shown, keyframes every 30 frames.
+func encoderArgs(c VideoCodec, k int) []string {
+	rate := []string{"-pix_fmt", "yuv420p", "-b:v", fmt.Sprintf("%dk", k), "-minrate", fmt.Sprintf("%dk", k),
+		"-maxrate", fmt.Sprintf("%dk", k), "-bufsize", fmt.Sprintf("%dk", k/2),
+		"-g", "30", "-keyint_min", "30"}
+	switch c {
+	case CodecVP9:
+		return append(append([]string{"-c:v", "libvpx-vp9", "-profile:v", "0"}, rate...),
+			"-force_key_frames", "expr:eq(mod(n,30),0)", "-auto-alt-ref", "0", "-lag-in-frames", "0", "-deadline", "good", "-cpu-used", "4", "-row-mt", "1")
+	case CodecAV1:
+		return append(append([]string{"-c:v", "libaom-av1", "-usage", "realtime", "-cpu-used", "8"}, rate...),
+			"-force_key_frames", "expr:eq(mod(n,30),0)", "-lag-in-frames", "0", "-row-mt", "1")
+	case CodecH264:
+		return append(append([]string{"-c:v", "libx264", "-profile:v", "baseline", "-level", "3.1", "-preset", "medium", "-tune", "zerolatency"}, rate...),
+			"-force_key_frames", "expr:eq(mod(n,30),0)", "-bf", "0", "-sc_threshold", "0", "-x264-params", "repeat-headers=1:aud=1")
+	default:
+		// Keyframes at the same frames in every layer, no alt-ref frames
+		// (see scripts/gen-media.sh).
+		return append(append([]string{"-c:v", "libvpx"}, rate...),
+			"-auto-alt-ref", "0", "-lag-in-frames", "0", "-deadline", "good", "-cpu-used", "4")
+	}
 }
 
 // transcodeFile runs one ffmpeg for every output, in a temporary directory
 // removed once the outputs are read.
-func transcodeFile(ctx context.Context, path string, audio bool, heights []int) (*FileContent, error) {
+func transcodeFile(ctx context.Context, path string, audio bool, heights []int, c VideoCodec) (*FileContent, error) {
 	dir, err := os.MkdirTemp("", "webrtc-load-media-")
 	if err != nil {
 		return nil, err
@@ -81,15 +131,13 @@ func transcodeFile(ctx context.Context, path string, audio bool, heights []int) 
 		w := h * 16 / 9
 		args = append(args,
 			"-map", "0:v:0", "-an", "-sn", "-dn",
-			"-vf", fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30", w, h, w, h),
-			"-c:v", "libvpx", "-pix_fmt", "yuv420p",
-			"-b:v", fmt.Sprintf("%dk", videoBitrates[h]), "-minrate", fmt.Sprintf("%dk", videoBitrates[h]),
-			"-maxrate", fmt.Sprintf("%dk", videoBitrates[h]), "-bufsize", fmt.Sprintf("%dk", videoBitrates[h]/2),
-			// Keyframes at the same frames in every layer, no alt-ref
-			// frames (see scripts/gen-media.sh).
-			"-g", "30", "-keyint_min", "30", "-auto-alt-ref", "0", "-lag-in-frames", "0",
-			"-deadline", "good", "-cpu-used", "4",
-			"-map_metadata", "-1", "-f", "ivf", videoFileName(dir, h))
+			"-vf", fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30", w, h, w, h))
+		args = append(args, encoderArgs(c, fileBitrate(c, h))...)
+		format := "ivf"
+		if c == CodecH264 {
+			format = "h264"
+		}
+		args = append(args, "-map_metadata", "-1", "-f", format, videoFileName(dir, h))
 	}
 	if audio {
 		args = append(args,
@@ -116,11 +164,17 @@ func transcodeFile(ctx context.Context, path string, audio bool, heights []int) 
 		if err != nil {
 			return nil, err
 		}
-		c, err := parseIVF(data)
+		var v *Content
+		if c == CodecH264 {
+			v, err = parseH264(data, h)
+		} else {
+			v, err = parseIVFAs(c, data)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("media file, %d-line video: %w", h, err)
 		}
-		out.Video = append(out.Video, c)
+		v.Heights = []int{h}
+		out.Video = append(out.Video, v)
 	}
 	if len(out.Video) > 1 {
 		if err := checkAligned(out.Video); err != nil {

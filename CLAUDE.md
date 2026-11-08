@@ -33,6 +33,7 @@ Spec Kit task and use Superpowers practices to execute it.
 - Go 1.23.0 + `nhooyr.io/websocket` (Janus JSON API, subprotocol `janus-protocol`), 008 publish session and 010 consent checks reused; Janus v1.4.3 VideoRoom (multistream, dummy publisher); no new module (011-janus-platform)
 - Go 1.23.0 + standard library (`hash/fnv`), `pion/rtp`; 6-byte VP8 frame trailer (scenario tag + frame number) for video latency; no new module (012-video-frame-latency)
 - Go 1.23.0 + standard library (`os/exec`, `archive/tar`, `net/netip`, `crypto/rand`); OpenSSH client, Docker Compose on the target; `DOCKER_HOST=ssh://` for server load; no new module (013-remote-sfu-deployment)
+- Go 1.23.0 + `pion/webrtc/v3` (own video `TrackLocal`), `pion/rtp` (H.264 payloader); hand-written VP9/AV1 payloaders and dependency descriptor; content pre-encoded by `scripts/gen-media.sh` (ffmpeg image, VMAF) and libvpx/libaom SVC example encoders in Docker; no new module (014-video-codec-comparison)
 
 - (001-create-scenario-api)
 
@@ -61,6 +62,8 @@ JANUS_URL=ws://localhost:8188 JANUS_ROOM=1011 JANUS_PARTICIPANTS=10 JANUS_SERVER
 go run ./cmd/sfu-remote deploy janus --host user@host   # one server of tests/platforms on a remote machine; also status, allow, remove (specs/013-remote-sfu-deployment/contracts/sfu-remote-cli.md); refuses a machine with any public address, IPv6 included, without --allow or --external-firewall
 set -a; . ~/.config/webrtc-load-engine/sfu-remote/<host>.env; set +a   # settings for the live tests, DOCKER_HOST=ssh:// included
 SFU_REMOTE_HOST=user@host SFU_REMOTE_SERVER=janus go test -tags live -count=1 -v -run Remote_ ./tests/live/   # deploy, status, remove on a real machine
+JANUS_URL=ws://localhost:8188 JANUS_ROOM=1014 JANUS_PARTICIPANTS=10 JANUS_MEDIA=audio_video JANUS_VIDEO_CODEC=vp9 JANUS_SIMULCAST=720 JANUS_REQUESTED_HEIGHTS=180:0.5,720:0.5 go test -tags live -count=1 -v -run JanusLive ./tests/live/   # one codec per run (vp8, vp9, av1, h264; <PLATFORM>_VIDEO_CODEC on every live test); with *_SIMULCAST, VP8/H.264 send simulcast and VP9/AV1 L3T3_KEY SVC
+go run ./cmd/jitsi-connect --domain meet.jitsi --muc muc.meet.jitsi --ws ws://localhost:8000/xmpp-websocket --room test --participants 2 --media audio_video --video-codec h264   # bots sending another codec (media.video_codec in a test plan)
 ```
 
 ## Code Style
@@ -68,6 +71,7 @@ SFU_REMOTE_HOST=user@host SFU_REMOTE_SERVER=janus go test -tags live -count=1 -v
 : Follow standard conventions
 
 ## Recent Changes
+- 014-video-codec-comparison: `media.video_codec` (vp8, vp9, av1, h264) on every platform; content pre-encoded per codec at equal VMAF (`scripts/gen-media.sh`, `content.json` bitrates), layered as simulcast (VP8, H.264) or `L3T3_KEY` SVC (VP9, AV1, dependency descriptor); frame trailer carriers per codec: VP8 after the frame data, VP9 as RTP padding (libvpx decodes trailing bytes as a frame), AV1 as an OBU_PADDING, H.264 as an SEI in its own packet; report `quality.video.codec` (FormatVersion 2) with `mismatch` and `layers_not_forwarded`; server limits found: Jitsi forwards only the lowest H.264 simulcast layer, Jitsi and LiveKit drop RTP padding (VP9 latency `frame_not_identified`), mediasoup's bandwidth estimate holds 720 bots on lower layers (validation-report.md)
 - 013-remote-sfu-deployment: `cmd/sfu-remote` and `src/remote` deploy a server over the operator's ssh with a per-server `docker-compose.remote.yml`; `src/hostload` reads server load through `DOCKER_HOST=ssh://` (`ssh host docker system dial-stdio`, one process per connection, closed at the end of the run); `.env`, `*.pem` and `*.key` are never sent; secrets travel on stdin; Janus gets a remote websockets config because its local one binds loopback; the Jitsi overlay sets `JVB_CC_TRUST_BWE=false` (the bridge otherwise drops streams on a low estimate on a real LAN) and `deploy` waits for jicofo to have a bridge; Jitsi's `PUBLIC_URL` is the machine's address, or the page sends browsers to localhost (validation-report.md)
 - 012-video-frame-latency: 6-byte trailer after each video frame's data (scenario tag + frame number, `src/media/frame_trailer.go`); video latency comes from it on every platform, including Jitsi simulcast and Janus; audio still matches RTP timestamps, so Janus audio stays `frame_not_identified`
 - 011-janus-platform: Janus VideoRoom adapter (`src/platform/janus`), catalog entry (catalog `Entry.NewAdapter` now gets the test plan), local server built from tag v1.4.3 in `tests/platforms/janus`, live test `tests/live/janus_live_test.go`; media sources start RTP timestamps at 2^30 (`src/media/source.go`; 2^31 makes Jitsi's bridge rebase video)

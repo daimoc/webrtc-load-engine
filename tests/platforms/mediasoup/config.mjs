@@ -90,12 +90,31 @@ export const config = {
 						'x-google-start-bitrate': 1000,
 					},
 				},
+				// VP9 profile 0 and AV1: the bots' VP9 and AV1 (webrtc-load-engine
+				// specs/014-video-codec-comparison T030).
+				{
+					kind: 'video',
+					mimeType: 'video/VP9',
+					clockRate: 90000,
+					parameters: {
+						'profile-id': 0,
+						'x-google-start-bitrate': 1000,
+					},
+				},
 				{
 					kind: 'video',
 					mimeType: 'video/VP9',
 					clockRate: 90000,
 					parameters: {
 						'profile-id': 2,
+						'x-google-start-bitrate': 1000,
+					},
+				},
+				{
+					kind: 'video',
+					mimeType: 'video/AV1',
+					clockRate: 90000,
+					parameters: {
 						'x-google-start-bitrate': 1000,
 					},
 				},

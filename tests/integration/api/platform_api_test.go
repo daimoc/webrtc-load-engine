@@ -108,12 +108,20 @@ func TestLiveKitCreationRules(t *testing.T) {
 		{"missing room", plan(cfg(map[string]any{"room": nil}), nil), "platform_config.room is required"},
 		{"key without secret", plan(cfg(map[string]any{"api_secret": nil}), nil), "platform_config.api_key and platform_config.api_secret must be set together"},
 		{"token and key", plan(cfg(map[string]any{"token": "t"}), nil), "platform_config.token cannot be combined with api_key/api_secret"},
-		{"simulcast", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}}), "media.simulcast is not supported on platform livekit"},
-		{"requested heights", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}}), "media.requested_heights is not supported on platform livekit"},
 	} {
 		status, out := create(t, ts, handlers.ScenarioRequest{Name: tt.name, Platform: "livekit", TestPlan: tt.plan})
 		if status != http.StatusBadRequest || out["error"] != tt.msg {
 			t.Errorf("%s: %d %v, want 400 %q", tt.name, status, out, tt.msg)
+		}
+	}
+
+	// Layers and requested heights are accepted since 014 (T052, T054).
+	for name, m := range map[string]*scenario.MediaConfig{
+		"simulcast":         {Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}},
+		"requested heights": {Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}},
+	} {
+		if status, out := create(t, ts, handlers.ScenarioRequest{Name: name, Platform: "livekit", TestPlan: plan(cfg(nil), m)}); status != http.StatusCreated {
+			t.Errorf("%s: %d %v, want 201", name, status, out)
 		}
 	}
 
@@ -151,12 +159,20 @@ func TestMediasoupCreationRules(t *testing.T) {
 		{"bad url", plan(cfg(map[string]any{"url": "ftp://x"}), nil), `platform_config.url must be a ws://, wss://, http:// or https:// URL without query, got "ftp://x"`},
 		{"unknown key", plan(cfg(map[string]any{"api_key": "k"}), nil), `platform_config: unknown key "api_key" for platform mediasoup`},
 		{"insecure_tls not bool", plan(cfg(map[string]any{"insecure_tls": "yes"}), nil), "platform_config.insecure_tls must be a boolean"},
-		{"simulcast", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}}), "media.simulcast is not supported on platform mediasoup"},
-		{"requested heights", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}}), "media.requested_heights is not supported on platform mediasoup"},
 	} {
 		status, out := create(t, ts, handlers.ScenarioRequest{Name: tt.name, Platform: "mediasoup", TestPlan: tt.plan})
 		if status != http.StatusBadRequest || out["error"] != tt.msg {
 			t.Errorf("%s: %d %v, want 400 %q", tt.name, status, out, tt.msg)
+		}
+	}
+
+	// Layers and requested heights are accepted since 014 (T053).
+	for name, m := range map[string]*scenario.MediaConfig{
+		"simulcast":         {Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}},
+		"requested heights": {Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}},
+	} {
+		if status, out := create(t, ts, handlers.ScenarioRequest{Name: name, Platform: "mediasoup", TestPlan: plan(cfg(nil), m)}); status != http.StatusCreated {
+			t.Errorf("%s: %d %v, want 201", name, status, out)
 		}
 	}
 
@@ -201,12 +217,20 @@ func TestJanusCreationRules(t *testing.T) {
 		{"bad url", plan(cfg(map[string]any{"url": "ftp://x"}), nil), `platform_config.url must be a ws://, wss://, http:// or https:// URL without query, got "ftp://x"`},
 		{"unknown key", plan(cfg(map[string]any{"secret": "k"}), nil), `platform_config: unknown key "secret" for platform janus`},
 		{"insecure_tls not bool", plan(cfg(map[string]any{"insecure_tls": "yes"}), nil), "platform_config.insecure_tls must be a boolean"},
-		{"simulcast", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}}), "media.simulcast is not supported on platform janus"},
-		{"requested heights", plan(cfg(nil), &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}}), "media.requested_heights is not supported on platform janus"},
 	} {
 		status, out := create(t, ts, handlers.ScenarioRequest{Name: tt.name, Platform: "janus", TestPlan: tt.plan})
 		if status != http.StatusBadRequest || out["error"] != tt.msg {
 			t.Errorf("%s: %d %v, want 400 %q", tt.name, status, out, tt.msg)
+		}
+	}
+
+	// Layers and requested heights are accepted since 014 (T052, T054).
+	for name, m := range map[string]*scenario.MediaConfig{
+		"simulcast":         {Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}},
+		"requested heights": {Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 360, Share: 1}}},
+	} {
+		if status, out := create(t, ts, handlers.ScenarioRequest{Name: name, Platform: "janus", TestPlan: plan(cfg(nil), m)}); status != http.StatusCreated {
+			t.Errorf("%s: %d %v, want 201", name, status, out)
 		}
 	}
 

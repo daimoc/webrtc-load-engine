@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ func Markdown(run Run) []byte {
 		}
 	} else {
 		writeAudio(&b, q.Audio)
-		writeVideo(&b, q.Video)
+		writeVideo(&b, q.Video, run.Scenario.Platform)
 		writeServer(&b, q.Server)
 		writeLoadMachine(&b, q.LoadMachine)
 		writeWorst(&b, q.Worst)
@@ -62,6 +63,9 @@ func writeKeyFigures(b *strings.Builder, run Run) {
 		}
 	} else {
 		rows[1][1] = fmt.Sprintf("%d (bots measured: %d)", tp.Participants, q.Bots)
+		if c := q.Video.Codec; c != nil {
+			rows = append(rows, [2]string{"Video codec", codecRow(c)}, [2]string{"Video content bitrate", bitrateRow(c.ContentBitrateKbps)})
+		}
 		a, v := q.Audio, q.Video
 		mos, concealed := notMeasured(a.Reason), notMeasured(a.Reason)
 		if a.Available {
@@ -130,8 +134,75 @@ func writeAudio(b *strings.Builder, a scenario.AudioQuality) {
 	writeLatencyReason(b, a.KindQuality)
 }
 
-func writeVideo(b *strings.Builder, v scenario.VideoQuality) {
+// codecRow is the key-figures row of the video codec: what was sent and
+// what the bots received, or that some bots were on another codec.
+func codecRow(c *scenario.VideoCodecResult) string {
+	if n := len(c.Mismatch); n > 0 {
+		return fmt.Sprintf("%s asked · %d bots on another codec: see Video", c.Sent, n)
+	}
+	sent := fmt.Sprintf("%s (%s)", c.Sent, c.Arrangement)
+	if c.Arrangement != "single" {
+		sent = fmt.Sprintf("%s (%s: %s)", c.Sent, c.Arrangement, strings.Join(heightsLowFirst(c.ContentBitrateKbps), ", "))
+	}
+	var recv []string
+	codecs := make([]string, 0, len(c.Received))
+	for k := range c.Received {
+		codecs = append(codecs, k)
+	}
+	sort.Strings(codecs)
+	for _, k := range codecs {
+		recv = append(recv, fmt.Sprintf("%s by %d bots", k, c.Received[k]))
+	}
+	if len(recv) == 0 {
+		return sent + " · no video received"
+	}
+	return sent + " · received " + strings.Join(recv, ", ")
+}
+
+// heightsLowFirst returns the heights of a by-height map, low to high.
+func heightsLowFirst(m map[string]int) []string {
+	hs := make([]int, 0, len(m))
+	for h := range m {
+		if n, err := strconv.Atoi(h); err == nil {
+			hs = append(hs, n)
+		}
+	}
+	sort.Ints(hs)
+	out := make([]string, len(hs))
+	for i, h := range hs {
+		out[i] = strconv.Itoa(h)
+	}
+	return out
+}
+
+func bitrateRow(m map[string]int) string {
+	if len(m) == 0 {
+		return "not known"
+	}
+	var parts []string
+	for _, h := range heightsLowFirst(m) {
+		parts = append(parts, fmt.Sprintf("%s: %d kbit/s", h, m[h]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// writeCodecMismatch lists the bots on another codec than the plan's.
+func writeCodecMismatch(b *strings.Builder, c *scenario.VideoCodecResult) {
+	if c == nil || len(c.Mismatch) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "\n### Codec mismatch\n\nThe figures are not %s figures: these bots were on another codec.\n\n| Bot | Direction | Codec found |\n|---|---|---|\n", c.Sent)
+	for _, m := range c.Mismatch {
+		fmt.Fprintf(b, "| %s | %s | %s |\n", m.Bot, m.Direction, m.Codec)
+	}
+}
+
+func writeVideo(b *strings.Builder, v scenario.VideoQuality, platform string) {
+	defer writeCodecMismatch(b, v.Codec)
 	b.WriteString("\n## Video\n\n")
+	if c := v.Codec; c != nil && c.LayersNotForwarded {
+		fmt.Fprintf(b, "The server forwarded only the lowest layer: layered result not available. Codec %s (%s) on %s.\n\n", c.Sent, c.Arrangement, platform)
+	}
 	if !v.Available {
 		fmt.Fprintf(b, "Not measured: %s.\n", v.Reason)
 		return

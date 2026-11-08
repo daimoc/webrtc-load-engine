@@ -34,6 +34,7 @@ func main() {
 	mediaProfile := flag.String("media", scenario.MediaProfileReceiveOnly, "What each bot sends: receive_only, audio or audio_video")
 	maxReceived := flag.Int("max-received", 0, "Remote streams each bot receives per media kind (0: no cap)")
 	mediaFile := flag.String("media-file", "", "Media file the bots send instead of the built-in content (needs ffmpeg)")
+	videoCodec := flag.String("video-codec", "", "Video codec the bots send with --media audio_video: vp8 (default), vp9, av1 or h264")
 	debug := flag.Bool("debug", false, "Enable debug logging")
 	logXMPP := flag.Bool("log-xmpp", false, "Log all XMPP traffic to stdout")
 	jwtToken := flag.String("jwt", os.Getenv("JITSI_JWT"), "JWT shared by all bots, for token-authenticated Jitsi (default $JITSI_JWT)")
@@ -89,7 +90,7 @@ func main() {
 	sc, err := scenario.NewScenario("jitsi-connect", "jitsi", scenario.TestPlan{
 		Participants:     *participants,
 		DurationSeconds:  *duration,
-		Media:            &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived, SourceFile: *mediaFile},
+		Media:            &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived, SourceFile: *mediaFile, VideoCodec: *videoCodec},
 		ServerMonitoring: monitoring,
 	})
 	if err != nil {

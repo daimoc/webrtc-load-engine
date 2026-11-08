@@ -97,7 +97,25 @@ func decodeSignalRequest(b []byte) (signalRequest, error) {
 		4: message(func(v []byte) error {
 			r.AddTrack = &addTrackRequest{}
 			a := r.AddTrack
-			return decoder{1: str(&a.CID), 2: str(&a.Name), 3: i32(&a.Type), 4: u32(&a.Width), 5: u32(&a.Height), 8: i32(&a.Source), 13: boolean(&a.DisableRed)}.decode(v)
+			return decoder{1: str(&a.CID), 2: str(&a.Name), 3: i32(&a.Type), 4: u32(&a.Width), 5: u32(&a.Height), 8: i32(&a.Source), 13: boolean(&a.DisableRed),
+				9: message(func(v []byte) error {
+					l, err := decodeVideoLayer(v)
+					a.Layers = append(a.Layers, l)
+					return err
+				}),
+				10: message(func(v []byte) error {
+					var c simulcastCodec
+					err := decoder{1: str(&c.Codec), 2: str(&c.CID), 5: i32(&c.Mode),
+						4: message(func(v []byte) error {
+							l, err := decodeVideoLayer(v)
+							c.Layers = append(c.Layers, l)
+							return err
+						}),
+					}.decode(v)
+					a.Codecs = append(a.Codecs, c)
+					return err
+				}),
+			}.decode(v)
 		}),
 		6: message(func(v []byte) error {
 			r.Subscription = &updateSubscription{}
@@ -111,6 +129,18 @@ func decodeSignalRequest(b []byte) (signalRequest, error) {
 				2: boolean(&u.Subscribe),
 			}.decode(v)
 		}),
+		7: message(func(v []byte) error {
+			r.TrackSetting = &updateTrackSettings{}
+			u := r.TrackSetting
+			return decoder{
+				1: func(typ protowire.Type, b []byte) (int, error) {
+					s, n, err := bytesValue(typ, b)
+					u.TrackSIDs = append(u.TrackSIDs, string(s))
+					return n, err
+				},
+				5: u32(&u.Width), 6: u32(&u.Height),
+			}.decode(v)
+		}),
 		8: message(func(v []byte) error { r.Leave = &leaveRequest{}; return r.Leave.decode(v) }),
 		16: message(func(v []byte) error {
 			r.PingReq = &ping{}
@@ -120,9 +150,15 @@ func decodeSignalRequest(b []byte) (signalRequest, error) {
 	return r, err
 }
 
+func decodeVideoLayer(v []byte) (videoLayer, error) {
+	var l videoLayer
+	err := decoder{1: i32(&l.Quality), 2: u32(&l.Width), 3: u32(&l.Height), 4: u32(&l.Bitrate), 7: str(&l.RID)}.decode(v)
+	return l, err
+}
+
 // The fake's codec must agree with the official encoding too.
 func TestFakeCodec_RequestsDecodeGolden(t *testing.T) {
-	for _, name := range []string{"req_offer", "req_answer", "req_trickle_pub", "req_trickle_sub", "req_add_track_audio", "req_add_track_video", "req_subscription", "req_leave", "req_ping"} {
+	for _, name := range []string{"req_offer", "req_answer", "req_trickle_pub", "req_trickle_sub", "req_add_track_audio", "req_add_track_video", "req_add_track_vp9", "req_add_track_simulcast", "req_add_track_svc", "req_track_setting", "req_subscription", "req_leave", "req_ping"} {
 		b := golden(t, name)
 		r, err := decodeSignalRequest(b)
 		if err != nil {

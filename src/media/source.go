@@ -61,7 +61,8 @@ type Source struct {
 	sent     prometheus.Counter
 	sentB    prometheus.Counter
 	times    *SendTimes // When each frame's write started
-	video    bool       // Frames carry a trailer (012 research R1)
+	video    bool       // Video: frames are numbered (012 research R1)
+	trailer  bool       // Video frames carry the 012 trailer, in their codec's carrier (014)
 
 	mu   sync.Mutex
 	subs [][]TrackWriter // Guarded by mu; one writer per layer, in subscription order
@@ -70,6 +71,12 @@ type Source struct {
 type sourceLayer struct {
 	content *Content
 	payload rtp.Payloader
+	codec   VideoCodec   // Video only
+	dd      *DDStructure // AV1 and scalable VP9: the dependency descriptor's structure
+	// Scalable content (frames with layer frames): VP9's payloader, which
+	// writes the layer indices, and the layer frames' DDL3T3Key templates.
+	svc bool
+	vp9 *vp9Payloader
 }
 
 // NewSource creates a Source for the scenario's bots. Run starts sending.
@@ -93,15 +100,45 @@ func NewLayeredSource(scenarioID string, layers []*Content) *Source {
 		s.times = NewVideoSendTimes(scenarioTag(scenarioID))
 	}
 	for _, c := range layers {
-		var payload rtp.Payloader = &codecs.OpusPayloader{}
-		switch {
-		case c.Kind == KindVideo && len(layers) > 1:
-			payload = &vp8LayerPayloader{}
-		case c.Kind == KindVideo:
-			payload = &codecs.VP8Payloader{EnablePictureID: true}
+		l := sourceLayer{content: c, payload: &codecs.OpusPayloader{}, codec: c.VideoCodec}
+		if l.codec == "" {
+			l.codec = CodecVP8
 		}
-		s.layers = append(s.layers, sourceLayer{content: c, payload: payload})
+		if c.Kind == KindVideo && len(c.Frames) > 0 && c.Frames[0].Layers != nil {
+			l.svc = true
+			widths := make([]int, len(c.Heights))
+			for i, h := range c.Heights {
+				widths[i] = h * 16 / 9
+			}
+			dd := DDL3T3Key(widths, c.Heights)
+			l.dd = &dd
+			if l.codec == CodecVP9 {
+				l.vp9 = newVP9SVCPayloader(widths, c.Heights)
+				l.payload = l.vp9
+			} else {
+				l.payload = &av1Payloader{}
+			}
+		} else if c.Kind == KindVideo {
+			switch l.codec {
+			case CodecVP9:
+				l.payload = newVP9Payloader(c.Width, c.Height)
+			case CodecAV1:
+				l.payload = &av1Payloader{}
+				dd := DDSingleLayer(c.Width, c.Height)
+				l.dd = &dd
+			case CodecH264:
+				l.payload = &codecs.H264Payloader{}
+			case CodecVP8:
+				if len(layers) > 1 {
+					l.payload = &vp8LayerPayloader{}
+				} else {
+					l.payload = &codecs.VP8Payloader{EnablePictureID: true}
+				}
+			}
+		}
+		s.layers = append(s.layers, l)
 	}
+	s.trailer = s.video
 	return s
 }
 
@@ -187,7 +224,11 @@ func (s *Source) Run(ctx context.Context) {
 				s.times.Record(ts, now)
 			}
 			for l, layer := range s.layers {
-				frame[l] = s.packetize(layer, layer.content.Frames[i].Data, &seqs[l], ts, num)
+				if layer.svc {
+					frame[l] = s.packetizeSVC(layer, i, &seqs[l], ts, num)
+				} else {
+					frame[l] = s.packetize(layer, layer.content.Frames[i].Data, &seqs[l], ts, num)
+				}
 			}
 			s.fanOut(frame)
 			ts += f.Samples
@@ -196,32 +237,108 @@ func (s *Source) Run(ctx context.Context) {
 	}
 }
 
+// ddHeaderRoom is the room left in a packet for the dependency descriptor:
+// the extension header, and the descriptor with its structure on keyframes.
+const ddHeaderRoom = 4 + 2 + 64
+
 // packetize splits a frame into RTP packets with consecutive sequence
 // numbers, the frame's timestamp and the marker on the last packet. Video
-// frames end with the trailer of frame num, always whole in the last packet.
+// frames end with the trailer of frame num, always whole in the last packet
+// (VP9: as its RTP padding, the payload then ending with the padding and
+// the padding bit set, as WriteRTP(header, payload) sends it).
 // SSRC and payload type are set per track by the writer.
 func (s *Source) packetize(layer sourceLayer, frame []byte, seq *uint16, ts, num uint32) []*rtp.Packet {
 	var payloads [][]byte
-	if s.video {
-		payloads = layer.payload.Payload(rtpPayloadMTU-frameTrailerSize, frame)
-		if last := len(payloads) - 1; last >= 0 {
-			payloads[last] = appendFrameTrailer(payloads[last], s.times.Tag(), num)
-		}
-	} else {
-		payloads = layer.payload.Payload(rtpPayloadMTU, frame)
+	mtu := uint16(rtpPayloadMTU)
+	if layer.dd != nil {
+		mtu -= ddHeaderRoom
 	}
+	if s.trailer {
+		payloads = layer.payload.Payload(mtu-uint16(trailerRoom(layer.codec)), frame)
+		payloads = addTrailer(layer.codec, payloads, s.times.Tag(), num)
+	} else {
+		payloads = layer.payload.Payload(mtu, frame)
+	}
+	key := layer.dd != nil && isKeyframe(layer.codec, frame)
 	packets := make([]*rtp.Packet, len(payloads))
 	for i, p := range payloads {
 		packets[i] = &rtp.Packet{
 			Header: rtp.Header{
 				Version:        2,
+				Padding:        s.trailer && trailerIsPadding(layer.codec) && i == len(payloads)-1,
 				Marker:         i == len(payloads)-1,
 				SequenceNumber: *seq,
 				Timestamp:      ts,
 			},
 			Payload: p,
 		}
+		if layer.dd != nil {
+			d := DD{Start: i == 0, End: i == len(payloads)-1, TemplateID: 1, FrameNumber: uint16(num)}
+			if key {
+				d.TemplateID = 0
+				if i == 0 {
+					d.Structure = layer.dd
+				}
+			}
+			_ = packets[i].Header.SetExtension(SourceDDExtID, WriteDD(d))
+		}
 		*seq++
+	}
+	return packets
+}
+
+// packetizeSVC packetizes picture i of scalable content: its layer frames
+// low to high, under one timestamp, with consecutive sequence numbers and
+// the marker on the picture's last packet. Each layer frame ends with the
+// trailer of picture num (research R9) and is one frame of the dependency
+// descriptor, numbered 3·num + its spatial layer, whose template gives its
+// layers; the structure is in a keyframe picture's first packet.
+func (s *Source) packetizeSVC(layer sourceLayer, i int, seq *uint16, ts, num uint32) []*rtp.Packet {
+	f := layer.content.Frames[i]
+	key := isKeyframe(layer.codec, f.Layers[0].Data)
+	mtu := uint16(rtpPayloadMTU - ddHeaderRoom)
+	if s.trailer {
+		mtu -= uint16(trailerRoom(layer.codec))
+	}
+	var frames [][][]byte
+	if layer.vp9 != nil {
+		frames = layer.vp9.PayloadLayers(mtu, f.Layers)
+	} else {
+		for _, l := range f.Layers {
+			frames = append(frames, layer.payload.Payload(mtu, l.Data))
+		}
+	}
+	var packets []*rtp.Packet
+	for sid, payloads := range frames {
+		if s.trailer {
+			payloads = addTrailer(layer.codec, payloads, s.times.Tag(), num)
+		}
+		for j, p := range payloads {
+			pkt := &rtp.Packet{
+				Header: rtp.Header{
+					Version:        2,
+					Padding:        s.trailer && trailerIsPadding(layer.codec) && j == len(payloads)-1,
+					SequenceNumber: *seq,
+					Timestamp:      ts,
+				},
+				Payload: p,
+			}
+			d := DD{
+				Start:       j == 0,
+				End:         j == len(payloads)-1,
+				TemplateID:  ddL3T3KeyTemplate(key, i, sid),
+				FrameNumber: uint16(3*num + uint32(sid)),
+			}
+			if key && sid == 0 && j == 0 {
+				d.Structure = layer.dd
+			}
+			_ = pkt.Header.SetExtension(SourceDDExtID, WriteDD(d))
+			packets = append(packets, pkt)
+			*seq++
+		}
+	}
+	if len(packets) > 0 {
+		packets[len(packets)-1].Marker = true
 	}
 	return packets
 }

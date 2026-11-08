@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pion/rtp"
+	"github.com/pion/rtp/codecs"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -427,5 +429,243 @@ func TestSource_LayersInLockstep(t *testing.T) {
 	}
 	if got := testutil.ToFloat64(PacketsSent.WithLabelValues(id, KindVideo)); int(got) != len(pl)+len(ph) {
 		t.Fatalf("packets sent %v, want %d", got, len(pl)+len(ph))
+	}
+}
+
+// One loop and a bit of each codec's real content: each frame's packets
+// rebuild it through the codec's own depacketization, the marker is on the
+// last packet of each frame only, and AV1 packets carry the dependency
+// descriptor.
+func TestSource_EveryCodec(t *testing.T) {
+	for _, c := range []VideoCodec{CodecVP9, CodecAV1, CodecH264} {
+		t.Run(string(c), func(t *testing.T) {
+			content := loadSingle(t, c)
+			w := &recorder{}
+			runSource(t, "codec-"+t.Name(), content, 1100*time.Millisecond, nil, w)
+			packets, _ := w.snapshot()
+			frames := splitFrames(packets)
+			if len(frames) < 33 {
+				t.Fatalf("%d frames", len(frames))
+			}
+			var structure *DDStructure
+			for i, f := range frames[:33] {
+				for j, p := range f {
+					if p.Marker != (j == len(f)-1) {
+						t.Fatalf("frame %d packet %d: marker %v", i, j, p.Marker)
+					}
+					if p.Header.Padding != (c == CodecVP9 && j == len(f)-1) {
+						t.Fatalf("frame %d packet %d: padding bit %v", i, j, p.Header.Padding)
+					}
+					if p.Timestamp != f[0].Timestamp {
+						t.Fatalf("frame %d: timestamps differ", i)
+					}
+					ext := p.Header.GetExtension(SourceDDExtID)
+					if c != CodecAV1 {
+						if ext != nil {
+							t.Fatalf("%s packet with a dependency descriptor", c)
+						}
+						continue
+					}
+					d, err := ParseDD(ext, structure)
+					if err != nil {
+						t.Fatalf("frame %d packet %d: %v", i, j, err)
+					}
+					if d.Structure != nil {
+						structure = d.Structure
+					}
+					key := i%30 == 0
+					if d.Start != (j == 0) || d.End != (j == len(f)-1) || d.FrameNumber != uint16(i+1) {
+						t.Fatalf("frame %d packet %d: %+v", i, j, d)
+					}
+					if (d.Structure != nil) != (key && j == 0) || (key && d.TemplateID != 0) || (!key && d.TemplateID != 1) {
+						t.Fatalf("frame %d packet %d: template %d, structure %v", i, j, d.TemplateID, d.Structure != nil)
+					}
+				}
+				n, ok := readWireTrailer(c, f[len(f)-1].Payload, scenarioTag("codec-"+t.Name()))
+				if !ok || n != uint32(i+1) {
+					t.Fatalf("frame %d: trailer %d, %v", i, n, ok)
+				}
+				f = stripTrailer(c, f)
+				if got := rebuild(t, c, f); !bytes.Equal(got, content.Frames[i%len(content.Frames)].Data) {
+					t.Fatalf("frame %d: packets rebuild %d bytes, want %d", i, len(got), len(content.Frames[i].Data))
+				}
+			}
+			if c == CodecAV1 && (structure == nil || structure.Resolutions[0] != [2]int{640, 360}) {
+				t.Fatalf("AV1 structure %+v", structure)
+			}
+		})
+	}
+}
+
+// stripTrailer removes the trailer's carrier from a frame's packets.
+func stripTrailer(c VideoCodec, f []rtp.Packet) []rtp.Packet {
+	f = append([]rtp.Packet(nil), f...)
+	last := len(f) - 1
+	if c == CodecH264 {
+		return f[:last]
+	}
+	p := f[last].Payload
+	f[last].Payload = p[:len(p)-trailerRoom(c)]
+	f[last].Header.Padding = false
+	return f
+}
+
+func splitFrames(packets []rtp.Packet) [][]rtp.Packet {
+	var out [][]rtp.Packet
+	var cur []rtp.Packet
+	for _, p := range packets {
+		cur = append(cur, p)
+		if p.Marker {
+			out = append(out, cur)
+			cur = nil
+		}
+	}
+	return out
+}
+
+// rebuild depacketizes one frame with Pion's depacketizers.
+func rebuild(t *testing.T, c VideoCodec, f []rtp.Packet) []byte {
+	t.Helper()
+	var out [][]byte
+	for _, p := range f {
+		out = append(out, p.Payload)
+	}
+	switch c {
+	case CodecVP9:
+		var data []byte
+		for _, b := range out {
+			var pkt codecs.VP9Packet
+			if _, err := pkt.Unmarshal(b); err != nil {
+				t.Fatal(err)
+			}
+			data = append(data, pkt.Payload...)
+		}
+		return data
+	case CodecAV1:
+		return av1Reassemble(t, out)
+	case CodecH264:
+		var data []byte
+		var pkt codecs.H264Packet
+		for _, b := range out {
+			nal, err := pkt.Unmarshal(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			data = append(data, nal...)
+		}
+		return data
+	}
+	return nil
+}
+
+// TestSource_SVC checks a scalable source: one stream, each picture's layer
+// frames under one timestamp with the marker on the picture's last packet;
+// every packet carries the dependency descriptor (L3T3_KEY), each layer
+// frame the trailer of the picture's number.
+func TestSource_SVC(t *testing.T) {
+	for _, c := range []VideoCodec{CodecVP9, CodecAV1} {
+		t.Run(string(c), func(t *testing.T) {
+			content := loadSVC(t, c, 720)
+			w := &recorder{}
+			id := "svc-" + t.Name()
+			runSource(t, id, content, 1400*time.Millisecond, nil, w)
+			packets, _ := w.snapshot()
+			pictures := splitFrames(packets)
+			if len(pictures) < 41 {
+				t.Fatalf("%d pictures", len(pictures))
+			}
+			var structure *DDStructure
+			for i, pic := range pictures[:41] {
+				key := i%20 == 0
+				var layers [][]rtp.Packet
+				for j, p := range pic {
+					if p.Marker != (j == len(pic)-1) || p.Timestamp != pic[0].Timestamp {
+						t.Fatalf("picture %d packet %d: marker %v, timestamp %d", i, j, p.Marker, p.Timestamp)
+					}
+					d, err := ParseDD(p.Header.GetExtension(SourceDDExtID), structure)
+					if err != nil {
+						t.Fatalf("picture %d packet %d: %v", i, j, err)
+					}
+					if d.Structure != nil {
+						structure = d.Structure
+					}
+					if (d.Structure != nil) != (key && j == 0) {
+						t.Fatalf("picture %d packet %d: structure %v", i, j, d.Structure != nil)
+					}
+					if d.Start {
+						layers = append(layers, nil)
+					}
+					s := len(layers) - 1
+					layers[s] = append(layers[s], p)
+					if d.FrameNumber != uint16(3*(i+1)+s) || d.TemplateID != ddL3T3KeyTemplate(key, i, s) {
+						t.Fatalf("picture %d layer %d: frame number %d, template %d", i, s, d.FrameNumber, d.TemplateID)
+					}
+					if l := d.Layer(structure); l.SpatialID != s || l.TemporalID != content.Frames[i].Layers[s].TemporalID {
+						t.Fatalf("picture %d layer %d: descriptor says %+v", i, s, l)
+					}
+				}
+				if len(layers) != 3 {
+					t.Fatalf("picture %d: %d layer frames", i, len(layers))
+				}
+				for s, f := range layers {
+					n, ok := readWireTrailer(c, f[len(f)-1].Payload, scenarioTag(id))
+					if !ok || n != uint32(i+1) {
+						t.Fatalf("picture %d layer %d: trailer %d, %v", i, s, n, ok)
+					}
+					if got := rebuild(t, c, stripTrailer(c, f)); !bytes.Equal(got, content.Frames[i].Layers[s].Data) {
+						t.Fatalf("picture %d layer %d: packets rebuild %d bytes, want %d", i, s, len(got), len(content.Frames[i].Layers[s].Data))
+					}
+				}
+			}
+			if structure == nil || structure.DecodeTargets != 9 || structure.Resolutions[2] != [2]int{1280, 720} {
+				t.Fatalf("structure %+v", structure)
+			}
+		})
+	}
+}
+
+// Simulcast in every codec that sends it as separate streams (014 T049):
+// each layer's packets rebuild that layer's frames, under the same
+// timestamps on every layer, each frame with the trailer of its number.
+func TestSource_SimulcastEveryCodec(t *testing.T) {
+	for _, c := range []VideoCodec{CodecH264, CodecVP9, CodecAV1} {
+		t.Run(string(c), func(t *testing.T) {
+			layers, err := LoadVideo(c, ArrangementSimulcast, 720)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := "sim-" + t.Name()
+			ctx, cancel := context.WithCancel(context.Background())
+			start := time.Unix(1000, 0)
+			clock := &fakeClock{now: start, limit: start.Add(1100 * time.Millisecond), cancel: cancel}
+			s := NewLayeredSource(id, layers)
+			s.clock = clock
+			ws := []*recorder{{clock: clock}, {clock: clock}, {clock: clock}}
+			s.SubscribeLayers([]TrackWriter{ws[0], ws[1], ws[2]})
+			done := make(chan struct{})
+			go func() { defer close(done); s.Run(ctx) }()
+			<-done
+			var stamps []uint32
+			for l, w := range ws {
+				packets, _ := w.snapshot()
+				frames := splitFrames(packets)
+				if len(frames) < 33 {
+					t.Fatalf("layer %d: %d frames", l, len(frames))
+				}
+				for i, f := range frames[:33] {
+					if l == 0 {
+						stamps = append(stamps, f[0].Timestamp)
+					} else if f[0].Timestamp != stamps[i] {
+						t.Fatalf("layer %d frame %d: timestamp %d, layer 0 %d", l, i, f[0].Timestamp, stamps[i])
+					}
+					if n, ok := readWireTrailer(c, f[len(f)-1].Payload, scenarioTag(id)); !ok || n != uint32(i+1) {
+						t.Fatalf("layer %d frame %d: trailer %d, %v", l, i, n, ok)
+					}
+					if got := rebuild(t, c, stripTrailer(c, f)); !bytes.Equal(got, layers[l].Frames[i].Data) {
+						t.Fatalf("layer %d frame %d: packets rebuild %d bytes, want %d", l, i, len(got), len(layers[l].Frames[i].Data))
+					}
+				}
+			}
+		})
 	}
 }

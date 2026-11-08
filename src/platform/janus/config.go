@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"webrtc-load-engine/src/media"
 	"webrtc-load-engine/src/scenario"
 )
 
@@ -31,6 +32,13 @@ type Config struct {
 	// Participants is the test plan's bot count, not a platform_config key:
 	// the room is created with that many publisher places (research R4).
 	Participants int
+	// VideoCodec is the test plan's video codec, not a platform_config
+	// key: the room and the publishers use it (014 research R10). Empty is
+	// VP8.
+	VideoCodec media.VideoCodec
+	// Arrangement is how the test plan layers the video (single,
+	// simulcast or svc), not a platform_config field either.
+	Arrangement media.Arrangement
 }
 
 var configKeys = []string{"url", "room", "insecure_tls", "api_secret", "token", "pin", "admin_key"}
@@ -160,19 +168,9 @@ func wsURL(raw string) (*url.URL, error) {
 }
 
 // Validate checks a Janus test plan when its scenario is created: its
-// platform_config, and the media options this version does not support on
-// Janus (FR-010).
+// platform_config. Layers (simulcast, SVC) and requested heights are
+// supported in every codec since 014.
 func Validate(tp scenario.TestPlan) error {
-	if _, err := ParseConfig(tp.PlatformConfig); err != nil {
-		return err
-	}
-	if m := tp.Media; m != nil {
-		if m.Simulcast != nil {
-			return errors.New("media.simulcast is not supported on platform janus")
-		}
-		if len(m.RequestedHeights) > 0 {
-			return errors.New("media.requested_heights is not supported on platform janus")
-		}
-	}
-	return nil
+	_, err := ParseConfig(tp.PlatformConfig)
+	return err
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"webrtc-load-engine/src/media"
 
 	"github.com/pion/interceptor"
 	"github.com/pion/logging"
@@ -55,6 +56,25 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 	}
 	if err := webrtc.ConfigureRTCPReports(registry); err != nil {
 		return nil, err
+	}
+	// The dependency descriptor carries AV1's frames and layers, and
+	// scalable VP9's layers (014 research R6). Only those runs negotiate
+	// it: with it, LiveKit reads VP8 layers from it too, which would change
+	// VP8 runs.
+	if p.videoCodec == media.CodecAV1 || p.svc {
+		if err := m.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: media.DependencyDescriptorURI}, webrtc.RTPCodecTypeVideo); err != nil {
+			return nil, err
+		}
+	}
+	// Simulcast on a publish session: the servers tell the layers apart by
+	// the MID and RID extensions, which the video track writes (014 T054).
+	// Jitsi (no publish session) takes the layers by SSRC instead.
+	if publish && p.simulcast {
+		for _, uri := range []string{sdp.SDESMidURI, sdp.SDESRTPStreamIDURI} {
+			if err := m.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: uri}, webrtc.RTPCodecTypeVideo); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if !publish {
 		for _, kind := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {

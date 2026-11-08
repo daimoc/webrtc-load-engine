@@ -282,6 +282,17 @@ func (s *session) subscribe(sids []string) {
 		return
 	}
 	s.logger.Debug("Subscribed to LiveKit tracks", slog.Any("track_sids", sids))
+	var video []string
+	for _, sid := range sids {
+		if s.subs.kindOf[sid] == trackVideo {
+			video = append(video, sid)
+		}
+	}
+	if ts := trackSettings(video, s.h.RequestedVideoHeight()); ts != nil {
+		if err := s.send(signalRequest{TrackSetting: ts}); err != nil {
+			s.logger.Warn("Failed to send LiveKit track settings", slog.String("error", err.Error()))
+		}
+	}
 }
 
 // onSubscriberOffer answers the server's offer for the session it sends

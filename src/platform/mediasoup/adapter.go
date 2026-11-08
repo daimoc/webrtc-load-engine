@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"webrtc-load-engine/src/media"
 
 	"webrtc-load-engine/src/platform"
 )
@@ -48,6 +50,9 @@ var (
 	_ platform.PlatformAdapter       = (*Adapter)(nil)
 	_ platform.PublishSessionAdapter = (*Adapter)(nil)
 )
+
+// Config returns the adapter's configuration.
+func (a *Adapter) Config() Config { return a.cfg }
 
 // NewAdapter returns an adapter for the mediasoup-demo server and room of
 // cfg.
@@ -280,11 +285,14 @@ func (s *session) join(ctx context.Context) error {
 		return err
 	}
 	routerCaps := rc.RouterRtpCapabilities
-	for _, kind := range kinds {
-		want := wantedCodec[kind].mime
-		if !slices.ContainsFunc(routerCaps.Codecs, func(c RtpCodecCapability) bool { return strings.EqualFold(c.MimeType, want) }) {
-			return fmt.Errorf("the router has no %s codec", want)
-		}
+	if slices.Contains(kinds, "audio") && !slices.ContainsFunc(routerCaps.Codecs, func(c RtpCodecCapability) bool { return strings.EqualFold(c.MimeType, "audio/opus") }) {
+		return errors.New("the router has no audio/opus codec")
+	}
+	// Every bot receives the plan's codec, so every bot needs it, sending
+	// or not.
+	caps, err := botCaps(routerCaps, s.a.cfg.VideoCodec)
+	if err != nil {
+		return err
 	}
 
 	var recvT TransportInfo
@@ -293,7 +301,7 @@ func (s *session) join(ctx context.Context) error {
 	}
 	// Open the receiving session now (research R3), so the bot is
 	// established whoever else is in the room.
-	err := s.do(ctx, func() error {
+	err = s.do(ctx, func() error {
 		s.routerCaps, s.recvT = routerCaps, recvT
 		s.recv = newRecvOffer(recvT)
 		s.cap = newCapState(s.h.ReceiveLimit())
@@ -318,7 +326,7 @@ func (s *session) join(ctx context.Context) error {
 		}
 	}
 	var jr joinResponse
-	join := joinRequest{DisplayName: s.peerID, Device: device{Flag: "unknown", Name: "webrtc-load-engine"}, RtpCapabilities: botCaps(routerCaps)}
+	join := joinRequest{DisplayName: s.peerID, Device: device{Flag: "unknown", Name: "webrtc-load-engine"}, RtpCapabilities: caps}
 	if err := s.conn.Request(ctx, "join", join, &jr); err != nil {
 		return err
 	}
@@ -333,24 +341,32 @@ func (s *session) join(ctx context.Context) error {
 }
 
 // botCaps are the RTP capabilities the bot announces (research R5): the
-// router's Opus, VP8 and VP8's RTX, with the router's payload types, and
-// the header extensions of botHeaderExtensions.
-func botCaps(router RtpCapabilities) RtpCapabilities {
+// router's Opus, its codec for the plan's video codec and that codec's RTX,
+// with the router's payload types, and the header extensions of
+// botHeaderExtensions. A router without the plan's codec is a codec
+// mismatch (014 research R11).
+func botCaps(router RtpCapabilities, codec media.VideoCodec) (RtpCapabilities, error) {
 	caps := RtpCapabilities{Codecs: []RtpCodecCapability{}, HeaderExtensions: []RtpHeaderExtension{}}
-	vp8 := -1
+	video := -1
 	for _, c := range router.Codecs {
-		switch strings.ToLower(c.MimeType) {
-		case "audio/opus":
+		switch {
+		case strings.EqualFold(c.MimeType, "audio/opus"):
 			caps.Codecs = append(caps.Codecs, c)
-		case "video/vp8":
+		case c.Kind == "video" && routerCodecMatches(c, codec):
 			caps.Codecs = append(caps.Codecs, c)
-			if vp8 < 0 {
-				vp8 = c.PreferredPayloadType
+			if video < 0 {
+				video = c.PreferredPayloadType
 			}
 		}
 	}
+	if video < 0 {
+		if codec == "" {
+			codec = media.CodecVP8
+		}
+		return RtpCapabilities{}, &platform.CodecMismatchError{Direction: "sending", Found: routerVideoCodecs(router), Want: string(codec)}
+	}
 	for _, c := range router.Codecs {
-		if strings.EqualFold(c.MimeType, "video/rtx") && aptOf(c.Parameters) == vp8 {
+		if strings.EqualFold(c.MimeType, "video/rtx") && aptOf(c.Parameters) == video {
 			caps.Codecs = append(caps.Codecs, c)
 		}
 	}
@@ -359,7 +375,56 @@ func botCaps(router RtpCapabilities) RtpCapabilities {
 			caps.HeaderExtensions = append(caps.HeaderExtensions, h)
 		}
 	}
-	return caps
+	return caps, nil
+}
+
+// routerCodecMatches reports whether a router codec is the plan's codec in
+// the form the bots send: VP9 profile 0, H.264 Constrained Baseline in
+// packetization mode 1.
+func routerCodecMatches(c RtpCodecCapability, codec media.VideoCodec) bool {
+	if codec == "" {
+		codec = media.CodecVP8
+	}
+	if !strings.EqualFold(c.MimeType, codec.MimeType()) {
+		return false
+	}
+	switch codec {
+	case media.CodecVP9:
+		p, ok := c.Parameters["profile-id"]
+		return !ok || paramInt(p) == 0
+	case media.CodecH264:
+		plid, _ := c.Parameters["profile-level-id"].(string)
+		return paramInt(c.Parameters["packetization-mode"]) == 1 && strings.HasPrefix(strings.ToLower(plid), "42")
+	}
+	return true
+}
+
+func paramInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case string:
+		i, err := strconv.Atoi(n)
+		if err == nil {
+			return i
+		}
+	}
+	return -1
+}
+
+// routerVideoCodecs names the router's video codecs: "VP8, VP9, H264".
+func routerVideoCodecs(router RtpCapabilities) string {
+	var names []string
+	for _, c := range router.Codecs {
+		_, name, _ := strings.Cut(c.MimeType, "/")
+		name = strings.ToUpper(name)
+		if c.Kind == "video" && name != "RTX" && !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 func aptOf(p map[string]any) int {
@@ -395,7 +460,7 @@ func (s *session) publish(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("publish offer: %w", err)
 	}
-	specs, err := producerParams(offer, s.routerCaps)
+	specs, err := producerParams(offer, s.routerCaps, s.a.cfg.VideoCodec, s.a.cfg.Arrangement)
 	if err != nil {
 		return err
 	}
@@ -498,6 +563,19 @@ func (s *session) onNewConsumer(nc NewConsumerRequest, reply replyFunc) {
 		return
 	}
 	reply(nil, nil)
+	s.preferLayers(nc)
+}
+
+// preferLayers asks the server for the bot's requested height on a
+// layered video consumer (014 T053).
+func (s *session) preferLayers(nc NewConsumerRequest) {
+	pl := preferredLayersFor(nc, s.h.VideoLayerHeights(), s.h.RequestedVideoHeight())
+	if pl == nil {
+		return
+	}
+	if err := s.conn.Notify("setConsumerPreferredLayers", pl); err != nil {
+		s.logger.Debug("Failed to set mediasoup preferred layers", slog.String("consumer_id", nc.ConsumerID), slog.String("error", err.Error()))
+	}
 }
 
 // apply carries out the cap's actions after a close: sections changed,
@@ -506,14 +584,14 @@ func (s *session) apply(acts []capAction) {
 	if len(acts) == 0 {
 		return
 	}
-	var promoted []string
+	var promoted []NewConsumerRequest
 	for _, act := range acts {
 		switch act.kind {
 		case actionDeactivate:
 			s.recv.deactivate(act.consumerID)
 		case actionPromote:
 			s.recv.add(act.consumer)
-			promoted = append(promoted, act.consumer.ConsumerID)
+			promoted = append(promoted, act.consumer)
 		}
 	}
 	if err := s.renegotiate(); err != nil {
@@ -521,9 +599,10 @@ func (s *session) apply(acts []capAction) {
 		return
 	}
 	for _, id := range promoted {
-		if err := s.conn.Notify("resumeConsumer", consumerRef{ConsumerID: id}); err != nil {
-			s.logger.Debug("Failed to resume a mediasoup consumer", slog.String("consumer_id", id), slog.String("error", err.Error()))
+		if err := s.conn.Notify("resumeConsumer", consumerRef{ConsumerID: id.ConsumerID}); err != nil {
+			s.logger.Debug("Failed to resume a mediasoup consumer", slog.String("consumer_id", id.ConsumerID), slog.String("error", err.Error()))
 		}
+		s.preferLayers(id)
 	}
 }
 

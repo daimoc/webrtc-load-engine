@@ -96,12 +96,12 @@ func TestValidate(t *testing.T) {
 		t.Errorf("plan without media: %v", err)
 	}
 	sim := &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360}}
-	if err := Validate(plan(sim)); err == nil || err.Error() != "media.simulcast is not supported on platform livekit" {
-		t.Errorf("simulcast: err = %v", err)
+	if err := Validate(plan(sim)); err != nil {
+		t.Errorf("simulcast (014): %v", err)
 	}
 	heights := &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, RequestedHeights: []scenario.RequestedHeight{{Height: 180, Share: 1}}}
-	if err := Validate(plan(heights)); err == nil || err.Error() != "media.requested_heights is not supported on platform livekit" {
-		t.Errorf("requested heights: err = %v", err)
+	if err := Validate(plan(heights)); err != nil {
+		t.Errorf("requested heights (014): %v", err)
 	}
 	if err := Validate(scenario.TestPlan{Participants: 1, DurationSeconds: 1}); err == nil || err.Error() != "platform_config.url is required" {
 		t.Errorf("no config: err = %v", err)

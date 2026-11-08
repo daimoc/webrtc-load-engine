@@ -12,8 +12,9 @@ import (
 	"webrtc-load-engine/src/scenario"
 )
 
-// FormatVersion is the version of the JSON report's layout.
-const FormatVersion = 1
+// FormatVersion is the version of the JSON report's layout: 2 adds
+// quality.video.codec (014).
+const FormatVersion = 2
 
 // Run is one run's report (contracts/run-report.schema.yaml).
 type Run struct {

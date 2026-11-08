@@ -43,6 +43,18 @@ docker logs livekit-server 2>&1 | grep "starting LiveKit server"
 }
 ```
 
+## Video codecs (014)
+
+`media.video_codec` is `vp8` (default), `vp9`, `av1` or `h264`; LiveKit's
+default `enabled_codecs` has all four, `livekit.yaml` does not change it.
+With `media.simulcast`, VP8 and H.264 are sent as simulcast and VP9 and AV1
+as SVC (`L3T3_KEY`); the bot announces its layers in `AddTrackRequest` and
+asks for heights with `UpdateTrackSettings`. LiveKit v1.13 has no
+scalability-mode field: it reads the SVC structure from the dependency
+descriptor. LiveKit drops RTP padding when forwarding, so VP9 latency is
+`frame_not_identified` (the VP9 frame marker is sent as padding; see
+specs/014-video-codec-comparison/validation-report.md).
+
 Live test (from the repository root):
 
 ```bash

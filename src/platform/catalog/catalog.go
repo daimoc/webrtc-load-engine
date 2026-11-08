@@ -75,6 +75,8 @@ func livekitEntry() Entry {
 			if err != nil {
 				return nil, err
 			}
+			cfg.VideoCodec = tp.Media.Codec()
+			cfg.Arrangement = tp.Media.Arrangement()
 			return livekit.NewAdapter(logger, cfg), nil
 		},
 	}
@@ -92,6 +94,8 @@ func mediasoupEntry() Entry {
 			if err != nil {
 				return nil, err
 			}
+			cfg.VideoCodec = tp.Media.Codec()
+			cfg.Arrangement = tp.Media.Arrangement()
 			return mediasoup.NewAdapter(logger, cfg), nil
 		},
 	}
@@ -110,6 +114,8 @@ func janusEntry() Entry {
 				return nil, err
 			}
 			cfg.Participants = tp.Participants
+			cfg.VideoCodec = tp.Media.Codec()
+			cfg.Arrangement = tp.Media.Arrangement()
 			return janus.NewAdapter(logger, cfg), nil
 		},
 	}

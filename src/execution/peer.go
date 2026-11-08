@@ -18,6 +18,7 @@ import (
 
 	"webrtc-load-engine/src/media"
 	"webrtc-load-engine/src/platform"
+	"webrtc-load-engine/src/scenario"
 )
 
 // PeerState represents the state of a peer in the execution lifecycle.
@@ -56,18 +57,24 @@ type Peer struct {
 	logger     *slog.Logger
 
 	gatherTimeout time.Duration
-	kinds         []string                               // Media kinds the peer sends, fixed at construction
-	receiveLimit  int                                    // Remote streams received per kind (0: no limit)
-	stallTimeout  time.Duration                          // Caps the freezes of received video
-	sendTimes     map[string]*media.SendTimes            // By kind: the scenario's send times, for latency
-	videoHeight   int                                    // Video height asked for each received video
-	localTracks   map[string]*webrtc.TrackLocalStaticRTP // By kind; written by the scenario's media sources
-	simulcast     bool                                   // Video sent as simulcastLayers layers
-	layerHeights  []int                                  // Heights of the scenario's simulcast layers; nil without
-	layerTracks   []*webrtc.TrackLocalStaticRTP          // Video layers, low to high, when simulcast
-	layerSSRCs    []uint32                               // Their SSRCs, for the SIM group of the answer
-	layerReaders  sync.WaitGroup                         // RTCP readers of the non-base layers
-	senders       map[string]*webrtc.RTPSender           // By kind
+	kinds         []string                    // Media kinds the peer sends, fixed at construction
+	receiveLimit  int                         // Remote streams received per kind (0: no limit)
+	stallTimeout  time.Duration               // Caps the freezes of received video
+	sendTimes     map[string]*media.SendTimes // By kind: the scenario's send times, for latency
+	videoHeight   int                         // Video height asked for each received video
+	localTracks   map[string]sendTrack        // By kind; written by the scenario's media sources
+	simulcast     bool                        // Video sent as simulcastLayers layers
+	svc           bool                        // Video sent as one scalable stream
+	layerHeights  []int                       // Heights of the scenario's simulcast layers; nil without
+	layerTracks   []sendTrack                 // Video layers, low to high, when simulcast
+	videoCodec    media.VideoCodec            // Codec the peer sends and expects to receive
+
+	codecMu        sync.Mutex
+	receivedCodecs []string                     // Codecs of the received video tracks, distinct, in arrival order; guarded by codecMu
+	mismatch       *codecMismatchError          // First codec mismatch; guarded by codecMu
+	layerSSRCs     []uint32                     // Their SSRCs, for the SIM group of the answer
+	layerReaders   sync.WaitGroup               // RTCP readers of the non-base layers
+	senders        map[string]*webrtc.RTPSender // By kind
 
 	stateMu sync.Mutex
 	state   PeerState // Guarded by stateMu: written by connect goroutines, Pion callbacks and Engine.Stop
@@ -136,9 +143,15 @@ type PeerMedia struct {
 	// Simulcast sends the video as three layers (RIDs l, m, h), announced
 	// in the answer as an SSRC SIM group (006 research R6).
 	Simulcast bool
-	// LayerHeights are the heights of the simulcast layers, low to high,
-	// the same for every peer of the scenario; nil without simulcast.
+	// SVC sends the video as one scalable stream (VP9 and AV1, L3T3_KEY),
+	// with the dependency descriptor negotiated (specs/014).
+	SVC bool
+	// LayerHeights are the heights of the layers, low to high, the same for
+	// every peer of the scenario; nil without layers.
 	LayerHeights []int
+	// VideoCodec is the codec the peer sends video in and expects to
+	// receive; empty means VP8 (specs/014).
+	VideoCodec media.VideoCodec
 	// PublishSession puts the local tracks on a second session the peer
 	// offers (CreatePublishOffer), for platforms that receive the peer's
 	// media apart from what they send it (008 research R4). The session
@@ -163,13 +176,18 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 		sendTimes:     m.SendTimes,
 		videoHeight:   m.RequestedHeight,
 		simulcast:     m.Simulcast && slices.Contains(m.Kinds, media.KindVideo),
+		svc:           m.SVC && slices.Contains(m.Kinds, media.KindVideo),
 		layerHeights:  m.LayerHeights,
+		videoCodec:    m.VideoCodec,
 		offered:       map[string]int{},
 		rttSamps:      map[string][]time.Duration{},
 		logger:        logger.With(slog.String("scenario_id", scenarioID), slog.String("peer_id", id)),
 	}
 	if p.videoHeight <= 0 {
 		p.videoHeight = 360
+	}
+	if p.videoCodec == "" {
+		p.videoCodec = media.CodecVP8
 	}
 	if p.stallTimeout <= 0 {
 		p.stallTimeout = 10 * time.Second
@@ -210,22 +228,26 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 // addLocalTracks adds one track per sent kind before any offer, so that the
 // answer reuses their transceivers for the offered sections (sendrecv).
 func (p *Peer) addLocalTracks() error {
-	p.localTracks = map[string]*webrtc.TrackLocalStaticRTP{}
+	p.localTracks = map[string]sendTrack{}
 	p.senders = map[string]*webrtc.RTPSender{}
 	for _, kind := range p.kinds {
-		content, err := media.LoadContent(kind)
-		if err != nil {
-			return err
-		}
-		if kind == media.KindVideo && p.simulcast {
-			if err := p.addLayerTracks(content.Codec); err != nil {
+		var track sendTrack
+		switch {
+		case kind == media.KindVideo && p.simulcast:
+			if err := p.addLayerTracks(); err != nil {
 				return err
 			}
 			continue
-		}
-		track, err := webrtc.NewTrackLocalStaticRTP(content.Codec, kind, p.id)
-		if err != nil {
-			return fmt.Errorf("failed to create %s track: %w", kind, err)
+		case kind == media.KindVideo:
+			track = newVideoTrack(p.videoCodec, kind, p.id, "")
+		default:
+			content, err := media.LoadContent(kind)
+			if err != nil {
+				return err
+			}
+			if track, err = webrtc.NewTrackLocalStaticRTP(content.Codec, kind, p.id); err != nil {
+				return fmt.Errorf("failed to create %s track: %w", kind, err)
+			}
 		}
 		sender, err := p.addSendTrack(track)
 		if err != nil {
@@ -244,29 +266,82 @@ func (p *Peer) addLocalTracks() error {
 // addSendTrack adds a local track to the session that sends: the publish
 // session (sendonly) when there is one, else the answered session (the
 // offer's sections are then answered sendrecv).
-func (p *Peer) addSendTrack(track *webrtc.TrackLocalStaticRTP) (*webrtc.RTPSender, error) {
+func (p *Peer) addSendTrack(track webrtc.TrackLocal) (*webrtc.RTPSender, error) {
+	var tr *webrtc.RTPTransceiver
 	if p.pub == nil {
-		return p.pc.AddTrack(track)
+		sender, err := p.pc.AddTrack(track)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range p.pc.GetTransceivers() {
+			if t.Sender() == sender {
+				tr = t
+			}
+		}
+	} else {
+		var err error
+		if tr, err = p.pub.AddTransceiverFromTrack(track, webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionSendonly}); err != nil {
+			return nil, err
+		}
 	}
-	tr, err := p.pub.AddTransceiverFromTrack(track, webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionSendonly})
-	if err != nil {
+	if err := p.preferPlanCodec(tr); err != nil {
 		return nil, err
 	}
 	return tr.Sender(), nil
 }
 
+// sendPC is the session the peer's tracks are sent on.
+func (p *Peer) sendPC() *webrtc.PeerConnection {
+	if p.pub != nil {
+		return p.pub
+	}
+	return p.pc
+}
+
+// transceiverOf returns the transceiver of sender on pc, nil if none.
+func transceiverOf(pc *webrtc.PeerConnection, sender *webrtc.RTPSender) *webrtc.RTPTransceiver {
+	for _, t := range pc.GetTransceivers() {
+		if t.Sender() == sender {
+			return t
+		}
+	}
+	return nil
+}
+
+// preferPlanCodec puts the plan's video codec first in what a video
+// transceiver offers or answers, so that servers choosing the first codec
+// they support choose it (014 research R10). The other codecs stay, after
+// it. VP8, first by default, is left as it was.
+func (p *Peer) preferPlanCodec(tr *webrtc.RTPTransceiver) error {
+	if tr == nil || tr.Kind() != webrtc.RTPCodecTypeVideo || p.videoCodec == media.CodecVP8 {
+		return nil
+	}
+	codecs := tr.Sender().GetParameters().Codecs
+	var first, rest []webrtc.RTPCodecParameters
+	planned, ok := matchCodec(p.videoCodec, codecs)
+	if !ok {
+		return nil // Bind reports the mismatch
+	}
+	for _, c := range codecs {
+		if c.PayloadType == planned.PayloadType {
+			first = append(first, c)
+		} else {
+			rest = append(rest, c)
+		}
+	}
+	return tr.SetCodecPreferences(append(first, rest...))
+}
+
 // simulcastRIDs name the video layers, low to high.
-var simulcastRIDs = []string{"l", "m", "h"}
+var simulcastRIDs = media.SimulcastRIDs
 
 // addLayerTracks adds the video as one sender with an encoding per layer;
 // each encoding has its own SSRC (006 research R6).
-func (p *Peer) addLayerTracks(codec webrtc.RTPCodecCapability) error {
+func (p *Peer) addLayerTracks() error {
 	var sender *webrtc.RTPSender
 	for _, rid := range simulcastRIDs {
-		track, err := webrtc.NewTrackLocalStaticRTP(codec, media.KindVideo, p.id, webrtc.WithRTPStreamID(rid))
-		if err != nil {
-			return fmt.Errorf("failed to create video layer %s: %w", rid, err)
-		}
+		track := newVideoTrack(p.videoCodec, media.KindVideo, p.id, rid)
+		var err error
 		if sender == nil {
 			sender, err = p.addSendTrack(track)
 		} else {
@@ -278,6 +353,13 @@ func (p *Peer) addLayerTracks(codec webrtc.RTPCodecCapability) error {
 		p.layerTracks = append(p.layerTracks, track)
 	}
 	p.senders[media.KindVideo] = sender
+	if tr := transceiverOf(p.sendPC(), sender); tr != nil {
+		for _, track := range p.layerTracks {
+			if vt, ok := track.(*videoTrack); ok {
+				vt.setMID(tr.Mid)
+			}
+		}
+	}
 	for i, enc := range sender.GetParameters().Encodings {
 		p.localSSRCs = append(p.localSSRCs, uint32(enc.SSRC))
 		p.layerSSRCs = append(p.layerSSRCs, uint32(enc.SSRC))
@@ -298,10 +380,17 @@ func (p *Peer) addLayerTracks(codec webrtc.RTPCodecCapability) error {
 // before the connection closes: Pion's ReadSimulcast scans the sender's
 // encodings without its lock on every call, which races with the encodings
 // being reset when the sender stops. A past read deadline (set under the
-// lock) makes their pending and next reads fail, so they return.
+// lock) makes their pending and next reads fail, so they return. Only
+// once the secure transport is up: before, setting it waits for the
+// transport while holding the sender's lock, and closing the connection,
+// which stops the sender under that lock, would never return; the readers
+// then return when the sender stops.
 func (p *Peer) stopLayerReaders() {
 	sender := p.senders[media.KindVideo]
 	if sender == nil || len(p.layerTracks) == 0 {
+		return
+	}
+	if sender.Transport() == nil || sender.Transport().State() != webrtc.DTLSTransportStateConnected {
 		return
 	}
 	for _, rid := range simulcastRIDs[1:] {
@@ -317,7 +406,7 @@ func (p *Peer) stopLayerReaders() {
 
 // LocalLayerTracks returns the video layer tracks, low to high, when the
 // peer sends simulcast; nil otherwise.
-func (p *Peer) LocalLayerTracks() []*webrtc.TrackLocalStaticRTP {
+func (p *Peer) LocalLayerTracks() []sendTrack {
 	return p.layerTracks
 }
 
@@ -347,7 +436,7 @@ func (p *Peer) withSimulcastGroup(sdp string) string {
 
 // LocalTracks returns the peer's sending tracks by kind, for the scenario's
 // media sources to write to once the transport is established.
-func (p *Peer) LocalTracks() map[string]*webrtc.TrackLocalStaticRTP {
+func (p *Peer) LocalTracks() map[string]sendTrack {
 	return p.localTracks
 }
 
@@ -412,12 +501,20 @@ type inboundStream struct {
 
 // onTrack reads a remote track until it ends, accounting for every packet
 // and measuring its quality. Payloads are not decoded (constitution IV).
-func (p *Peer) onTrack(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+func (p *Peer) onTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 	kind := track.Kind().String()
+	if kind == media.KindVideo && !p.checkReceivedCodec(track.Codec().MimeType) {
+		return
+	}
 	in := inboundStream{kind: kind, stats: media.NewInboundStats(track.Codec().ClockRate)}
 	switch {
-	case kind == media.KindVideo && strings.EqualFold(track.Codec().MimeType, webrtc.MimeTypeVP8):
-		in.video = media.NewVideoQuality(p.stallTimeout)
+	case kind == media.KindVideo:
+		// checkReceivedCodec let only the plan's codec through.
+		in.video = media.NewVideoQualityFor(p.videoCodec, ddExtID(receiver), p.stallTimeout)
+		if p.svc {
+			// For AV1 received without the dependency descriptor (Janus).
+			in.video.SetLayerHeights(p.layerHeights)
+		}
 	case kind == media.KindAudio:
 		in.audio = media.NewAudioQuality(track.Codec().ClockRate, media.OpusFrame)
 	}
@@ -457,7 +554,8 @@ func (p *Peer) onTrack(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 			stats.Update(h.SequenceNumber, h.Timestamp, payload, now)
 			switch {
 			case in.video != nil:
-				if payload > 0 && in.video.UpdatePacket(h.SequenceNumber, h.Timestamp, buf[hlen:hlen+payload], now) {
+				// With its padding: VP9 carries the frame trailer there.
+				if payload > 0 && in.video.UpdateRTP(&h, buf[hlen:n], now) {
 					p.requestKeyframe(ssrc)
 				}
 			case in.audio != nil:
@@ -677,8 +775,61 @@ func (p *Peer) transitionLocked(to PeerState) error {
 	return fmt.Errorf("illegal peer state transition %s -> %s", from, to)
 }
 
+// ddExtID is the dependency descriptor's ID negotiated for a received
+// stream; 0 when it was not negotiated.
+func ddExtID(r *webrtc.RTPReceiver) uint8 {
+	if r == nil {
+		return 0
+	}
+	for _, e := range r.GetParameters().HeaderExtensions {
+		if e.URI == media.DependencyDescriptorURI && e.ID > 0 && e.ID < 256 {
+			return uint8(e.ID)
+		}
+	}
+	return 0
+}
+
+// checkReceivedCodec records a received video track's codec and fails
+// the peer when it is not the plan's (014 research R11).
+func (p *Peer) checkReceivedCodec(mime string) bool {
+	name := codecName(mime)
+	p.codecMu.Lock()
+	if !slices.Contains(p.receivedCodecs, name) {
+		p.receivedCodecs = append(p.receivedCodecs, name)
+	}
+	p.codecMu.Unlock()
+	if name == string(p.videoCodec) {
+		return true
+	}
+	found := strings.ToUpper(name)
+	go p.fail(stageMedia, &codecMismatchError{Direction: "receiving", Found: found, Want: string(p.videoCodec)})
+	return false
+}
+
+// CodecReport returns the codecs of the video the peer received, and its
+// codec mismatch if it had one (sending or receiving).
+func (p *Peer) CodecReport() (received []string, mismatch *scenario.CodecMismatch) {
+	p.codecMu.Lock()
+	defer p.codecMu.Unlock()
+	received = append([]string(nil), p.receivedCodecs...)
+	if p.mismatch != nil {
+		m := mismatchReport(p.mismatch, p.id)
+		mismatch = &m
+	}
+	return received, mismatch
+}
+
 // fail moves the peer to Failed, counting the failure under stage.
 func (p *Peer) fail(stage string, cause error) {
+	var mismatch *codecMismatchError
+	if errors.As(cause, &mismatch) {
+		stage = stageMedia
+		p.codecMu.Lock()
+		if p.mismatch == nil {
+			p.mismatch = mismatch
+		}
+		p.codecMu.Unlock()
+	}
 	peerFailures.WithLabelValues(p.scenarioID, stage).Inc()
 	p.logger.Error("Peer failed", slog.String("stage", stage), slog.String("error", cause.Error()))
 	if err := p.transition(PeerStateFailed); err != nil {
@@ -866,9 +1017,31 @@ func (p *Peer) VideoLayerHeights() []int {
 // Renegotiate applies an updated remote offer (remote sources added or
 // removed) and returns the answer. Candidates are not re-gathered (same ICE
 // credentials) and no negotiation metric is recorded.
+// dropPionSenders stops the transceivers Pion added to the receiving
+// session of a peer that publishes on its own session: that session never
+// sends, so a sender there is Pion's. While a remote description has a
+// single media section (mediasoup's first receive offer: the data channel),
+// Pion takes a packet of an unknown SSRC for that section's and adds a
+// sendrecv transceiver sending a sample track in its first video codec,
+// which the next video section would reuse; binding that VP8 track fails
+// once the consumers are VP9 (014 T030). Stopped, it is not reused.
+func (p *Peer) dropPionSenders() {
+	if p.pub == nil {
+		return
+	}
+	for _, tr := range p.pc.GetTransceivers() {
+		if tr.Sender() != nil && tr.Mid() == "" {
+			if err := tr.Stop(); err != nil {
+				p.logger.Debug("Failed to stop a stray transceiver", slog.String("error", err.Error()))
+			}
+		}
+	}
+}
+
 func (p *Peer) Renegotiate(offer string) (string, error) {
 	p.negMu.Lock()
 	defer p.negMu.Unlock()
+	p.dropPionSenders()
 	p.recordOffered(offer)
 	if err := p.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: offer}); err != nil {
 		return "", fmt.Errorf("failed to set remote description: %w", err)

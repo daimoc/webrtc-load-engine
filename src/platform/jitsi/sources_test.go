@@ -2,6 +2,7 @@ package jitsi
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -329,5 +330,88 @@ func TestSessionSources_ReceivedNames(t *testing.T) {
 
 	if names, _ := ss.receivedNames("data"); len(names) != 0 {
 		t.Errorf("expected no names for the data content, got %v", names)
+	}
+}
+
+// localVideoAnswer is the video section of a bot's answer in codec mime at
+// payload type pt, with the given ssrc lines and groups (014 T055).
+func localVideoAnswer(mime string, pt int, groups []string, ssrcs []uint32) *webrtc.SessionDescription {
+	s := "v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\n" +
+		fmt.Sprintf("m=video 9 UDP/TLS/RTP/SAVPF %d %d\r\nc=IN IP4 0.0.0.0\r\na=mid:0\r\na=sendrecv\r\n", pt, pt+1) +
+		fmt.Sprintf("a=rtpmap:%d %s/90000\r\na=rtpmap:%d rtx/90000\r\na=fmtp:%d apt=%d\r\n", pt, mime, pt+1, pt+1, pt)
+	for _, g := range groups {
+		s += "a=ssrc-group:" + g + "\r\n"
+	}
+	for _, ssrc := range ssrcs {
+		s += fmt.Sprintf("a=ssrc:%d cname:bot\r\na=ssrc:%d msid:bot video\r\n", ssrc, ssrc)
+	}
+	return &webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: s}
+}
+
+// The bot's own video as Jicofo sees it: an SVC stream (VP9, AV1) is one
+// source with its RTX and no SIM group; H.264 simulcast is three layers in
+// a SIM group, as VP8. Every source is the camera source <nick>-v0.
+func TestLocalSources_SVCAndH264Simulcast(t *testing.T) {
+	cases := []struct {
+		name, mime string
+		groups     []string
+		ssrcs      []uint32
+		wantGroups []string
+	}{
+		{"vp9 svc", "VP9", []string{"FID 1 2"}, []uint32{1, 2}, []string{"FID 1 2"}},
+		{"av1 svc", "AV1", []string{"FID 1 2"}, []uint32{1, 2}, []string{"FID 1 2"}},
+		{"h264 simulcast", "H264", []string{"SIM 1 2 3", "FID 1 4", "FID 2 5", "FID 3 6"}, []uint32{1, 2, 3, 4, 5, 6},
+			[]string{"SIM 1 2 3", "FID 1 4", "FID 2 5", "FID 3 6"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			j, err := convertSDPToJingle(localVideoAnswer(tc.mime, 100, tc.groups, tc.ssrcs), "s1", "session-accept", "bot@x/r", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := &SignalingClient{config: JingleConfig{RoomName: "room", MUCDomain: "muc.x"}, nick: "bot1"}
+			s.annotateLocalSources(j)
+			d := j.Content[0].Description
+			if len(d.PayloadTypes) == 0 || !strings.EqualFold(d.PayloadTypes[0].Name, tc.mime) {
+				t.Errorf("payload types %+v, want %s first", d.PayloadTypes, tc.mime)
+			}
+			if len(d.Sources) != len(tc.ssrcs) {
+				t.Fatalf("sources %+v, want %d", d.Sources, len(tc.ssrcs))
+			}
+			for _, src := range d.Sources {
+				if src.Name != "bot1-v0" || src.VideoType != "camera" || src.SSRCInfo == nil || src.SSRCInfo.Owner != "room@muc.x/bot1" {
+					t.Errorf("source %+v (ssrc-info %+v), want bot1-v0, camera, owner room@muc.x/bot1", src, src.SSRCInfo)
+				}
+			}
+			var got []string
+			for _, g := range d.SSRCGroups {
+				ids := make([]string, len(g.Sources))
+				for i, s := range g.Sources {
+					ids[i] = s.SSRC
+				}
+				got = append(got, g.Semantics+" "+strings.Join(ids, " "))
+			}
+			if !reflect.DeepEqual(got, tc.wantGroups) {
+				t.Errorf("groups %v, want %v", got, tc.wantGroups)
+			}
+		})
+	}
+}
+
+// A participant's SVC stream (one source with its RTX, no SIM group) is
+// offered whole: one section with the FID group (014 T055).
+func TestSessionSources_SVCSourceIsOneStream(t *testing.T) {
+	j := &JingleIQ{Action: "source-add", Content: []JingleContent{{Name: "video", Description: &JingleDescription{Media: "video",
+		Sources:    []Source{{SSRC: "1", Name: "p1-v0", VideoType: "camera"}, {SSRC: "2", Name: "p1-v0", VideoType: "camera"}},
+		SSRCGroups: []SSRCGroup{{Semantics: "FID", Sources: []SSRCGroupID{{SSRC: "1"}, {SSRC: "2"}}}},
+	}}}}
+	ss := newSessionSources(loadSessionInitiate(t), 0, 0)
+	if n := ss.add(j); n != 1 {
+		t.Fatalf("an SVC source is one stream, got %d", n)
+	}
+	offer, _ := ss.offer()
+	md := mediaByMid(t, parseOffer(t, offer), "video-1")
+	if !hasAttr(md, "ssrc-group", "FID 1 2") {
+		t.Errorf("expected the source and its RTX, got %+v", md.Attributes)
 	}
 }

@@ -3,6 +3,7 @@ package janus
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
@@ -504,5 +505,108 @@ func TestStripDummy_RealOffer(t *testing.T) {
 	}
 	if stripDummy(offer, "") != offer || stripDummy(offer, "9") != offer {
 		t.Error("unknown mid changed the offer")
+	}
+}
+
+// The room and the publish request name the plan's video codec, with the
+// profile the bots send (014 research R10); VP8 sends what 011 sent.
+func TestRequests_VideoCodec(t *testing.T) {
+	cases := []struct {
+		codec   media.VideoCodec
+		profile map[string]string
+	}{
+		{"", nil},
+		{media.CodecVP8, nil},
+		{media.CodecVP9, map[string]string{"vp9_profile": "0"}},
+		{media.CodecAV1, nil},
+		{media.CodecH264, map[string]string{"h264_profile": "42e01f"}},
+	}
+	for _, c := range cases {
+		cfg := Config{Room: 7, Participants: 3, VideoCodec: c.codec}
+		want := string(c.codec)
+		if want == "" {
+			want = "vp8"
+		}
+		create := createRequest(cfg)
+		pub := publishRequest(cfg)
+		if create["videocodec"] != want || pub["videocodec"] != want || create["audiocodec"] != "opus" || pub["audiocodec"] != "opus" {
+			t.Errorf("%q: create %v, publish %v", c.codec, create, pub)
+		}
+		for _, key := range []string{"vp9_profile", "h264_profile"} {
+			if got, ok := create[key]; c.profile[key] != "" && got != c.profile[key] || c.profile[key] == "" && ok {
+				t.Errorf("%q: create %s = %v, want %q", c.codec, key, got, c.profile[key])
+			}
+			if got, ok := pub[key]; c.profile[key] != "" && got != c.profile[key] || c.profile[key] == "" && ok {
+				t.Errorf("%q: publish %s = %v, want %q", c.codec, key, got, c.profile[key])
+			}
+		}
+	}
+	vp8 := publishRequest(Config{})
+	if len(vp8) != 3 {
+		t.Errorf("VP8 publish request %v, want 011's request, audiocodec, videocodec only", vp8)
+	}
+}
+
+// publishOffer is a bot's publish offer as Pion writes it: audio, then
+// video with the MID and RID extensions and three layers.
+const publishOffer = "v=0\r\no=- 1 2 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1\r\n" +
+	"m=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=mid:0\r\na=rtpmap:111 opus/48000/2\r\na=sendonly\r\n" +
+	"m=video 9 UDP/TLS/RTP/SAVPF 102\r\nc=IN IP4 0.0.0.0\r\na=mid:1\r\n" +
+	"a=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\n" +
+	"a=rtpmap:102 H264/90000\r\na=sendonly\r\na=rid:l send\r\na=rid:m send\r\na=rid:h send\r\na=simulcast:send l;m;h\r\n"
+
+// Janus learns a publisher's layers from the publish JSEP (janus.c): for
+// simulcast the order of the offer's RIDs, Pion's being low first; for SVC
+// (VP9, AV1) the video section's index, MID and scalability mode.
+func TestPublishJSEP(t *testing.T) {
+	sim, err := publishJSEP(publishOffer, media.ArrangementSimulcast)
+	if err != nil || sim.SDP != publishOffer || sim.Type != "offer" || sim.RIDOrder != "lmh" || sim.SVC != nil {
+		t.Fatalf("simulcast JSEP %+v, %v", sim, err)
+	}
+	svc, err := publishJSEP(publishOffer, media.ArrangementSVC)
+	if err != nil || len(svc.SVC) != 1 || svc.RIDOrder != "" {
+		t.Fatalf("SVC JSEP %+v, %v", svc, err)
+	}
+	if b, _ := json.Marshal(svc.SVC); string(b) != `[{"mindex":1,"mid":"1","svc":"L3T3_KEY"}]` {
+		t.Errorf("svc %s", b)
+	}
+	single, err := publishJSEP(publishOffer, media.ArrangementSingle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := json.Marshal(single); strings.Contains(string(b), `"rid_order":`) || strings.Contains(string(b), `"svc":`) {
+		t.Errorf("single JSON %s", b)
+	}
+	if _, err := publishJSEP("v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:0\r\n", media.ArrangementSVC); err == nil {
+		t.Error("an offer without video accepted")
+	}
+}
+
+// A bot asks Janus for its requested height on every received video stream
+// (not the dummy's): substream for simulcast, spatial_layer (all temporal
+// layers) for SVC; nothing without layers.
+func TestLayerConfigure(t *testing.T) {
+	streams := []SubStream{{MID: "0", Type: "audio", FeedID: 5}, {MID: "1", Type: "video", FeedID: 5}, {MID: "2", Type: "video", FeedID: 9}, {MID: "3", Type: "video", FeedID: 6}}
+	heights := []int{180, 360, 720}
+	sim := layerConfigure(streams, 9, media.ArrangementSimulcast, heights, 180)
+	b, _ := json.Marshal(sim)
+	if string(b) != `{"request":"configure","streams":[{"mid":"1","substream":0},{"mid":"3","substream":0}]}` {
+		t.Errorf("simulcast %s", b)
+	}
+	svc := layerConfigure(streams, 9, media.ArrangementSVC, heights, 360)
+	b, _ = json.Marshal(svc)
+	if string(b) != `{"request":"configure","streams":[{"mid":"1","spatial_layer":1,"temporal_layer":2},{"mid":"3","spatial_layer":1,"temporal_layer":2}]}` {
+		t.Errorf("SVC %s", b)
+	}
+	if top := layerConfigure(streams, 9, media.ArrangementSVC, heights, 0); top == nil {
+		t.Error("no request for the default height")
+	} else if b, _ := json.Marshal(top); !strings.Contains(string(b), `"spatial_layer":2`) {
+		t.Errorf("default height: %s", b)
+	}
+	if layerConfigure(streams, 9, media.ArrangementSingle, nil, 0) != nil {
+		t.Error("a request without layers")
+	}
+	if layerConfigure(streams[:1], 9, media.ArrangementSimulcast, heights, 180) != nil {
+		t.Error("a request without video streams")
 	}
 }

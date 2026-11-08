@@ -48,7 +48,7 @@ func TestNewRunJSON(t *testing.T) {
 			t.Errorf("missing key %q in %s", k, raw)
 		}
 	}
-	if string(got["format_version"]) != "1" {
+	if string(got["format_version"]) != "2" {
 		t.Errorf("format_version = %s", got["format_version"])
 	}
 	if string(got["duration_seconds"]) != "72.123" {

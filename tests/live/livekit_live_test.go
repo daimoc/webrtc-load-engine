@@ -25,6 +25,13 @@ package live
 // leaves halfway through the hold: the bots must replace its streams by
 // waiting ones (receive cap, 008 FR-005).
 
+// LIVEKIT_VIDEO_CODEC (vp8, vp9, av1 or h264; default vp8) is the video codec
+// the bots send (feature 014). LIVEKIT_SIMULCAST (360 or 720) makes them send
+// three layers up to that height (simulcast in VP8 and H.264, SVC in VP9
+// and AV1); LIVEKIT_REQUESTED_HEIGHTS ("180:0.5,720:0.5") sets the heights
+// they ask for, by shares in launch order. With either, every bot must
+// receive its height at least 95% of the time (SC-008).
+
 import (
 	"context"
 	"log/slog"
@@ -81,11 +88,14 @@ func TestLiveKitLive_JoinAndEstablishMedia(t *testing.T) {
 	// HTTP API.
 	cat := catalog.New(logger)
 	sc, err := scenario.NewScenario("live-livekit", "livekit", scenario.TestPlan{
-		Participants: participants, RampUpSeconds: rampUp, DurationSeconds: 3600,
+		Participants: participants, RampUpSeconds: rampUp, DurationSeconds: scenarioSeconds(rampUp, hold),
 		PlatformConfig: config,
 		Media: &scenario.MediaConfig{
 			Profile:            envOr("LIVEKIT_MEDIA", scenario.MediaProfileAudioVideo),
 			MaxReceivedStreams: envInt(t, "LIVEKIT_MAX_RECEIVED", 0),
+			VideoCodec:         os.Getenv("LIVEKIT_VIDEO_CODEC"),
+			Simulcast:          layersFrom(t, "LIVEKIT"),
+			RequestedHeights:   requestedHeightsFrom(t, "LIVEKIT"),
 		},
 		ServerMonitoring: monitoring,
 	})
@@ -133,7 +143,11 @@ func TestLiveKitLive_JoinAndEstablishMedia(t *testing.T) {
 		if time.Since(stopped) > 10*time.Second {
 			t.Errorf("bots took %s to leave, want under 10 s (SC-001)", time.Since(stopped).Round(time.Second))
 		}
-		qualityChecks(t, quality, participants > 1 && len(kinds) > 0, checkVideo, true, holdFreezes)
+		single := plan.Media.Simulcast == nil && plan.Media.RequestedHeights == nil
+		qualityChecks(t, quality, participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
+		if checkVideo && !single {
+			requestedHeightChecks(t, quality)
+		}
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)
 		}
@@ -164,7 +178,7 @@ func TestLiveKitLive_JoinAndEstablishMedia(t *testing.T) {
 		want = limit
 	}
 	if checkVideo {
-		waitVideoSettled(t, scenarioID, participants, want, false)
+		waitVideoSettled(t, scenarioID, participants, want, plan.Media.Simulcast != nil)
 	}
 
 	recvBefore := map[string]float64{}

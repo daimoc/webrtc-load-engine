@@ -51,8 +51,25 @@ Expected: `launching 2 mediasoup Workers...` then `Server started`.
 
 The other settings (`origin`, `insecure_tls`, `unlimited_room_secret`,
 `use_pipe_transports`) are in
-`specs/010-mediasoup-platform/contracts/mediasoup-config.yaml`. Simulcast and
-requested heights are rejected on mediasoup in this version.
+`specs/010-mediasoup-platform/contracts/mediasoup-config.yaml`.
+
+## Video codecs (014)
+
+`media.video_codec` is `vp8` (default), `vp9`, `av1` or `h264`. `config.mjs`
+offers all four: VP9 profile 0 and AV1 were added for 014 (the demo had VP9
+profile 2 only). With `media.simulcast`, VP8 and H.264 are produced as
+three encodings (RIDs `l`, `m`, `h`), VP9 and AV1 as one encoding with
+`scalabilityMode: "L3T3_KEY"` and the dependency descriptor; requested
+heights go through the demo's `setConsumerPreferredLayers`.
+
+Limits found (specs/014-video-codec-comparison/validation-report.md):
+- mediasoup reads the dependency descriptor from producers but does not
+  forward it, so receivers read AV1 layers from the OBU headers.
+- Consumers start from the demo's `initialAvailableOutgoingBitrate`
+  (1 Mbit/s): bots asking for the 720 layer receive lower layers until
+  the server's estimate grows, and at 10 bots receiving 4 streams each the
+  estimate keeps falling back (under 95% of the time at 720 in VP8, VP9
+  and AV1).
 
 Live test, from the repository root:
 

@@ -162,11 +162,17 @@ func (e *Engine) startMedia() error {
 		case file != nil:
 			src = media.NewLayeredSource(e.scenarioID, file.Video)
 		case kind == media.KindVideo && m.Simulcast != nil:
-			layers, err := media.LoadLayers(m.Simulcast.MaxHeight)
+			layers, err := media.LoadVideo(m.Codec(), m.Arrangement(), m.Simulcast.MaxHeight)
 			if err != nil {
 				return err
 			}
 			src = media.NewLayeredSource(e.scenarioID, layers)
+		case kind == media.KindVideo:
+			content, err := media.LoadVideo(m.Codec(), media.ArrangementSingle, 0)
+			if err != nil {
+				return err
+			}
+			src = media.NewSource(e.scenarioID, content[0])
 		default:
 			content, err := media.LoadContent(kind)
 			if err != nil {
@@ -201,7 +207,7 @@ func (e *Engine) loadSourceFile() (*media.FileContent, error) {
 		}
 	}
 	start := time.Now()
-	file, err := media.LoadFile(e.ctx, m.SourceFile, true, heights)
+	file, err := media.LoadFileAs(e.ctx, m.SourceFile, true, heights, m.Codec())
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +241,8 @@ func (e *Engine) runMediaCollector() {
 			now := time.Now()
 			c.collect(now, e.mediaPeers())
 			e.quality = c.summary(now)
+			e.quality.Video.Codec = codecResult(e.testPlan.Media, e.codecPeers())
+			e.quality.Video.MarkLayersNotForwarded(maxRequestedHeight(e.testPlan.Media))
 			return
 		}
 	}
@@ -288,10 +296,12 @@ func (e *Engine) peerMedia(i int) PeerMedia {
 		m.ReceiveLimit = mc.MaxReceivedStreams
 		m.StallTimeout = time.Duration(mc.StallTimeoutSeconds) * time.Second
 		if mc.Simulcast != nil && slices.Contains(m.Kinds, media.KindVideo) {
-			m.Simulcast = true
+			m.Simulcast = mc.Arrangement() == media.ArrangementSimulcast
+			m.SVC = mc.Arrangement() == media.ArrangementSVC
 			m.LayerHeights, _ = media.LayerHeights(mc.Simulcast.MaxHeight) // Validated by the scenario
 		}
 		m.RequestedHeight = mc.HeightFor(i, e.testPlan.Participants)
+		m.VideoCodec = mc.Codec()
 	}
 	for kind, src := range e.sources {
 		if m.SendTimes == nil {

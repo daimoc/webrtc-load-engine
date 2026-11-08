@@ -264,3 +264,25 @@ func TestCandidateSDPRoundTrip(t *testing.T) {
 		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", back, c)
 	}
 }
+
+// jicofo sends H.264's format parameters as one profile-level-id parameter
+// ending in ';' (014 T028); the answer must not gain a parameter without a
+// name from it.
+func TestRTPDescriptionFromSDP_TrailingSemicolon(t *testing.T) {
+	raw := "v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 107\r\nc=IN IP4 0.0.0.0\r\n" +
+		"a=rtpmap:107 H264/90000\r\na=fmtp:107 profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1;\r\n"
+	var s sdp.SessionDescription
+	if err := s.Unmarshal([]byte(raw)); err != nil {
+		t.Fatal(err)
+	}
+	d := rtpDescriptionFromSDP(s.MediaDescriptions[0])
+	params := d.PayloadTypes[0].Parameters
+	if len(params) != 3 {
+		t.Fatalf("parameters %+v, want 3", params)
+	}
+	for _, p := range params {
+		if p.Name == "" {
+			t.Fatalf("a parameter without a name: %+v", params)
+		}
+	}
+}

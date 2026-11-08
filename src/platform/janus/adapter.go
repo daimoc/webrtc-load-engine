@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"webrtc-load-engine/src/media"
 
 	"webrtc-load-engine/src/platform"
 )
@@ -267,6 +268,40 @@ func (s *session) withPIN(body map[string]any) map[string]any {
 }
 
 // join runs research R4 steps 1–6.
+// createRequest is the room's create request, sized for the plan's bots,
+// in the plan's video codec (014 research R10).
+func createRequest(cfg Config) map[string]any {
+	m := map[string]any{
+		"request": "create", "room": cfg.Room, "permanent": false, "publishers": max(cfg.Participants, 1),
+		"audiocodec": "opus", "bitrate": 0,
+		"dummy_publisher": true, "dummy_streams": []map[string]string{{"codec": "opus"}},
+	}
+	addVideoCodec(m, cfg.VideoCodec)
+	return m
+}
+
+// publishRequest is a bot's publish request.
+func publishRequest(cfg Config) map[string]any {
+	m := map[string]any{"request": "publish", "audiocodec": "opus"}
+	addVideoCodec(m, cfg.VideoCodec)
+	return m
+}
+
+// addVideoCodec names the codec and, for VP9 and H.264, the profile the
+// bots send: VP9 profile 0 and Constrained Baseline.
+func addVideoCodec(m map[string]any, c media.VideoCodec) {
+	if c == "" {
+		c = media.CodecVP8
+	}
+	m["videocodec"] = string(c)
+	switch c {
+	case media.CodecVP9:
+		m["vp9_profile"] = "0"
+	case media.CodecH264:
+		m["h264_profile"] = "42e01f"
+	}
+}
+
 func (s *session) join(ctx context.Context) error {
 	cfg := s.a.cfg
 	if err := s.conn.CreateSession(ctx); err != nil {
@@ -282,11 +317,7 @@ func (s *session) join(ctx context.Context) error {
 
 	// Step 2: the room, sized for the plan's bots; the dummy takes no
 	// publisher place (T002). "Exists" (427) is success: the bots race.
-	create := map[string]any{
-		"request": "create", "room": cfg.Room, "permanent": false, "publishers": max(cfg.Participants, 1),
-		"audiocodec": "opus", "videocodec": "vp8", "bitrate": 0,
-		"dummy_publisher": true, "dummy_streams": []map[string]string{{"codec": "opus"}},
-	}
+	create := createRequest(cfg)
 	if cfg.AdminKey != "" {
 		create["admin_key"] = cfg.AdminKey
 	}
@@ -326,7 +357,11 @@ func (s *session) join(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("publish offer: %w", err)
 		}
-		m, err := s.conn.Message(ctx, pub, map[string]any{"request": "publish", "audiocodec": "opus", "videocodec": "vp8"}, &JSEP{Type: "offer", SDP: offer})
+		jsep, err := publishJSEP(offer, cfg.Arrangement)
+		if err != nil {
+			return err
+		}
+		m, err := s.conn.Message(ctx, pub, publishRequest(cfg), jsep)
 		if err != nil {
 			return err
 		}
@@ -371,6 +406,7 @@ func (s *session) join(ctx context.Context) error {
 			return err
 		}
 		s.subReady = true
+		s.configureLayers(attached.Streams)
 		s.sync()
 		return nil
 	})
@@ -415,6 +451,22 @@ func (s *session) sync() {
 		s.offerOut = true // The offer comes unsolicited after the current one
 	case m.JSEP != nil:
 		s.answer(m.JSEP.SDP)
+		s.configureLayers(e.Streams)
+	}
+}
+
+// configureLayers asks Janus for the bot's requested height on the
+// subscription's video streams, when the video is layered (014 T054).
+// Worker only.
+func (s *session) configureLayers(streams []SubStream) {
+	body := layerConfigure(streams, s.cap.dummy, s.a.cfg.Arrangement, s.h.VideoLayerHeights(), s.h.RequestedVideoHeight())
+	if body == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	if _, err := s.conn.Message(ctx, s.sub, body, nil); err != nil {
+		s.logger.Warn("Janus layer request failed", slog.String("error", err.Error()))
 	}
 }
 
@@ -515,9 +567,10 @@ func (s *session) onSubscriberMessage(m *Message) {
 		return
 	}
 	if e.VideoRoom == "updated" && m.JSEP != nil {
-		offer := m.JSEP.SDP
+		offer, streams := m.JSEP.SDP, e.Streams
 		s.enqueue(func() {
 			s.answer(offer)
+			s.configureLayers(streams)
 			s.offerOut = false
 			s.sync()
 		})

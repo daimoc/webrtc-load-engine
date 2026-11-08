@@ -47,6 +47,9 @@
 //	JITSI_PARTICIPANTS=10 go test -tags live -count=1 -v ./tests/live/
 package live
 
+// JITSI_VIDEO_CODEC (vp8, vp9, av1 or h264; default vp8) is the video codec
+// the bots send (feature 014).
+
 import (
 	"encoding/json"
 	"log/slog"
@@ -140,10 +143,11 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	// Run the real engine, as the HTTP API and jitsi-connect do.
 	scenarioID := "live-" + uuid.New().String()[:8]
 	sc, err := scenario.NewScenario("live", "jitsi", scenario.TestPlan{
-		Participants: participants, RampUpSeconds: rampUp, DurationSeconds: 3600,
+		Participants: participants, RampUpSeconds: rampUp, DurationSeconds: scenarioSeconds(rampUp, hold),
 		Media: &scenario.MediaConfig{
 			Profile:            envOr("JITSI_MEDIA", scenario.MediaProfileReceiveOnly),
 			MaxReceivedStreams: envInt(t, "JITSI_MAX_RECEIVED", 0),
+			VideoCodec:         os.Getenv("JITSI_VIDEO_CODEC"),
 			Simulcast:          simulcastConfig(t),
 			RequestedHeights:   requestedHeights(t),
 			SourceFile:         os.Getenv("JITSI_MEDIA_FILE"),
@@ -363,6 +367,9 @@ func qualityChecks(t *testing.T, q *scenario.QualitySummary, checkAudio, checkVi
 		}
 	}
 	if checkVideo {
+		codecChecks(t, q)
+	}
+	if checkVideo {
 		v := q.Video
 		switch {
 		case !v.Available || v.FrameRate == nil:
@@ -413,13 +420,21 @@ func requestedHeightChecks(t *testing.T, q *scenario.QualitySummary) {
 // or 720: the highest layer), nil when unset.
 func simulcastConfig(t *testing.T) *scenario.SimulcastConfig {
 	t.Helper()
-	v := os.Getenv("JITSI_SIMULCAST")
+	return layersFrom(t, "JITSI")
+}
+
+// layersFrom returns the layered video setting from <prefix>_SIMULCAST
+// (360 or 720: the highest layer; simulcast or SVC by the codec, 014), nil
+// when unset.
+func layersFrom(t *testing.T, prefix string) *scenario.SimulcastConfig {
+	t.Helper()
+	v := os.Getenv(prefix + "_SIMULCAST")
 	if v == "" {
 		return nil
 	}
 	h, err := strconv.Atoi(v)
 	if err != nil {
-		t.Fatalf("JITSI_SIMULCAST must be 360 or 720, got %q", v)
+		t.Fatalf("%s_SIMULCAST must be 360 or 720, got %q", prefix, v)
 	}
 	return &scenario.SimulcastConfig{MaxHeight: h}
 }
@@ -442,7 +457,14 @@ func serverMonitoring(t *testing.T) *scenario.ServerMonitoringConfig {
 // nil when unset.
 func requestedHeights(t *testing.T) []scenario.RequestedHeight {
 	t.Helper()
-	v := os.Getenv("JITSI_REQUESTED_HEIGHTS")
+	return requestedHeightsFrom(t, "JITSI")
+}
+
+// requestedHeightsFrom parses <prefix>_REQUESTED_HEIGHTS
+// ("height:share,..."), nil when unset.
+func requestedHeightsFrom(t *testing.T, prefix string) []scenario.RequestedHeight {
+	t.Helper()
+	v := os.Getenv(prefix + "_REQUESTED_HEIGHTS")
 	if v == "" {
 		return nil
 	}
@@ -452,7 +474,7 @@ func requestedHeights(t *testing.T) []scenario.RequestedHeight {
 		h, err1 := strconv.Atoi(hs)
 		s, err2 := strconv.ParseFloat(ss, 64)
 		if !ok || err1 != nil || err2 != nil {
-			t.Fatalf("JITSI_REQUESTED_HEIGHTS: expected height:share,..., got %q", v)
+			t.Fatalf("%s_REQUESTED_HEIGHTS: expected height:share,..., got %q", prefix, v)
 		}
 		out = append(out, scenario.RequestedHeight{Height: h, Share: s})
 	}
@@ -535,6 +557,13 @@ func peers(t *testing.T, scenarioID string, state execution.PeerState) float64 {
 	return 0
 }
 
+// scenarioSeconds is the scenario's duration for a run holding for hold:
+// an hour, or longer than the ramp-up, the settling and the hold, so the
+// engine never ends the run before the test does.
+func scenarioSeconds(rampUp int, hold time.Duration) int {
+	return max(3600, rampUp+int(hold.Seconds())+300)
+}
+
 // counter reads a counter (or gauge) with labels scenario_id and kind.
 func counter(t *testing.T, name, scenarioID, kind string) float64 {
 	t.Helper()
@@ -567,4 +596,30 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// codecChecks: every bot that received video received the plan's codec,
+// none was on another codec (feature 014 SC-002).
+func codecChecks(t *testing.T, q *scenario.QualitySummary) {
+	t.Helper()
+	c := q.Video.Codec
+	if c == nil {
+		t.Error("no codec result in the video summary")
+		return
+	}
+	t.Logf("video codec: sent %s (%s), received %v, content %v kbit/s", c.Sent, c.Arrangement, c.Received, c.ContentBitrateKbps)
+	if c.LayersNotForwarded {
+		t.Logf("layers not forwarded: the server sent only the lowest %s layer", c.Sent)
+	}
+	for _, m := range c.Mismatch {
+		t.Errorf("codec mismatch: %s %s %s, plan asks for %s", m.Bot, m.Direction, m.Codec, c.Sent)
+	}
+	for codec, n := range c.Received {
+		if codec != c.Sent {
+			t.Errorf("%d bots received %s, plan asks for %s", n, codec, c.Sent)
+		}
+	}
+	if c.Received[c.Sent] == 0 {
+		t.Errorf("no bot received %s", c.Sent)
+	}
 }

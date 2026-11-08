@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"webrtc-load-engine/src/media"
 
 	"github.com/pion/sdp/v3"
 )
@@ -252,13 +253,25 @@ type ProducerSpec struct {
 	RtpParameters RtpParameters
 }
 
-// wantedCodec is the codec the bots send per kind (004): Opus and VP8.
-var wantedCodec = map[string]struct {
+type wanted struct {
 	mime, rtpmap string
 	clock, ch    int
-}{
-	"audio": {"audio/opus", "opus/48000/2", 48000, 2},
-	"video": {"video/VP8", "vp8/90000", 90000, 0},
+}
+
+// wantedCodec is the codec the bots send per kind: Opus, and the plan's
+// video codec (004, 014).
+func wantedCodec(kind string, codec media.VideoCodec) (wanted, bool) {
+	switch kind {
+	case "audio":
+		return wanted{"audio/opus", "opus/48000/2", 48000, 2}, true
+	case "video":
+		if codec == "" {
+			codec = media.CodecVP8
+		}
+		_, name, _ := strings.Cut(codec.MimeType(), "/")
+		return wanted{codec.MimeType(), strings.ToLower(name) + "/90000", 90000, 0}, true
+	}
+	return wanted{}, false
 }
 
 // parseParams reads an fmtp value; integer values become ints.
@@ -329,7 +342,7 @@ func readCodecs(md *sdp.MediaDescription) map[int]*sectionCodec {
 // (contracts/sdp-mapping.md "Publish offer"): the bot's codec with its
 // payload type and feedback, its RTX, the header extensions the router
 // supports, the section's SSRCs and CNAME.
-func producerParams(offer string, caps RtpCapabilities) ([]ProducerSpec, error) {
+func producerParams(offer string, caps RtpCapabilities, codec media.VideoCodec, arr media.Arrangement) ([]ProducerSpec, error) {
 	var d sdp.SessionDescription
 	if err := d.Unmarshal([]byte(offer)); err != nil {
 		return nil, fmt.Errorf("publish offer: %w", err)
@@ -337,11 +350,13 @@ func producerParams(offer string, caps RtpCapabilities) ([]ProducerSpec, error) 
 	var specs []ProducerSpec
 	for _, md := range d.MediaDescriptions {
 		kind := md.MediaName.Media
-		want, ok := wantedCodec[kind]
+		want, ok := wantedCodec(kind, codec)
 		if !ok {
 			continue
 		}
-		if !slices.ContainsFunc(caps.Codecs, func(c RtpCodecCapability) bool { return strings.EqualFold(c.MimeType, want.mime) }) {
+		if !slices.ContainsFunc(caps.Codecs, func(c RtpCodecCapability) bool {
+			return strings.EqualFold(c.MimeType, want.mime) && (kind == "audio" || routerCodecMatches(c, codec))
+		}) {
 			return nil, fmt.Errorf("the router has no %s codec", want.mime)
 		}
 		mid, _ := md.Attribute("mid")
@@ -352,7 +367,7 @@ func producerParams(offer string, caps RtpCapabilities) ([]ProducerSpec, error) 
 			if err != nil {
 				continue
 			}
-			if c := codecs[pt]; c != nil && c.rtpmap == want.rtpmap {
+			if c := codecs[pt]; c != nil && c.rtpmap == want.rtpmap && (kind == "audio" || offeredCodecMatches(c, codec)) {
 				main = c
 				break
 			}
@@ -390,11 +405,14 @@ func producerParams(offer string, caps RtpCapabilities) ([]ProducerSpec, error) 
 				rp.HeaderExtensions = append(rp.HeaderExtensions, RtpHeaderExtensionParameters{URI: uri, ID: id})
 			}
 		}
-		enc, cname, err := sectionSSRCs(md)
+		encs, cname, err := sectionEncodings(md)
 		if err != nil {
 			return nil, fmt.Errorf("publish offer: %s section %q: %w", kind, mid, err)
 		}
-		rp.Encodings = []RtpEncodingParameters{enc}
+		if kind == "video" && arr == media.ArrangementSVC {
+			encs[0].ScalabilityMode = svcMode
+		}
+		rp.Encodings = encs
 		_, rsize := md.Attribute("rtcp-rsize")
 		rp.RTCP = RtcpParameters{CNAME: cname, ReducedSize: rsize}
 		specs = append(specs, ProducerSpec{Kind: kind, MID: mid, RtpParameters: rp})
@@ -403,6 +421,12 @@ func producerParams(offer string, caps RtpCapabilities) ([]ProducerSpec, error) 
 		return nil, errors.New("publish offer has no audio or video section")
 	}
 	return specs, nil
+}
+
+// offeredCodecMatches reports whether an offered codec is the form of the
+// plan's codec the bots send (VP9 profile 0, Constrained Baseline H.264).
+func offeredCodecMatches(c *sectionCodec, codec media.VideoCodec) bool {
+	return routerCodecMatches(RtpCodecCapability{MimeType: codec.MimeType(), Parameters: c.params}, codec)
 }
 
 func nonNil(fb []RtcpFeedback) []RtcpFeedback {
@@ -414,16 +438,26 @@ func nonNil(fb []RtcpFeedback) []RtcpFeedback {
 
 // sectionSSRCs reads a section's first SSRC, its FID (RTX) SSRC and the
 // CNAME.
-func sectionSSRCs(md *sdp.MediaDescription) (RtpEncodingParameters, string, error) {
-	var enc RtpEncodingParameters
+// svcMode is the scalability mode of the bots' SVC content.
+const svcMode = "L3T3_KEY"
+
+// sectionEncodings returns the encodings of an offer section and its
+// CNAME: one per simulcast RID (Pion lists the layers' SSRCs in RID order,
+// low first) or one, each with its RTX SSRC.
+func sectionEncodings(md *sdp.MediaDescription) ([]RtpEncodingParameters, string, error) {
+	var ssrcs []uint32 // Media SSRCs, offer order
+	rtx := map[uint32]uint32{}
+	var rids []string
 	var cname string
 	for _, a := range md.Attributes {
 		switch a.Key {
 		case "ssrc-group":
 			f := strings.Fields(a.Value)
 			if len(f) == 3 && f[0] == "FID" {
-				if rtx, err := strconv.ParseUint(f[2], 10, 32); err == nil {
-					enc.RTX = &RtxSSRC{SSRC: uint32(rtx)}
+				m, err1 := strconv.ParseUint(f[1], 10, 32)
+				r, err2 := strconv.ParseUint(f[2], 10, 32)
+				if err1 == nil && err2 == nil {
+					rtx[uint32(m)] = uint32(r)
 				}
 			}
 		case "ssrc":
@@ -432,18 +466,46 @@ func sectionSSRCs(md *sdp.MediaDescription) (RtpEncodingParameters, string, erro
 			if err != nil {
 				continue
 			}
-			if enc.SSRC == 0 {
-				enc.SSRC = uint32(id)
+			if !slices.Contains(ssrcs, uint32(id)) {
+				ssrcs = append(ssrcs, uint32(id))
 			}
-			if v, ok := strings.CutPrefix(rest, "cname:"); ok && uint32(id) == enc.SSRC {
+			if v, ok := strings.CutPrefix(rest, "cname:"); ok && cname == "" {
 				cname = v
+			}
+		case "rid":
+			if f := strings.Fields(a.Value); len(f) >= 2 && f[1] == "send" {
+				rids = append(rids, f[0])
 			}
 		}
 	}
-	if enc.SSRC == 0 {
-		return enc, "", errors.New("no ssrc")
+	isRTX := map[uint32]bool{}
+	for _, r := range rtx {
+		isRTX[r] = true
 	}
-	return enc, cname, nil
+	ssrcs = slices.DeleteFunc(ssrcs, func(s uint32) bool { return isRTX[s] })
+	if len(ssrcs) == 0 {
+		return nil, "", errors.New("no ssrc")
+	}
+	enc := func(ssrc uint32) RtpEncodingParameters {
+		e := RtpEncodingParameters{SSRC: ssrc}
+		if r, ok := rtx[ssrc]; ok {
+			e.RTX = &RtxSSRC{SSRC: r}
+		}
+		return e
+	}
+	if len(rids) < 2 {
+		return []RtpEncodingParameters{enc(ssrcs[0])}, cname, nil
+	}
+	if len(ssrcs) != len(rids) {
+		return nil, "", fmt.Errorf("%d rids for %d ssrcs", len(rids), len(ssrcs))
+	}
+	var out []RtpEncodingParameters
+	for i, rid := range rids {
+		e := enc(ssrcs[i])
+		e.RID = rid
+		out = append(out, e)
+	}
+	return out, cname, nil
 }
 
 // publishAnswer is the remote answer to the publish offer

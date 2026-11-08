@@ -20,6 +20,21 @@ func golden(t *testing.T, name string) []byte {
 	return b
 }
 
+// The layers of the 014 golden frames: VP8 simulcast up to 720 and VP9 SVC
+// up to 720, with content.json's bitrates.
+var (
+	goldenSimulcastLayers = []videoLayer{
+		{Quality: qualityLow, Width: 320, Height: 180, Bitrate: 150000, RID: "l"},
+		{Quality: qualityMedium, Width: 640, Height: 360, Bitrate: 500000, RID: "m"},
+		{Quality: qualityHigh, Width: 1280, Height: 720, Bitrate: 1500000, RID: "h"},
+	}
+	goldenSVCLayers = []videoLayer{
+		{Quality: qualityLow, Width: 320, Height: 180, Bitrate: 168000},
+		{Quality: qualityMedium, Width: 640, Height: 360, Bitrate: 750000},
+		{Quality: qualityHigh, Width: 1280, Height: 720, Bitrate: 2062000},
+	}
+)
+
 const goldenCandidate = `{"candidate":"candidate:1 1 udp 2130706431 192.168.1.65 50000 typ host","sdpMid":"0","sdpMLineIndex":0}`
 
 func TestEncodeSignalRequest_Golden(t *testing.T) {
@@ -30,9 +45,15 @@ func TestEncodeSignalRequest_Golden(t *testing.T) {
 		"req_trickle_sub":     {Trickle: &trickleRequest{CandidateInit: goldenCandidate, Target: targetSubscriber}},
 		"req_add_track_audio": {AddTrack: &addTrackRequest{CID: "audio-track-id", Name: "audio", Type: trackAudio, Source: sourceMicrophone, DisableRed: true}},
 		"req_add_track_video": {AddTrack: &addTrackRequest{CID: "video-track-id", Name: "video", Type: trackVideo, Width: 640, Height: 360, Source: sourceCamera}},
-		"req_subscription":    {Subscription: &updateSubscription{TrackSIDs: []string{"TR_a2", "TR_v2"}, Subscribe: true}},
-		"req_leave":           {Leave: &leaveRequest{Reason: reasonClientInitiated}},
-		"req_ping":            {PingReq: &ping{Timestamp: 1760000000000, RTT: 12}},
+		"req_add_track_vp9":   {AddTrack: &addTrackRequest{CID: "video-track-id", Name: "video", Type: trackVideo, Width: 640, Height: 360, Source: sourceCamera, Codecs: []simulcastCodec{{Codec: "vp9", CID: "video-track-id"}}}},
+		"req_add_track_simulcast": {AddTrack: &addTrackRequest{CID: "video-track-id", Name: "video", Type: trackVideo, Width: 1280, Height: 720, Source: sourceCamera,
+			Layers: goldenSimulcastLayers, Codecs: []simulcastCodec{{Codec: "vp8", CID: "video-track-id", Layers: goldenSimulcastLayers, Mode: layerModeOnePerStream}}}},
+		"req_add_track_svc": {AddTrack: &addTrackRequest{CID: "video-track-id", Name: "video", Type: trackVideo, Width: 1280, Height: 720, Source: sourceCamera,
+			Layers: goldenSVCLayers, Codecs: []simulcastCodec{{Codec: "vp9", CID: "video-track-id", Layers: goldenSVCLayers, Mode: layerModeMultiplePerStream}}}},
+		"req_track_setting": {TrackSetting: &updateTrackSettings{TrackSIDs: []string{"TR_v2"}, Width: 320, Height: 180}},
+		"req_subscription":  {Subscription: &updateSubscription{TrackSIDs: []string{"TR_a2", "TR_v2"}, Subscribe: true}},
+		"req_leave":         {Leave: &leaveRequest{Reason: reasonClientInitiated}},
+		"req_ping":          {PingReq: &ping{Timestamp: 1760000000000, RTT: 12}},
 	} {
 		got, err := encodeSignalRequest(req)
 		if err != nil {

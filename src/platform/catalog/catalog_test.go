@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"webrtc-load-engine/src/media"
 	"webrtc-load-engine/src/platform"
 	"webrtc-load-engine/src/platform/janus"
 	"webrtc-load-engine/src/platform/jitsi"
@@ -71,6 +72,18 @@ func TestCatalog_LiveKit(t *testing.T) {
 	if _, ok := a.(*livekit.Adapter); !ok {
 		t.Errorf("NewAdapter(livekit) = %T", a)
 	}
+	// The adapter announces the plan's layers (014 T052).
+	sim := scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 720}}}
+	if err := c.ValidateTestPlan("livekit", sim); err != nil {
+		t.Errorf("simulcast livekit plan: %v", err)
+	}
+	a, err = c.NewAdapter("livekit", sim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.(*livekit.Adapter).Config().Arrangement; got != media.ArrangementSimulcast {
+		t.Errorf("livekit arrangement = %q", got)
+	}
 }
 
 func TestCatalog_Mediasoup(t *testing.T) {
@@ -86,8 +99,6 @@ func TestCatalog_Mediasoup(t *testing.T) {
 		tp   scenario.TestPlan
 		want string
 	}{
-		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Simulcast: &scenario.SimulcastConfig{}}}, "media.simulcast is not supported on platform mediasoup"},
-		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{RequestedHeights: []scenario.RequestedHeight{{Height: 180, Share: 1}}}}, "media.requested_heights is not supported on platform mediasoup"},
 		{scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://localhost:4443"}}, "platform_config.room is required"},
 	} {
 		if err := c.ValidateTestPlan("mediasoup", tc.tp); err == nil || err.Error() != tc.want {
@@ -107,6 +118,18 @@ func TestCatalog_Mediasoup(t *testing.T) {
 	if ps, ok := a.(platform.PublishSessionAdapter); !ok || !ps.PublishSession() {
 		t.Error("the mediasoup adapter does not use a publish session")
 	}
+	// The adapter produces the plan's layers (014 T053).
+	svc := scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, VideoCodec: "vp9", Simulcast: &scenario.SimulcastConfig{MaxHeight: 720}}}
+	if err := c.ValidateTestPlan("mediasoup", svc); err != nil {
+		t.Errorf("SVC mediasoup plan: %v", err)
+	}
+	a, err = c.NewAdapter("mediasoup", svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.(*mediasoup.Adapter).Config().Arrangement; got != media.ArrangementSVC {
+		t.Errorf("mediasoup arrangement = %q", got)
+	}
 }
 
 func TestCatalog_Janus(t *testing.T) {
@@ -118,12 +141,16 @@ func TestCatalog_Janus(t *testing.T) {
 	if err := c.ValidateTestPlan("janus", scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, MaxReceivedStreams: 10}}); err != nil {
 		t.Errorf("valid janus plan: %v", err)
 	}
+	// Layers and requested heights are accepted since 014.
+	layered := &scenario.MediaConfig{Profile: scenario.MediaProfileAudioVideo, Simulcast: &scenario.SimulcastConfig{MaxHeight: 360},
+		RequestedHeights: []scenario.RequestedHeight{{Height: 180, Share: 1}}}
+	if err := c.ValidateTestPlan("janus", scenario.TestPlan{PlatformConfig: cfg, Media: layered}); err != nil {
+		t.Errorf("layered janus plan: %v", err)
+	}
 	for _, tc := range []struct {
 		tp   scenario.TestPlan
 		want string
 	}{
-		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{Simulcast: &scenario.SimulcastConfig{}}}, "media.simulcast is not supported on platform janus"},
-		{scenario.TestPlan{PlatformConfig: cfg, Media: &scenario.MediaConfig{RequestedHeights: []scenario.RequestedHeight{{Height: 180, Share: 1}}}}, "media.requested_heights is not supported on platform janus"},
 		{scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://localhost:8188"}}, "platform_config.room is required"},
 		{scenario.TestPlan{PlatformConfig: map[string]any{"url": "ws://localhost:8188", "room": "abc"}}, "platform_config.room must be a positive integer, got abc"},
 	} {

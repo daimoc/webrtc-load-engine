@@ -104,3 +104,31 @@ func TestCap_CloseWaitingDropsIt(t *testing.T) {
 	}
 	checkInvariants(t, c)
 }
+
+// A bot asking for a height sets its preferred spatial layer on each
+// layered video consumer, the highest layer not above the height (014
+// T053); the top layer (0), audio and single-stream consumers need none.
+func TestPreferredLayers(t *testing.T) {
+	heights := []int{180, 360, 720}
+	for _, tc := range []struct {
+		nc        NewConsumerRequest
+		requested int
+		want      *preferredLayers
+	}{
+		{NewConsumerRequest{ConsumerID: "c1", Kind: "video", Type: "simulcast"}, 180, &preferredLayers{ConsumerID: "c1", SpatialLayer: 0}},
+		{NewConsumerRequest{ConsumerID: "c2", Kind: "video", Type: "svc"}, 360, &preferredLayers{ConsumerID: "c2", SpatialLayer: 1}},
+		{NewConsumerRequest{ConsumerID: "c3", Kind: "video", Type: "svc"}, 720, &preferredLayers{ConsumerID: "c3", SpatialLayer: 2}},
+		{NewConsumerRequest{ConsumerID: "c4", Kind: "video", Type: "simulcast"}, 90, &preferredLayers{ConsumerID: "c4", SpatialLayer: 0}},
+		{NewConsumerRequest{ConsumerID: "c5", Kind: "video", Type: "simulcast"}, 0, nil},
+		{NewConsumerRequest{ConsumerID: "c6", Kind: "video", Type: "simple"}, 180, nil},
+		{NewConsumerRequest{ConsumerID: "c7", Kind: "audio", Type: "simple"}, 180, nil},
+	} {
+		got := preferredLayersFor(tc.nc, heights, tc.requested)
+		if (got == nil) != (tc.want == nil) || (got != nil && *got != *tc.want) {
+			t.Errorf("%s at %d: got %+v, want %+v", tc.nc.ConsumerID, tc.requested, got, tc.want)
+		}
+	}
+	if got := preferredLayersFor(NewConsumerRequest{ConsumerID: "c", Kind: "video", Type: "svc"}, nil, 180); got != nil {
+		t.Errorf("no layer heights: %+v", got)
+	}
+}

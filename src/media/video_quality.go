@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pion/rtp"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -16,12 +18,14 @@ const (
 	keyframeRequestInterval = time.Second
 )
 
-// VideoQuality measures one received VP8 stream from its packet headers,
+// VideoQuality measures one received video stream from its packet headers,
 // without decoding (FR-007): frames, freezes, the height of the last
 // keyframe, height switches and the need for a keyframe. Update is called
 // by the stream's read loop, Snapshot by the collector.
 type VideoQuality struct {
 	stallTimeout time.Duration
+	parser       FrameParser // The stream's codec (014)
+	codec        VideoCodec
 	sendTimes    *SendTimes          // Nil: no latency
 	observer     prometheus.Observer // Latency samples, seconds
 
@@ -38,6 +42,7 @@ type VideoQuality struct {
 	freezeTime time.Duration
 	height     int
 	heightTime map[int]time.Duration
+	picHeight  int // Highest layer height seen for the current picture (scalable streams)
 	switches   uint64
 
 	periodStart     time.Time // Frame before the period's first interval
@@ -82,21 +87,61 @@ func (s VideoQualitySnapshot) FrameRate() float64 {
 // NewVideoQuality creates the measures of a stream; freezes are capped at
 // stallTimeout (a longer silence is a stall, 004).
 func NewVideoQuality(stallTimeout time.Duration) *VideoQuality {
-	return &VideoQuality{stallTimeout: stallTimeout, heightTime: map[int]time.Duration{}}
+	return NewVideoQualityFor(CodecVP8, 0, stallTimeout)
 }
 
-// UpdatePacket records a received packet from its VP8 payload, and reports
+// NewVideoQualityFor creates the measures of a stream in codec c; ddExtID
+// is the dependency descriptor's negotiated ID, 0 when there is none.
+func NewVideoQualityFor(c VideoCodec, ddExtID uint8, stallTimeout time.Duration) *VideoQuality {
+	if c == "" {
+		c = CodecVP8
+	}
+	return &VideoQuality{stallTimeout: stallTimeout, heightTime: map[int]time.Duration{}, parser: NewFrameParser(c, ddExtID), codec: c}
+}
+
+// UpdatePacket records a received VP8 packet from its payload, and reports
 // whether a keyframe request should be sent now (see NeedKeyframe).
 func (q *VideoQuality) UpdatePacket(seq uint16, ts uint32, payload []byte, arrival time.Time) (requestKeyframe bool) {
-	info, ok := parseVP8(payload)
+	return q.UpdateRTP(&rtp.Header{SequenceNumber: seq, Timestamp: ts}, payload, arrival)
+}
+
+// UpdateRTP records a received packet in the stream's codec, and reports
+// whether a keyframe request should be sent now (see NeedKeyframe).
+// payload is everything after the header: with the padding bit set it ends
+// with the RTP padding, which is split off (VP9 carries its trailer there).
+func (q *VideoQuality) UpdateRTP(h *rtp.Header, payload []byte, arrival time.Time) (requestKeyframe bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	var pad []byte
+	if h.Padding && len(payload) > 0 {
+		k := int(payload[len(payload)-1])
+		if k == 0 || k > len(payload) {
+			return false
+		}
+		payload, pad = payload[:len(payload)-k], payload[len(payload)-k:]
+	}
+	if len(payload) == 0 {
+		return false
+	}
+	d, ok := q.parser.Parse(h, payload)
 	if !ok {
 		return false
 	}
+	q.updateLocked(h.SequenceNumber, h.Timestamp, d, arrival)
+	q.measureLatency(h.Timestamp, payload, pad)
+	return q.needKeyframeLocked(arrival)
+}
+
+// SetLayerHeights gives the stream the run's spatial layer heights, low to
+// high, for scalable streams whose packets do not describe their layers'
+// sizes (AV1 without the dependency descriptor). Call it before the first
+// Update.
+func (q *VideoQuality) SetLayerHeights(h []int) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.updateLocked(seq, ts, info, arrival)
-	q.measureLatency(ts, payload)
-	return q.needKeyframeLocked(arrival)
+	if p, ok := q.parser.(interface{ setLayerHeights([]int) }); ok {
+		p.setLayerHeights(h)
+	}
 }
 
 // SetLatency makes the stream measure the latency of its frames from the
@@ -112,10 +157,10 @@ func (q *VideoQuality) SetLatency(st *SendTimes, o prometheus.Observer) {
 func (q *VideoQuality) Update(seq uint16, ts uint32, info vp8Info, arrival time.Time) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.updateLocked(seq, ts, info, arrival)
+	q.updateLocked(seq, ts, info.desc(), arrival)
 }
 
-func (q *VideoQuality) updateLocked(seq uint16, ts uint32, info vp8Info, arrival time.Time) {
+func (q *VideoQuality) updateLocked(seq uint16, ts uint32, info FrameDesc, arrival time.Time) {
 	if !q.started {
 		q.started = true
 		q.highestSeq = seq
@@ -132,12 +177,29 @@ func (q *VideoQuality) updateLocked(seq uint16, ts uint32, info vp8Info, arrival
 	}
 	q.missing += int(delta) - 1
 	q.highestSeq = seq
-	if info.frameStart || ts != q.lastTS {
+	if info.Start || ts != q.lastTS {
 		q.newFrame(ts, info, arrival)
 	}
+	q.picHeight = max(q.picHeight, info.LayerHeight)
 }
 
-func (q *VideoQuality) newFrame(ts uint32, info vp8Info, arrival time.Time) {
+// setHeight records the stream's height, counting a switch when it
+// changes.
+func (q *VideoQuality) setHeight(h int) {
+	if q.height > 0 && h != q.height {
+		q.switches++
+	}
+	q.height = h
+}
+
+func (q *VideoQuality) newFrame(ts uint32, info FrameDesc, arrival time.Time) {
+	// A scalable picture's height is its highest layer's, known when the
+	// next picture starts (the server may forward fewer layers at any
+	// picture).
+	if q.picHeight > 0 {
+		q.setHeight(q.picHeight)
+		q.picHeight = 0
+	}
 	if q.frames > 0 {
 		gap := arrival.Sub(q.lastFrame)
 		counted := gap
@@ -173,13 +235,10 @@ func (q *VideoQuality) newFrame(ts uint32, info vp8Info, arrival time.Time) {
 	}
 
 	switch {
-	case info.keyframe:
+	case info.Keyframe:
 		q.needKeyframe = false
-		if info.height > 0 {
-			if q.height > 0 && info.height != q.height {
-				q.switches++
-			}
-			q.height = info.height
+		if info.Height > 0 && info.LayerHeight == 0 {
+			q.setHeight(info.Height)
 		}
 	case q.frames == 1 || q.missing > 0:
 		q.needKeyframe = true
@@ -191,11 +250,11 @@ func (q *VideoQuality) newFrame(ts uint32, info vp8Info, arrival time.Time) {
 // a frame trailer (012 data model): from the send time of the frame it names
 // to the arrival of the frame's first packet. A last packet that arrives
 // after the next frame began gives no sample, and neither does a repeated one.
-func (q *VideoQuality) measureLatency(ts uint32, payload []byte) {
+func (q *VideoQuality) measureLatency(ts uint32, payload, pad []byte) {
 	if q.sendTimes == nil || ts != q.lastTS {
 		return
 	}
-	n, ok := readFrameTrailer(payload, q.sendTimes.Tag())
+	n, ok := readTrailer(q.codec, payload, pad, q.sendTimes.Tag())
 	if !ok || (q.numbered && !newerFrame(n, q.lastNumber)) {
 		return
 	}

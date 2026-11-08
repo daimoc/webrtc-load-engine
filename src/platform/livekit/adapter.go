@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"webrtc-load-engine/src/media"
 
 	"webrtc-load-engine/src/platform"
 )
@@ -38,6 +39,9 @@ func NewAdapter(logger *slog.Logger, cfg Config) *Adapter {
 	}
 	return &Adapter{logger: logger, cfg: cfg, sessions: map[string]*session{}}
 }
+
+// Config returns the adapter's configuration.
+func (a *Adapter) Config() Config { return a.cfg }
 
 // PublishSession implements platform.PublishSessionAdapter: LiveKit
 // receives a participant's media on a session the participant offers.
@@ -160,6 +164,67 @@ func offerTracks(sdp string) []localTrack {
 	return tracks
 }
 
+// addTrackFor is the AddTrackRequest of one published track. A video track
+// in another codec than VP8 names it, as LiveKit's clients do (014 research
+// R10); VP8 single stream sends 008's request. A layered track (heights
+// low first) also announces its layers, as LiveKit's JavaScript client
+// does: simulcast by the RIDs the bot sends, one per height; SVC as
+// spatial layers of one stream, which the server reads from the
+// dependency descriptor. LiveKit has no field for the scalability mode.
+func addTrackFor(kind, cid string, width, height int, codec media.VideoCodec, arr media.Arrangement, heights []int) *addTrackRequest {
+	req := &addTrackRequest{CID: cid, Name: kind}
+	if kind == "audio" {
+		req.Type, req.Source, req.DisableRed = trackAudio, sourceMicrophone, true
+		return req
+	}
+	if codec == "" {
+		codec = media.CodecVP8
+	}
+	req.Type, req.Source, req.Width, req.Height = trackVideo, sourceCamera, uint32(width), uint32(height)
+	layered := (arr == media.ArrangementSimulcast || arr == media.ArrangementSVC) && len(heights) > 0
+	if !layered {
+		if codec != media.CodecVP8 {
+			req.Codecs = []simulcastCodec{{Codec: string(codec), CID: cid}}
+		}
+		return req
+	}
+	top := heights[len(heights)-1]
+	req.Width, req.Height = uint32(widthOf(top)), uint32(top)
+	bitrates := media.ContentBitrates(codec, arr, top)
+	mode := layerModeOnePerStream
+	if arr == media.ArrangementSVC {
+		mode = layerModeMultiplePerStream
+	}
+	for i, h := range heights {
+		l := videoLayer{
+			Quality: qualityHigh - int32(len(heights)-1-i),
+			Width:   uint32(widthOf(h)), Height: uint32(h),
+			Bitrate: uint32(bitrates[h] * 1000),
+		}
+		if l.Quality < qualityLow {
+			l.Quality = qualityLow
+		}
+		if arr == media.ArrangementSimulcast && i < len(media.SimulcastRIDs) {
+			l.RID = media.SimulcastRIDs[i]
+		}
+		req.Layers = append(req.Layers, l)
+	}
+	req.Codecs = []simulcastCodec{{Codec: string(codec), CID: cid, Layers: req.Layers, Mode: mode}}
+	return req
+}
+
+// widthOf is the width of a 16:9 picture of height h.
+func widthOf(h int) int { return h * 16 / 9 }
+
+// trackSettings asks for the requested height on the given video tracks,
+// or is nil when the bot takes the top layer (requested 0) or has none.
+func trackSettings(videoSIDs []string, requested int) *updateTrackSettings {
+	if requested <= 0 || len(videoSIDs) == 0 {
+		return nil
+	}
+	return &updateTrackSettings{TrackSIDs: videoSIDs, Width: uint32(widthOf(requested)), Height: uint32(requested)}
+}
+
 // publish announces and publishes the bot's tracks (research R5).
 func (a *Adapter) publish(ctx context.Context, s *session) error {
 	offer, err := s.h.CreatePublishOffer(s.trickle(targetPublisher))
@@ -172,13 +237,8 @@ func (a *Adapter) publish(ctx context.Context, s *session) error {
 	}
 	pending := map[string]bool{}
 	for _, t := range tracks {
-		req := &addTrackRequest{CID: t.id, Name: t.kind}
-		if t.kind == "audio" {
-			req.Type, req.Source, req.DisableRed = trackAudio, sourceMicrophone, true
-		} else {
-			w, h := s.h.LocalVideoSize()
-			req.Type, req.Source, req.Width, req.Height = trackVideo, sourceCamera, uint32(w), uint32(h)
-		}
+		w, h := s.h.LocalVideoSize()
+		req := addTrackFor(t.kind, t.id, w, h, a.cfg.VideoCodec, a.cfg.Arrangement, s.h.VideoLayerHeights())
 		if err := s.send(signalRequest{AddTrack: req}); err != nil {
 			return fmt.Errorf("add track: %w", err)
 		}
