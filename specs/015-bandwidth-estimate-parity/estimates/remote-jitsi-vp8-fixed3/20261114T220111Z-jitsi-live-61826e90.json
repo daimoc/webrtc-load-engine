@@ -1,0 +1,549 @@
+{
+  "format_version": 3,
+  "run_id": "61826e90",
+  "scenario": {
+    "id": "live-8113b5ba",
+    "name": "live",
+    "platform": "jitsi"
+  },
+  "test_plan": {
+    "participants": 10,
+    "ramp_up_seconds": 0,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "connect_timeout": "20s",
+      "debug": false,
+      "muc_domain": "muc.meet.jitsi",
+      "no_bridge_channel": false,
+      "room_name": "r015fixed3",
+      "websocket_url": "ws://192.168.1.59:8000/xmpp-websocket?room=r015fixed3",
+      "xmpp_domain": "meet.jitsi"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "video_codec": "vp8"
+    },
+    "server_monitoring": {
+      "containers": [
+        "sfu-jitsi-jvb-1",
+        "sfu-jitsi-jicofo-1"
+      ],
+      "interval_seconds": 5
+    },
+    "server_settings": {
+      "source": "deployment"
+    }
+  },
+  "started_at": "2026-11-14T22:00:07.303290599Z",
+  "ended_at": "2026-11-14T22:01:11.568905213Z",
+  "duration_seconds": 64.266,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-8113b5ba",
+    "generated_at": "2026-11-14T23:01:11.555212944+01:00",
+    "bots": 10,
+    "video": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0045,
+        "p95": 0.0045,
+        "p99": 0.0045
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 29.784412399984706,
+        "p95": 29.965213208972013,
+        "p99": 29.965213208972013
+      },
+      "freeze_seconds": {
+        "p50": 8.988426788,
+        "p95": 32.871437588,
+        "p99": 32.871437588
+      },
+      "freezes_total": 34,
+      "resolution_switches_total": 0,
+      "keyframe_requests_sent_total": 0,
+      "keyframe_requests_received_total": 21,
+      "height_share": {
+        "360": 1
+      },
+      "requested_height_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "single",
+        "content_bitrate_kbps": {
+          "360": 500
+        },
+        "received": {
+          "vp8": 10
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0025,
+        "p95": 0.0025,
+        "p99": 0.0025
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "mos": {
+        "p50": 4.367731221064016,
+        "p95": 4.36794097032777,
+        "p99": 4.36794097032777
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-8113b5ba-0",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-2",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-5",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-7",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-8",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-6",
+          "value": 4.3677348688772994
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-3",
+          "value": 4.367787762169897
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-1",
+          "value": 4.36779140998318
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-4",
+          "value": 4.367824240302725
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-9",
+          "value": 4.36794097032777
+        }
+      ],
+      "most_freeze_seconds": [
+        {
+          "peer_id": "peer-live-8113b5ba-6",
+          "value": 32.871437588
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-3",
+          "value": 16.994711532
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-2",
+          "value": 16.644775396
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-4",
+          "value": 14.78486101
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-8",
+          "value": 9.787948312
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-5",
+          "value": 8.988426788
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-1",
+          "value": 7.98229044
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-9",
+          "value": 4.823462317
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-7",
+          "value": 1.9300410989999999
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-0",
+          "value": 1.9257700500000001
+        }
+      ],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-8113b5ba-0",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-1",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-2",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-4",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-5",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-6",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-7",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-8",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-3",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-9",
+          "value": 0.0065
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-8113b5ba-0",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-1",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-2",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-3",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-4",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-5",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-6",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-7",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-8",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-9",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-14T23:00:07.303371636+01:00",
+        "end": "2026-11-14T23:01:11.555264604+01:00"
+      },
+      "containers": [
+        {
+          "name": "sfu-jitsi-jvb-1",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 1.149,
+            "peak": 1.394,
+            "first": 1.394
+          },
+          "memory_bytes": {
+            "peak": 778797056,
+            "first": 769896448
+          },
+          "samples": 14,
+          "missed": 0
+        },
+        {
+          "name": "sfu-jitsi-jicofo-1",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 0.007,
+            "peak": 0.05,
+            "first": 0.05
+          },
+          "memory_bytes": {
+            "peak": 214081536,
+            "first": 213819392
+          },
+          "samples": 14,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 2,
+        "cpu_threads": {
+          "average": 1.157,
+          "peak": 1.444,
+          "first": 1.444
+        },
+        "memory_bytes": {
+          "peak": 992743424,
+          "first": 983715840
+        },
+        "samples": 14,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-14T23:00:07.303371636+01:00",
+        "end": "2026-11-14T23:01:11.555264604+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 0.565,
+          "peak": 0.596,
+          "first": 0.517
+        },
+        "memory_bytes": {
+          "peak": 101101568,
+          "first": 20316160
+        },
+        "samples": 14,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    },
+    "reception_reports": {
+      "available": true,
+      "bots": 10,
+      "acknowledged_share": {
+        "p50": 0.9999459751485683,
+        "p95": 1,
+        "p99": 1
+      },
+      "late_share": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "stamp_lag_max_ms": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "limits": {
+        "acknowledged_share_min": 0.99,
+        "late_share_max": 0.01,
+        "late_interval_ms": 200
+      },
+      "flagged": [],
+      "per_bot": [
+        {
+          "peer_id": "peer-live-8113b5ba-0",
+          "packets_arrived": 37050,
+          "packets_acknowledged": 37049,
+          "acknowledged_share": 0.9999730094466937,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00090473752013,
+            "max": 101.017375
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-1",
+          "packets_arrived": 36836,
+          "packets_acknowledged": 36835,
+          "acknowledged_share": 0.9999728526441525,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 100.00041269935691,
+            "max": 101.02887
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-2",
+          "packets_arrived": 37039,
+          "packets_acknowledged": 37035,
+          "acknowledged_share": 0.9998920057236966,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00039340901772,
+            "max": 101.089836
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-3",
+          "packets_arrived": 37093,
+          "packets_acknowledged": 37097,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 100.00130060450161,
+            "max": 101.10367
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-4",
+          "packets_arrived": 37096,
+          "packets_acknowledged": 37094,
+          "acknowledged_share": 0.9999460858313565,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.0001378389694,
+            "max": 101.021344
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-5",
+          "packets_arrived": 37128,
+          "packets_acknowledged": 37126,
+          "acknowledged_share": 0.9999461322990735,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 100.0008650659164,
+            "max": 103.045658
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-6",
+          "packets_arrived": 36723,
+          "packets_acknowledged": 36720,
+          "acknowledged_share": 0.9999183073278327,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 100.00022225562701,
+            "max": 101.096589
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-7",
+          "packets_arrived": 36990,
+          "packets_acknowledged": 36988,
+          "acknowledged_share": 0.9999459313327926,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 99.99883287117552,
+            "max": 101.102969
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-8",
+          "packets_arrived": 37037,
+          "packets_acknowledged": 37034,
+          "acknowledged_share": 0.9999189999189999,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00109042834139,
+            "max": 101.109096
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-8113b5ba-9",
+          "packets_arrived": 37020,
+          "packets_acknowledged": 37018,
+          "acknowledged_share": 0.9999459751485683,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 99.99986953623188,
+            "max": 101.927061
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        }
+      ]
+    }
+  }
+}

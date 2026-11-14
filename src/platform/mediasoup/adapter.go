@@ -260,6 +260,9 @@ func (a *Adapter) Connect(ctx context.Context, peerID string, h platform.Signali
 		return fmt.Errorf("mediasoup join failed: %w", err)
 	}
 	s.ready.Store(true)
+	if a.cfg.LogServerStats {
+		go s.logTransportStats(s.recvT.TransportID) // Set by join, which has returned
+	}
 	// A loss between the last join step and ready took the pre-ready path.
 	select {
 	case err := <-s.failed:
@@ -534,6 +537,10 @@ func (s *session) onNotification(method string, data json.RawMessage) {
 		if json.Unmarshal(data, &ref) == nil {
 			s.logger.Debug("mediasoup peer closed", slog.String("peer", ref.PeerID))
 		}
+	case "consumerLayersChanged", "consumerScore":
+		if s.a.cfg.LogServerStats {
+			s.logger.Info("mediasoup "+method, slog.String("data", string(data)))
+		}
 	case "mediasoupVersion":
 		var v versionNotification
 		if json.Unmarshal(data, &v) == nil {
@@ -648,4 +655,40 @@ func (a *Adapter) Disconnect(peerID string) error {
 		s.logger.Warn("mediasoup adapter: SDP work still running after Disconnect")
 	}
 	return nil
+}
+
+// logTransportStats logs the receiving transport's stats once per second
+// until the session closes (Config.LogServerStats).
+func (s *session) logTransportStats(transportID string) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-s.conn.Done():
+			return
+		case <-ticker.C:
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		var reply struct {
+			Stats []map[string]any `json:"stats"`
+		}
+		err := s.conn.Request(ctx, "getTransportStats", map[string]string{"transportId": transportID}, &reply)
+		stats := reply.Stats
+		cancel()
+		if err != nil {
+			s.logger.Debug("mediasoup transport stats", slog.String("error", err.Error()))
+			continue
+		}
+		for _, st := range stats {
+			s.logger.Info("mediasoup receive transport stats",
+				slog.Any("available_outgoing_bitrate", st["availableOutgoingBitrate"]),
+				slog.Any("send_bitrate", st["sendBitrate"]),
+				slog.Any("rtp_send_bitrate", st["rtpSendBitrate"]),
+				slog.Any("rtx_send_bitrate", st["rtxSendBitrate"]),
+				slog.Any("probation_send_bitrate", st["probationSendBitrate"]),
+				slog.Any("max_incoming_bitrate", st["maxIncomingBitrate"]))
+		}
+	}
 }

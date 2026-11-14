@@ -58,8 +58,34 @@ Limits found (specs/014-video-codec-comparison/validation-report.md):
 - The bridge drops RTP padding, so VP9 latency is `frame_not_identified`.
 - At 10 bots locally, the default bandwidth estimate made the bridge stop
   some streams in VP8 and AV1 runs; the 014 figures are with
-  `JVB_CC_TRUST_BWE=false` (a compose override; the remote overlay sets
-  it). This setup keeps the default.
+  `JVB_CC_TRUST_BWE=false` (a compose override; the remote overlay set it
+  until 015). This setup keeps the default, and so does the remote overlay
+  since 015.
+
+## Bandwidth estimate (015)
+
+The suspended streams of 014 came from the bots: the bridge sends some
+packets twice, each copy with its own transport-wide sequence number, and
+the bots' WebRTC stack dropped the copy before acknowledging it, so the
+bridge counted it lost and lowered its estimate. Since 015 the bots
+acknowledge every packet that reaches their socket, and with the bridge's
+default settings VP8 runs at 10 bots have no suspended stream
+(specs/015-bandwidth-estimate-parity/validation-report.md, SC-003).
+
+Left: with AV1 and all bots joining at once (ramp-up 0), the bridge may
+still suspend some bots' streams for the first seconds (2 runs in 5); with
+a 10 s ramp-up it did not. A headless browser in the same room was never
+suspended. Use a ramp-up for AV1 runs.
+
+On a remote machine (013, a LAN), the bridge starts every receiver at
+2.5 Mbit/s and suspends streams of a 10-bot room for its first 10 to 20 s,
+a browser's as long as the bots'; after that, no stream is suspended with
+the corrected bots, where uncorrected ones stayed suspended for the rest of
+the run.
+
+The bridge's estimate per receiver is readable during a run on its private
+debug interface, published on `127.0.0.1:8080`:
+`python3 -I scripts/read-estimates.py jitsi` writes it once per second.
 
 ## Token authentication
 

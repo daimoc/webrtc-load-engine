@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"webrtc-load-engine/src/media"
@@ -45,6 +46,7 @@ type botQuality struct {
 
 	roundTrip time.Duration // Median of the last round-trip samples of the bot's own streams
 	freezeLog []streamFreezeLog
+	heights   []int // Last height logged per received video stream (015)
 
 	latency map[string]*media.LatencyBuckets // By kind, over the bot's streams
 	lookups map[string]uint64                // By kind: frames looked up in the send times, found or not
@@ -67,7 +69,7 @@ func (c *mediaCollector) bot(peerID string) *botQuality {
 
 // collectQuality exports the quality measures of a peer's snapshot and
 // updates its record.
-func (c *mediaCollector) collectQuality(peerID string, snap map[string]KindMediaSnapshot, now time.Time) {
+func (c *mediaCollector) collectQuality(peerID string, requested int, snap map[string]KindMediaSnapshot, now time.Time) {
 	var rtts []time.Duration
 	for _, kind := range mediaKinds {
 		rtts = append(rtts, snap[kind].RoundTrips...)
@@ -78,6 +80,7 @@ func (c *mediaCollector) collectQuality(peerID string, snap map[string]KindMedia
 		return // Nothing received yet: no record
 	}
 	b := c.bot(peerID)
+	b.requested = requested // Before the video is collected: its height log names it
 	if len(rtts) > 0 {
 		sort.Slice(rtts, func(i, j int) bool { return rtts[i] < rtts[j] })
 		b.roundTrip = rtts[len(rtts)/2]
@@ -118,6 +121,7 @@ func (c *mediaCollector) collectVideo(peerID string, b *botQuality, k KindMediaS
 			}
 		}
 		c.logFreeze(peerID, b, i, s, now)
+		c.logHeight(peerID, b, i, s.Height)
 	}
 	if latency.N > 0 {
 		b.latency[media.KindVideo] = &latency
@@ -135,6 +139,22 @@ func (c *mediaCollector) collectVideo(peerID string, b *botQuality, k KindMediaS
 			b.heightTime[h] = d
 		}
 	}
+}
+
+// logHeight logs each change of the height stream i is received at: the
+// mediasoup comparison of 015 reads the layer forwarded over time from it,
+// that server giving no per-receiver estimate (research R7).
+func (c *mediaCollector) logHeight(peerID string, b *botQuality, i, height int) {
+	for len(b.heights) <= i {
+		b.heights = append(b.heights, 0)
+	}
+	if height == 0 || height == b.heights[i] {
+		return
+	}
+	c.logger.Info("Received video height changed",
+		slog.String("scenario_id", c.scenarioID), slog.String("peer_id", peerID), slog.Int("stream", i),
+		slog.Int("previous_height", b.heights[i]), slog.Int("height", height), slog.Int("requested_height", b.requested))
+	b.heights[i] = height
 }
 
 // logFreeze logs new freezes of stream i, at most once per stream per
@@ -321,6 +341,7 @@ func (c *mediaCollector) summary(now time.Time) *scenario.QualitySummary {
 	s.Worst.LowestMOS = worst(mosBots, false)
 	s.Worst.LowestRequestedHeight = worst(requestedBots, false)
 	s.Worst.MostFreezeSeconds = worst(freezeBots, true)
+	s.ReceptionReports = c.receptionReports(s.Video.Bots)
 	return s
 }
 
@@ -358,4 +379,77 @@ func worst(bots []scenario.BotValue, highFirst bool) []scenario.BotValue {
 		return []scenario.BotValue{}
 	}
 	return bots
+}
+
+// receptionReports builds the reception reports part of the summary (015
+// research R6) from the peers' last snapshots. videoBots is the number of
+// bots that received video.
+func (c *mediaCollector) receptionReports(videoBots int) scenario.ReceptionReports {
+	if videoBots == 0 {
+		return scenario.ReceptionReports{Reason: scenario.ReceptionNoVideo}
+	}
+	var negotiated, counted bool
+	var ids []string
+	for id, r := range c.reception {
+		negotiated = negotiated || r.negotiated
+		counted = counted || (r.negotiated && r.counting)
+		if r.negotiated && r.counting && r.arrived > 0 {
+			ids = append(ids, id)
+		}
+	}
+	switch {
+	case !negotiated:
+		return scenario.ReceptionReports{Reason: scenario.ReceptionNotNegotiated}
+	case !counted || len(ids) == 0:
+		return scenario.ReceptionReports{Reason: scenario.ReceptionNotCounted}
+	}
+	sort.Slice(ids, func(i, j int) bool { return launchOrderLess(ids[i], ids[j]) })
+	out := scenario.ReceptionReports{
+		Available: true,
+		Bots:      len(ids),
+		Limits:    scenario.ReceptionLimits{AcknowledgedShareMin: ackShareMin, LateShareMax: lateShareMax, LateIntervalMs: int(lateInterval / time.Millisecond)},
+		Flagged:   []string{},
+	}
+	var shares, lates, lags []float64
+	for _, id := range ids {
+		r := c.reception[id]
+		b := scenario.BotReception{
+			PeerID:              id,
+			PacketsArrived:      r.arrived,
+			PacketsAcknowledged: r.acknowledged,
+			AcknowledgedShare:   math.Min(1, float64(r.acknowledged)/float64(r.arrived)),
+			FeedbacksSent:       r.feedbacks,
+			IntervalMs:          scenario.MeanMax{Max: ms(r.intervalMax)},
+			StampLagMs:          scenario.MeanMax{Max: ms(r.lagMax)},
+		}
+		if r.intervals > 0 {
+			b.IntervalMs.Mean = ms(r.intervalSum) / float64(r.intervals)
+			b.LateShare = float64(r.late) / float64(r.intervals)
+		}
+		if r.lagN > 0 {
+			b.StampLagMs.Mean = ms(r.lagSum) / float64(r.lagN)
+		}
+		if b.AcknowledgedShare < ackShareMin || b.LateShare > lateShareMax {
+			out.Flagged = append(out.Flagged, id)
+		}
+		shares = append(shares, b.AcknowledgedShare)
+		lates = append(lates, b.LateShare)
+		lags = append(lags, b.StampLagMs.Max)
+		out.PerBot = append(out.PerBot, b)
+	}
+	out.AcknowledgedShare, out.LateShare, out.StampLagMaxMs = percentiles(shares), percentiles(lates), percentiles(lags)
+	return out
+}
+
+func ms(d time.Duration) float64 { return float64(d) / float64(time.Millisecond) }
+
+// launchOrderLess orders peer IDs ("peer-<scenario>-<i>") by their launch
+// index, then as strings.
+func launchOrderLess(a, b string) bool {
+	ia, erra := strconv.Atoi(a[strings.LastIndexByte(a, '-')+1:])
+	ib, errb := strconv.Atoi(b[strings.LastIndexByte(b, '-')+1:])
+	if erra == nil && errb == nil && ia != ib {
+		return ia < ib
+	}
+	return a < b
 }

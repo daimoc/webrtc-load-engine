@@ -1,0 +1,1535 @@
+{
+  "format_version": 3,
+  "run_id": "a9f9f5db",
+  "scenario": {
+    "id": "live-68e9ee6f",
+    "name": "live",
+    "platform": "jitsi"
+  },
+  "test_plan": {
+    "participants": 10,
+    "ramp_up_seconds": 0,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "connect_timeout": "20s",
+      "debug": false,
+      "muc_domain": "muc.meet.jitsi",
+      "no_bridge_channel": false,
+      "room_name": "c015jvp8fixed5",
+      "websocket_url": "ws://localhost:8000/xmpp-websocket?room=c015jvp8fixed5",
+      "xmpp_domain": "meet.jitsi"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "video_codec": "vp8"
+    },
+    "server_monitoring": {
+      "containers": [
+        "docker-jitsi-meet-jvb-1",
+        "docker-jitsi-meet-jicofo-1"
+      ],
+      "interval_seconds": 5
+    },
+    "browser": {
+      "url": "https://localhost:8443/c015jvp8fixed5#config.prejoinConfig.enabled=false\u0026config.startWithAudioMuted=true\u0026config.startWithVideoMuted=true",
+      "expected_height": 360,
+      "window": "1280x720",
+      "insecure_tls": true
+    }
+  },
+  "started_at": "2026-11-14T08:19:43.067012675Z",
+  "ended_at": "2026-11-14T08:20:47.385697183Z",
+  "duration_seconds": 64.319,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-68e9ee6f",
+    "generated_at": "2026-11-14T09:20:47.320608597+01:00",
+    "bots": 10,
+    "video": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0015,
+        "p95": 0.0015,
+        "p99": 0.0015
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 29.998873655134464,
+        "p95": 30.000018171095647,
+        "p99": 30.000018171095647
+      },
+      "freeze_seconds": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "freezes_total": 0,
+      "resolution_switches_total": 0,
+      "keyframe_requests_sent_total": 0,
+      "keyframe_requests_received_total": 10,
+      "height_share": {
+        "360": 1
+      },
+      "requested_height_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "single",
+        "content_bitrate_kbps": {
+          "360": 500
+        },
+        "received": {
+          "vp8": 10
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0015,
+        "p95": 0.0015,
+        "p99": 0.0015
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "mos": {
+        "p50": 4.368380349636567,
+        "p95": 4.368600668692663,
+        "p99": 4.368600668692663
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-68e9ee6f-9",
+          "value": 4.368343933263659
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-8",
+          "value": 4.36834757490095
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-1",
+          "value": 4.3683639622687584
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-6",
+          "value": 4.368371245543339
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-7",
+          "value": 4.368380349636567
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-4",
+          "value": 4.3684204076467665
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-2",
+          "value": 4.3684750322061285
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-0",
+          "value": 4.368511448579037
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-5",
+          "value": 4.36856971477569
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-3",
+          "value": 4.368600668692663
+        }
+      ],
+      "most_freeze_seconds": [],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-68e9ee6f-1",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-2",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-4",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-6",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-7",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-8",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-9",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-0",
+          "value": 0.0015
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-3",
+          "value": 0.0015
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-5",
+          "value": 0.0015
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-68e9ee6f-0",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-1",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-2",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-3",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-4",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-5",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-6",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-7",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-8",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-9",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-14T09:19:43.067109894+01:00",
+        "end": "2026-11-14T09:20:47.32061343+01:00"
+      },
+      "containers": [
+        {
+          "name": "docker-jitsi-meet-jvb-1",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 0.787,
+            "peak": 0.904,
+            "first": 0.904
+          },
+          "memory_bytes": {
+            "peak": 970944512,
+            "first": 887943168
+          },
+          "samples": 14,
+          "missed": 0
+        },
+        {
+          "name": "docker-jitsi-meet-jicofo-1",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 0.005,
+            "peak": 0.028,
+            "first": 0.028
+          },
+          "memory_bytes": {
+            "peak": 259039232,
+            "first": 258535424
+          },
+          "samples": 14,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 2,
+        "cpu_threads": {
+          "average": 0.791,
+          "peak": 0.932,
+          "first": 0.932
+        },
+        "memory_bytes": {
+          "peak": 1229729792,
+          "first": 1146478592
+        },
+        "samples": 14,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-14T09:19:43.067109894+01:00",
+        "end": "2026-11-14T09:20:47.32061343+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 0.388,
+          "peak": 0.428,
+          "first": 0.306
+        },
+        "memory_bytes": {
+          "peak": 105967616,
+          "first": 20275200
+        },
+        "samples": 14,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    },
+    "reception_reports": {
+      "available": true,
+      "bots": 10,
+      "acknowledged_share": {
+        "p50": 0.9999731457113701,
+        "p95": 1,
+        "p99": 1
+      },
+      "late_share": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "stamp_lag_max_ms": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "limits": {
+        "acknowledged_share_min": 0.99,
+        "late_share_max": 0.01,
+        "late_interval_ms": 200
+      },
+      "flagged": [],
+      "per_bot": [
+        {
+          "peer_id": "peer-live-68e9ee6f-0",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37219,
+          "acknowledged_share": 0.9999731327243417,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 99.99882062640903,
+            "max": 103.109905
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-1",
+          "packets_arrived": 37238,
+          "packets_acknowledged": 37237,
+          "acknowledged_share": 0.9999731457113701,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 99.99835488906753,
+            "max": 101.013443
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-2",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37219,
+          "acknowledged_share": 0.9999731327243417,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00043734460547,
+            "max": 101.150541
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-3",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37219,
+          "acknowledged_share": 0.9999731327243417,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00025419645732,
+            "max": 101.315882
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-4",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37219,
+          "acknowledged_share": 0.9999731327243417,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 99.99981880837359,
+            "max": 101.065688
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-5",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37220,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00043284380031,
+            "max": 101.179851
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-6",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37220,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.00042811272141,
+            "max": 101.160784
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-7",
+          "packets_arrived": 37220,
+          "packets_acknowledged": 37220,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 622,
+          "interval_ms": {
+            "mean": 100.0003113768116,
+            "max": 101.131789
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-8",
+          "packets_arrived": 37238,
+          "packets_acknowledged": 37238,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 100.00011440192925,
+            "max": 101.091925
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-68e9ee6f-9",
+          "packets_arrived": 37238,
+          "packets_acknowledged": 37238,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 623,
+          "interval_ms": {
+            "mean": 100.00014733279743,
+            "max": 101.235006
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        }
+      ]
+    }
+  },
+  "browser": {
+    "status": "measured",
+    "url": "https://localhost:8443/c015jvp8fixed5#config.prejoinConfig.enabled=false\u0026config.startWithAudioMuted=true\u0026config.startWithVideoMuted=true",
+    "window": "1280x720",
+    "browser_version": "Chrome/156.0.8078.79",
+    "period": {
+      "start": "2026-11-14T08:19:43.875391644Z",
+      "end": "2026-11-14T08:20:46.891835098Z"
+    },
+    "video_streams": 10,
+    "height_share": {
+      "360": 1
+    },
+    "expected_height": 360,
+    "expected_height_share": 1,
+    "seconds_to_expected_height": 2.015176443,
+    "received_bitrate_kbps": {
+      "average": 4910.639555814592,
+      "peak": 5164.29861483138
+    },
+    "freezes_total": 0,
+    "freeze_seconds": 0,
+    "freeze_source": "browser",
+    "cpu_threads_average": 1.2957833965578334,
+    "samples": [
+      {
+        "t": 1.019672544,
+        "heights": [],
+        "kbps": 0
+      },
+      {
+        "t": 2.015176443,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4244.0416398610205
+      },
+      {
+        "t": 3.01862456,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5070.037916070952
+      },
+      {
+        "t": 4.016522744,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4841.776523365233
+      },
+      {
+        "t": 5.019293527,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5127.951558995512
+      },
+      {
+        "t": 6.017554096,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5109.126973841239
+      },
+      {
+        "t": 7.019460956,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5060.590163041702
+      },
+      {
+        "t": 8.015873803,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4933.537353317564
+      },
+      {
+        "t": 9.014865796,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5044.444835705502
+      },
+      {
+        "t": 10.014794624,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4616.008530559138
+      },
+      {
+        "t": 11.014874602,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5124.310167921388
+      },
+      {
+        "t": 12.008755619,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5119.566540629482
+      },
+      {
+        "t": 13.01172723,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5077.790781059308
+      },
+      {
+        "t": 14.011393057,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4835.775985768495
+      },
+      {
+        "t": 15.023309242,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5081.606635237283
+      },
+      {
+        "t": 16.015686761,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5139.415093904391
+      },
+      {
+        "t": 17.014497031,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5076.279401892814
+      },
+      {
+        "t": 18.016653103,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4905.263897857228
+      },
+      {
+        "t": 19.013172258,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5056.962502642503
+      },
+      {
+        "t": 20.015030751,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4607.117703996944
+      },
+      {
+        "t": 21.013345273,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5133.372185885134
+      },
+      {
+        "t": 22.016119661,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5074.162304990969
+      },
+      {
+        "t": 23.024048601,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5052.81652097419
+      },
+      {
+        "t": 24.012933486,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4888.496197411285
+      },
+      {
+        "t": 25.016301981,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5124.896810717581
+      },
+      {
+        "t": 26.015856904,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5102.5110102929375
+      },
+      {
+        "t": 27.015550931,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5071.791831362016
+      },
+      {
+        "t": 28.016136989,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4912.960720066321
+      },
+      {
+        "t": 29.017680923,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5031.591554724544
+      },
+      {
+        "t": 30.014765741,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4629.1748873063225
+      },
+      {
+        "t": 31.013803021,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5129.658424758686
+      },
+      {
+        "t": 32.013816658,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5088.170612617345
+      },
+      {
+        "t": 33.017247655,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5075.466091067969
+      },
+      {
+        "t": 34.019115373,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4825.147984257141
+      },
+      {
+        "t": 35.014828515,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5164.29861483138
+      },
+      {
+        "t": 36.019099054,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5078.551846276933
+      },
+      {
+        "t": 37.009224524,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5120.805548007996
+      },
+      {
+        "t": 38.013465386,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4895.080638533094
+      },
+      {
+        "t": 39.014779761,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5032.745085678013
+      },
+      {
+        "t": 40.016063384,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4609.762802442246
+      },
+      {
+        "t": 41.014023439,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5135.195516417739
+      },
+      {
+        "t": 42.023450451,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5040.721062059298
+      },
+      {
+        "t": 43.022129207,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5099.617839472713
+      },
+      {
+        "t": 44.015681131,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4865.533328683877
+      },
+      {
+        "t": 45.012902447,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5156.488251400349
+      },
+      {
+        "t": 46.013737457,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5095.984801730728
+      },
+      {
+        "t": 47.013659845,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5070.633542010454
+      },
+      {
+        "t": 48.015381136,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4907.392948683954
+      },
+      {
+        "t": 49.015067509,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5040.940975195248
+      },
+      {
+        "t": 50.013949883,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4620.844375816347
+      },
+      {
+        "t": 51.013456447,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5127.249969716054
+      },
+      {
+        "t": 52.014244699,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5084.232343686626
+      },
+      {
+        "t": 53.015578811,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5086.094580187462
+      },
+      {
+        "t": 54.007820339,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4871.958957154226
+      },
+      {
+        "t": 55.021442393,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5073.054576612426
+      },
+      {
+        "t": 56.012005375,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5148.829597591402
+      },
+      {
+        "t": 57.014538605,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5057.428370728433
+      },
+      {
+        "t": 58.018383236,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4897.01279280937
+      },
+      {
+        "t": 59.015227292,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5055.314288797843
+      },
+      {
+        "t": 60.01398297,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 4621.430547701969
+      },
+      {
+        "t": 61.007772093,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5156.747927095198
+      },
+      {
+        "t": 62.018238454,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5035.5362596776295
+      },
+      {
+        "t": 63.016443476,
+        "heights": [
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360,
+          360
+        ],
+        "kbps": 5102.038046047816
+      }
+    ]
+  }
+}

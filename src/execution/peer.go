@@ -194,6 +194,9 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 	}
 	p.allowed.Store(&map[uint32]bool{})
 	p.feedback = newTransportFeedback()
+	if skipRecordEvery > 0 && id == skipRecordPeer {
+		p.feedback.skipEvery = uint64(skipRecordEvery)
+	}
 
 	// Default codecs and interceptors, so the peer can answer audio/video
 	// offers; see newPeerConnection for the receive settings.

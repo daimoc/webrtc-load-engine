@@ -53,6 +53,13 @@ import (
 	"webrtc-load-engine/src/scenario"
 )
 
+// LIVEKIT_BROWSER_URL (015) adds a headless browser beside the bots: the
+// engine opens that address, which must join the room by itself, and the
+// report gives what the browser received; LIVEKIT_BROWSER_HEIGHT is the
+// height its share is measured against, LIVEKIT_BROWSER_WINDOW its window
+// (default 1280x720) and LIVEKIT_BROWSER_INSECURE_TLS=1 accepts a
+// self-signed certificate. LIVEKIT_SERVER_SETTINGS (written by sfu-remote
+// deploy) names the server settings the deployment changed.
 func TestLiveKitLive_JoinAndEstablishMedia(t *testing.T) {
 	if os.Getenv("LIVEKIT_URL") == "" {
 		t.Skip("LIVEKIT_URL not set")
@@ -98,6 +105,8 @@ func TestLiveKitLive_JoinAndEstablishMedia(t *testing.T) {
 			RequestedHeights:   requestedHeightsFrom(t, "LIVEKIT"),
 		},
 		ServerMonitoring: monitoring,
+		Browser:          browserFrom(t, "LIVEKIT"),
+		ServerSettings:   serverSettingsFrom(t, "LIVEKIT"),
 	})
 	if err != nil {
 		t.Fatalf("test plan: %v", err)
@@ -138,6 +147,7 @@ func TestLiveKitLive_JoinAndEstablishMedia(t *testing.T) {
 			t.Errorf("expected the run to end stopped, got %s", status)
 		}
 		writeReport(t, sc, scenarioID, config, result)
+		logBrowser(t, result.Browser)
 		quality := result.Quality
 		t.Logf("bots left in %s", time.Since(stopped).Round(time.Millisecond))
 		if time.Since(stopped) > 10*time.Second {

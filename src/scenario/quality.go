@@ -1,6 +1,7 @@
 package scenario
 
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -117,6 +118,8 @@ type QualitySummary struct {
 	// and of the engine during the run (007).
 	Server      ServerLoad  `json:"server"`
 	LoadMachine LoadMachine `json:"load_machine"`
+	// ReceptionReports is how the bots reported their reception (015).
+	ReceptionReports ReceptionReports `json:"reception_reports"`
 }
 
 // Server load of a run (specs/007-server-load-report/contracts/server-load-summary.yaml).
@@ -229,4 +232,110 @@ func (v *VideoQuality) MarkLayersNotForwarded(maxRequested int) {
 		}
 	}
 	c.LayersNotForwarded = true
+}
+
+// Reception reports of a run (015,
+// specs/015-bandwidth-estimate-parity/contracts/report.md): how completely
+// and how regularly the bots reported their reception to the server.
+
+// Reasons the reception reports are not measured.
+const (
+	ReceptionNoVideo       = "no_video"       // The run has no video
+	ReceptionNotNegotiated = "not_negotiated" // No bot's offer carried a transport-wide sequence number
+	ReceptionNotCounted    = "not_counted"    // The bots' sockets were not seen (network replaced in a test)
+)
+
+// MeanMax is the mean and the largest of a measure.
+type MeanMax struct {
+	Mean float64 `json:"mean"`
+	Max  float64 `json:"max"`
+}
+
+// ReceptionLimits are the limits a bot is flagged against.
+type ReceptionLimits struct {
+	AcknowledgedShareMin float64 `json:"acknowledged_share_min"`
+	LateShareMax         float64 `json:"late_share_max"`
+	LateIntervalMs       int     `json:"late_interval_ms"`
+}
+
+// BotReception is one bot's reception reports over a run.
+type BotReception struct {
+	PeerID string `json:"peer_id"`
+	// PacketsArrived counts the RTP packets with a transport-wide sequence
+	// number read from the bot's socket.
+	PacketsArrived uint64 `json:"packets_arrived"`
+	// PacketsAcknowledged counts the packets reported as received in
+	// feedback that was sent.
+	PacketsAcknowledged uint64  `json:"packets_acknowledged"`
+	AcknowledgedShare   float64 `json:"acknowledged_share"`
+	FeedbacksSent       uint64  `json:"feedbacks_sent"`
+	// IntervalMs is the time between two feedbacks.
+	IntervalMs MeanMax `json:"interval_ms"`
+	// LateShare is the share of intervals over the late interval.
+	LateShare float64 `json:"late_share"`
+	// StampLagMs is the time between a packet's socket read and its
+	// recording for feedback.
+	StampLagMs MeanMax `json:"stamp_lag_ms"`
+}
+
+// ReceptionReports is the reception reports part of the summary. Without
+// Available, only available and reason are given: a missing measure is
+// never a zero.
+type ReceptionReports struct {
+	Available         bool
+	Reason            string
+	Bots              int
+	AcknowledgedShare *Percentiles
+	LateShare         *Percentiles
+	StampLagMaxMs     *Percentiles
+	Limits            ReceptionLimits
+	Flagged           []string
+	PerBot            []BotReception
+}
+
+// MarshalJSON writes the contract's layout.
+func (r ReceptionReports) MarshalJSON() ([]byte, error) {
+	if !r.Available {
+		return json.Marshal(struct {
+			Available bool   `json:"available"`
+			Reason    string `json:"reason"`
+		}{false, r.Reason})
+	}
+	flagged, perBot := r.Flagged, r.PerBot
+	if flagged == nil {
+		flagged = []string{}
+	}
+	if perBot == nil {
+		perBot = []BotReception{}
+	}
+	return json.Marshal(struct {
+		Available         bool            `json:"available"`
+		Bots              int             `json:"bots"`
+		AcknowledgedShare *Percentiles    `json:"acknowledged_share"`
+		LateShare         *Percentiles    `json:"late_share"`
+		StampLagMaxMs     *Percentiles    `json:"stamp_lag_max_ms"`
+		Limits            ReceptionLimits `json:"limits"`
+		Flagged           []string        `json:"flagged"`
+		PerBot            []BotReception  `json:"per_bot"`
+	}{true, r.Bots, r.AcknowledgedShare, r.LateShare, r.StampLagMaxMs, r.Limits, flagged, perBot})
+}
+
+// UnmarshalJSON reads the contract's layout.
+func (r *ReceptionReports) UnmarshalJSON(data []byte) error {
+	var v struct {
+		Available         bool            `json:"available"`
+		Reason            string          `json:"reason"`
+		Bots              int             `json:"bots"`
+		AcknowledgedShare *Percentiles    `json:"acknowledged_share"`
+		LateShare         *Percentiles    `json:"late_share"`
+		StampLagMaxMs     *Percentiles    `json:"stamp_lag_max_ms"`
+		Limits            ReceptionLimits `json:"limits"`
+		Flagged           []string        `json:"flagged"`
+		PerBot            []BotReception  `json:"per_bot"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	*r = ReceptionReports(v)
+	return nil
 }

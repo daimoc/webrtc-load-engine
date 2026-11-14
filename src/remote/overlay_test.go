@@ -36,20 +36,60 @@ func TestJanusRemote_NotBoundToLoopback(t *testing.T) {
 	}
 }
 
-// TestJitsiRemote_IgnoresBandwidthEstimate: as deployed, the bridge drops
-// streams for bots whose bandwidth estimate is low (2.9 Mbps for 4.6 needed
-// on a 1 Gb/s LAN, validation-report.md SC-002), which the other servers do
-// not do. The user chose on 2026-11-07 to turn that off for remote runs.
-func TestJitsiRemote_IgnoresBandwidthEstimate(t *testing.T) {
+// TestJitsiRemote_DefaultBandwidthEstimate (015 FR-011): the remote bridge
+// uses its bandwidth estimate as by default. 013 turned it off
+// (JVB_CC_TRUST_BWE=false) because the bridge suspended some bots' streams
+// on a LAN; 015 found the bots caused it and corrected them, and the user
+// chose on 2026-11-14 to return to the default.
+func TestJitsiRemote_DefaultBandwidthEstimate(t *testing.T) {
 	overlay, err := os.ReadFile(filepath.Join("..", "..", "tests", "platforms", "docker-jitsi-meet", "docker-compose.remote.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	jvb := regexp.MustCompile(`(?ms)^  jvb:\n(.*?)(?:^  \S|\z)`).FindSubmatch(overlay)
-	if jvb == nil {
-		t.Fatal("no jvb service in the overlay")
+	if strings.Contains(string(overlay), "JVB_CC_TRUST_BWE") {
+		t.Errorf("the remote overlay sets JVB_CC_TRUST_BWE:\n%s", overlay)
 	}
-	if !regexp.MustCompile(`(?m)^\s+JVB_CC_TRUST_BWE: "false"$`).Match(jvb[1]) {
-		t.Errorf("jvb does not set JVB_CC_TRUST_BWE to false:\n%s", jvb[1])
+}
+
+// TestOverlays_DeclareTheirSettings (015 FR-012): what a remote overlay sets
+// in a service's environment changes the server from its defaults, and the
+// reports name it from Server.Settings; an overlay setting not declared, or
+// a declared one the overlay no longer sets, would make the reports wrong.
+func TestOverlays_DeclareTheirSettings(t *testing.T) {
+	envLine := regexp.MustCompile(`^\s+([A-Z][A-Z0-9_]*):\s*"?([^"#]*?)"?\s*$`)
+	for _, s := range servers {
+		overlay, err := os.ReadFile(filepath.Join("..", "..", "tests", "platforms", s.Folder, "docker-compose.remote.yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		set := map[string]string{}
+		in := false
+		indent := 0
+		for _, line := range strings.Split(string(overlay), "\n") {
+			trimmed := strings.TrimLeft(line, " ")
+			if strings.HasPrefix(trimmed, "#") || trimmed == "" {
+				continue
+			}
+			lead := len(line) - len(trimmed)
+			if trimmed == "environment:" {
+				in, indent = true, lead
+				continue
+			}
+			if in && lead <= indent {
+				in = false
+			}
+			if m := envLine.FindStringSubmatch(line); in && m != nil {
+				set[m[1]] = m[2]
+			}
+		}
+		if len(set) != len(s.Settings) {
+			t.Errorf("%s: overlay sets %v, Server.Settings declares %v", s.Name, set, s.Settings)
+			continue
+		}
+		for k, v := range s.Settings {
+			if set[k] != v {
+				t.Errorf("%s: overlay sets %s=%q, declared %q", s.Name, k, set[k], v)
+			}
+		}
 	}
 }

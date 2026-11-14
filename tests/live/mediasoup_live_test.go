@@ -11,7 +11,8 @@ package live
 //
 // MEDIASOUP_URL and MEDIASOUP_ROOM (default load010) are the platform_config;
 // MEDIASOUP_ORIGIN sets its origin, MEDIASOUP_UNLIMITED_ROOM_SECRET its
-// unlimited_room_secret, MEDIASOUP_PIPE=1 its use_pipe_transports and
+// unlimited_room_secret, MEDIASOUP_LOG_SERVER_STATS=1 its log_server_stats
+// (015), MEDIASOUP_PIPE=1 its use_pipe_transports and
 // MEDIASOUP_INSECURE_TLS=1 its insecure_tls. MEDIASOUP_PARTICIPANTS (default
 // 2) bots join over MEDIASOUP_RAMP_UP seconds (default 0), send
 // MEDIASOUP_MEDIA (receive_only, audio or audio_video; default audio_video),
@@ -52,6 +53,13 @@ import (
 	"webrtc-load-engine/src/scenario"
 )
 
+// MEDIASOUP_BROWSER_URL (015) adds a headless browser beside the bots: the
+// engine opens that address, which must join the room by itself, and the
+// report gives what the browser received; MEDIASOUP_BROWSER_HEIGHT is the
+// height its share is measured against, MEDIASOUP_BROWSER_WINDOW its window
+// (default 1280x720) and MEDIASOUP_BROWSER_INSECURE_TLS=1 accepts a
+// self-signed certificate. MEDIASOUP_SERVER_SETTINGS (written by sfu-remote
+// deploy) names the server settings the deployment changed.
 func TestMediasoupLive_JoinAndEstablishMedia(t *testing.T) {
 	if os.Getenv("MEDIASOUP_URL") == "" {
 		t.Skip("MEDIASOUP_URL not set")
@@ -85,6 +93,9 @@ func TestMediasoupLive_JoinAndEstablishMedia(t *testing.T) {
 	if os.Getenv("MEDIASOUP_PIPE") != "" {
 		config["use_pipe_transports"] = true
 	}
+	if os.Getenv("MEDIASOUP_LOG_SERVER_STATS") != "" {
+		config["log_server_stats"] = true // 015: the server's estimate and layers per bot, in the log
+	}
 	if os.Getenv("MEDIASOUP_INSECURE_TLS") != "" {
 		config["insecure_tls"] = true
 	}
@@ -107,6 +118,8 @@ func TestMediasoupLive_JoinAndEstablishMedia(t *testing.T) {
 			RequestedHeights:   requestedHeightsFrom(t, "MEDIASOUP"),
 		},
 		ServerMonitoring: monitoring,
+		Browser:          browserFrom(t, "MEDIASOUP"),
+		ServerSettings:   serverSettingsFrom(t, "MEDIASOUP"),
 	})
 	if err != nil {
 		t.Fatalf("test plan: %v", err)
@@ -147,6 +160,7 @@ func TestMediasoupLive_JoinAndEstablishMedia(t *testing.T) {
 			t.Errorf("expected the run to end stopped, got %s", status)
 		}
 		writeReport(t, sc, scenarioID, config, result)
+		logBrowser(t, result.Browser)
 		quality := result.Quality
 		t.Logf("bots left in %s", time.Since(stopped).Round(time.Millisecond))
 		if time.Since(stopped) > 10*time.Second {

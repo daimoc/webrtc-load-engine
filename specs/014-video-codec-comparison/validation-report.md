@@ -818,7 +818,10 @@ over the 013 baseline in all.
   1 minute locally 0.53 (VP8), 0.61 (VP9), 0.86 (AV1), H.264 0.996; on the
   remote machine 0.55 (VP8), 0.71 (VP9), 0.85 (AV1), H.264 0.70 and 0.59.
   Cause between mediasoup's ramp-up and the bots' feedback not settled
-  (not compared with a browser).
+  (not compared with a browser). **015**: compared with a browser in the
+  same room: verdict "the bots"; the held bots never receive mediasoup's
+  probes, which mediasoup's own SRTP refuses; not corrected
+  (specs/015-bandwidth-estimate-parity/validation-report.md, SC-004).
 - SC-008 for H.264 on Jitsi (T055, T059, T060): the bridge forwards only
   the lowest H.264 simulcast layer (no H.264 parser in
   `jitsi-media-transform`); reported as `layers_not_forwarded`.
@@ -830,7 +833,11 @@ over the 013 baseline in all.
   on freezes or hold bots below their requested height, on the build
   before 014 too; the 014 local tables are with `JVB_CC_TRUST_BWE=false`
   (a scratch override). The local setup is unchanged; the reports do not
-  record the setting.
+  record the setting. **015**: verdict "the bots" (the bots did not
+  acknowledge the copies the bridge sends); corrected: no suspended stream
+  in VP8 at 10 bots with the default settings; AV1 still suspends some bots
+  at start-up with ramp-up 0; reports now state the server's settings
+  (specs/015-bandwidth-estimate-parity/validation-report.md, SC-003, SC-005).
 - The 16 single-stream VP9 runs of T044 measured VP9 latency with the
   earlier carrier (marker after the frame data); not redone with the
   padding carrier.

@@ -49,6 +49,12 @@ type TestPlan struct {
 	// specs/007-server-load-report/contracts/test-plan-server.yaml); nil:
 	// none.
 	ServerMonitoring *ServerMonitoringConfig `json:"server_monitoring,omitempty"`
+	// Browser asks for one headless browser beside the bots (015); nil:
+	// none, and no browser is looked for.
+	Browser *BrowserConfig `json:"browser,omitempty"`
+	// ServerSettings states the server's settings that differ from its
+	// defaults (015); nil: not known to the run.
+	ServerSettings *ServerSettingsConfig `json:"server_settings,omitempty"`
 }
 
 // Limits of the server_monitoring section.
@@ -315,6 +321,16 @@ func NewScenario(name, platform string, testPlan TestPlan) (*Scenario, error) {
 		return nil, err
 	}
 	testPlan.ServerMonitoring = monitoring
+	browser, err := testPlan.Browser.withDefaults()
+	if err != nil {
+		return nil, err
+	}
+	testPlan.Browser = browser
+	settings, err := testPlan.ServerSettings.withDefaults()
+	if err != nil {
+		return nil, err
+	}
+	testPlan.ServerSettings = settings
 
 	return &Scenario{
 		Name:      name,
@@ -326,9 +342,9 @@ func NewScenario(name, platform string, testPlan TestPlan) (*Scenario, error) {
 }
 
 // snapshot returns a copy of the scenario that callers may read without the
-// service lock. TestPlan.PlatformConfig, TestPlan.Media and
-// TestPlan.ServerMonitoring are shared: they
-// are never modified after creation.
+// service lock. TestPlan.PlatformConfig, TestPlan.Media,
+// TestPlan.ServerMonitoring, TestPlan.Browser and TestPlan.ServerSettings
+// are shared: they are never modified after creation.
 func (s *Scenario) snapshot() *Scenario {
 	c := *s
 	return &c

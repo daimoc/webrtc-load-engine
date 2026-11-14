@@ -32,3 +32,6 @@ tests/platforms/mediasoup/certs/*
 # Run reports (009): two files per run
 /reports/
 .claude/settings.local.json
+
+# Python bytecode (validation scripts)
+__pycache__/

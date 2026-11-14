@@ -23,9 +23,15 @@ type PlatformCatalog interface {
 const Redacted = "[redacted]"
 
 // RedactTestPlan returns a copy of tp whose platform_config has the
-// non-empty values of keys replaced by Redacted; tp is not changed.
+// non-empty values of keys replaced by Redacted, and whose browser address
+// has its token parameters hidden (015); tp is not changed.
 func RedactTestPlan(tp TestPlan, keys []string) TestPlan {
 	tp.PlatformConfig = redactPlatformConfig(tp.PlatformConfig, keys)
+	if tp.Browser != nil {
+		b := *tp.Browser
+		b.URL = RedactBrowserURL(b.URL)
+		tp.Browser = &b
+	}
 	return tp
 }
 

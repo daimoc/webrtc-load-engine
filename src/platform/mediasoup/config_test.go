@@ -59,6 +59,7 @@ func TestParseConfig_Errors(t *testing.T) {
 		"unknown key":    {map[string]any{"url": "ws://x", "room": "r", "token": "t"}, `platform_config: unknown key "token" for platform mediasoup`},
 		"tls not bool":   {map[string]any{"url": "ws://x", "room": "r", "insecure_tls": "yes"}, "platform_config.insecure_tls must be a boolean"},
 		"pipe not bool":  {map[string]any{"url": "ws://x", "room": "r", "use_pipe_transports": 1}, "platform_config.use_pipe_transports must be a boolean"},
+		"stats not bool": {map[string]any{"url": "ws://x", "room": "r", "log_server_stats": "yes"}, "platform_config.log_server_stats must be a boolean"},
 		"room not str":   {map[string]any{"url": "ws://x", "room": 3}, "platform_config.room must be a string"},
 		"secret not str": {map[string]any{"url": "ws://x", "room": "r", "unlimited_room_secret": true}, "platform_config.unlimited_room_secret must be a string"},
 		"bad origin":     {map[string]any{"url": "ws://x", "room": "r", "origin": "ws://x"}, `platform_config.origin must be an http:// or https:// URL, got "ws://x"`},
@@ -113,5 +114,15 @@ func TestConfig_LogsNoSecret(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "has_unlimited_room_secret=true") {
 		t.Errorf("log lacks has_unlimited_room_secret: %s", buf.String())
+	}
+}
+
+func TestParseConfig_LogServerStats(t *testing.T) {
+	c, err := ParseConfig(map[string]any{"url": "ws://x", "room": "r", "log_server_stats": true})
+	if err != nil || !c.LogServerStats {
+		t.Fatalf("got %+v, %v", c, err)
+	}
+	if c, _ := ParseConfig(map[string]any{"url": "ws://x", "room": "r"}); c.LogServerStats {
+		t.Fatal("log_server_stats on by default")
 	}
 }

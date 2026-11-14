@@ -50,6 +50,17 @@ properties:
       workers, else the join fails with the server's reason.
     errors:
       invalid: "platform_config.use_pipe_transports must be a boolean"
+  log_server_stats:
+    type: boolean
+    default: false
+    description: >
+      Added by 015, validation only. Each bot logs the server's view of its
+      receiving session: the demo's consumerLayersChanged and consumerScore
+      notifications, and getTransportStats of its receiving transport once
+      per second (availableOutgoingBitrate is mediasoup's estimate toward
+      the bot). One more request per bot per second.
+    errors:
+      invalid: "platform_config.log_server_stats must be a boolean"
 
 # Creation-time rules on the rest of the test plan for platform mediasoup (FR-008)
 media_rules:

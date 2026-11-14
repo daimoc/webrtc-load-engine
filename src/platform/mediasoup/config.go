@@ -26,6 +26,12 @@ type Config struct {
 	InsecureTLS         bool
 	UnlimitedRoomSecret string // Never logged
 	UsePipeTransports   bool
+	// LogServerStats logs, per bot, the server's view of its receiving
+	// session: consumerLayersChanged and consumerScore notifications, and
+	// the receiving transport's stats (availableOutgoingBitrate: the
+	// server's estimate toward the bot) once per second. Validation only
+	// (015: mediasoup gives no other way to read its estimate).
+	LogServerStats bool
 	// VideoCodec is the test plan's video codec, not a platform_config
 	// key (014). Empty is VP8.
 	VideoCodec media.VideoCodec
@@ -34,7 +40,7 @@ type Config struct {
 	Arrangement media.Arrangement
 }
 
-var configKeys = []string{"url", "room", "origin", "insecure_tls", "unlimited_room_secret", "use_pipe_transports"}
+var configKeys = []string{"url", "room", "origin", "insecure_tls", "unlimited_room_secret", "use_pipe_transports", "log_server_stats"}
 
 // String shows the config without its secret.
 func (c Config) String() string {
@@ -101,6 +107,9 @@ func ParseConfig(m map[string]any) (Config, error) {
 		return Config{}, err
 	}
 	if c.UsePipeTransports, err = boolean("use_pipe_transports"); err != nil {
+		return Config{}, err
+	}
+	if c.LogServerStats, err = boolean("log_server_stats"); err != nil {
 		return Config{}, err
 	}
 

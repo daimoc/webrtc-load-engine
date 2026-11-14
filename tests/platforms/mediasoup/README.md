@@ -71,6 +71,19 @@ Limits found (specs/014-video-codec-comparison/validation-report.md):
   estimate keeps falling back (under 95% of the time at 720 in VP8, VP9
   and AV1).
 
+Found in 015 (specs/015-bandwidth-estimate-parity/validation-report.md,
+SC-004): a bot held under 720 is one whose receiving session never gets
+mediasoup's probe packets. mediasoup counts them as sent, and its log has
+`srtp_protect() failed: replay check failed (index too old)` and
+`kWaitingForProbingResult: timeout` in proportion to the bots held; its
+estimate toward those bots then stays near the demo's 1 Mbit/s start.
+Their feedback is complete. A headless browser in the same room, receiving
+every participant, had 720 within a second. Why mediasoup refuses those
+bots' probes is not found; the bots were not changed for it. With
+`"log_server_stats": true` in `platform_config` (`MEDIASOUP_LOG_SERVER_STATS=1`)
+each bot logs mediasoup's estimate toward it once per second and the
+server's layer and score notifications.
+
 Live test, from the repository root:
 
 ```bash

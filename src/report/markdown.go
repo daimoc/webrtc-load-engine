@@ -31,15 +31,24 @@ func Markdown(run Run) []byte {
 
 	writeKeyFigures(&b, run)
 	if q == nil {
-		for _, h := range []string{"Audio", "Video", "Server", "Load machine", "Worst bots"} {
+		for _, h := range []string{"Audio", "Video", "Reception reports", "Server", "Load machine"} {
 			fmt.Fprintf(&b, "\n## %s\n\nNot measured: %s.\n", h, notMeasuredFailed)
 		}
 	} else {
 		writeAudio(&b, q.Audio)
-		writeVideo(&b, q.Video, run.Scenario.Platform)
+		writeVideo(&b, q.Video, run.Scenario.Platform, q.ReceptionReports)
+		writeReception(&b, q.ReceptionReports)
 		writeServer(&b, q.Server)
 		writeLoadMachine(&b, q.LoadMachine)
+		writeBrowserLoad(&b, run.Browser)
+	}
+	if run.Browser != nil {
+		writeBrowser(&b, run.Browser)
+	}
+	if q != nil {
 		writeWorst(&b, q.Worst)
+	} else {
+		fmt.Fprintf(&b, "\n## Worst bots\n\nNot measured: %s.\n", notMeasuredFailed)
 	}
 
 	plan, _ := json.MarshalIndent(run.TestPlan, "", "  ")
@@ -56,7 +65,19 @@ func writeKeyFigures(b *strings.Builder, run Run) {
 		{"Test duration", fmt.Sprintf("%d s (ramp-up %d s); run %.3f s", tp.DurationSeconds, tp.RampUpSeconds, run.DurationSeconds)},
 		{"Outcome", run.Outcome.Status},
 	}
+	// 015 rows: after the codec rows when there are some.
+	rows015 := func() {
+		reception := notMeasured(notMeasuredFailed)
+		if q != nil {
+			reception = receptionRow(q.ReceptionReports)
+		}
+		rows = append(rows, [2]string{"Server settings", serverSettingsRow(tp.ServerSettings)}, [2]string{"Reception reports", reception})
+		if run.Browser != nil {
+			rows = append(rows, [2]string{"Browser", browserRow(run.Browser)})
+		}
+	}
 	if q == nil {
+		rows015()
 		for _, label := range []string{"Audio MOS", "Audio concealed", "Video freezes", "Video frame rate", "Video resolution",
 			"Latency p50 (audio / video)", "Server CPU (total)", "Server memory (total)", "Engine CPU / memory"} {
 			rows = append(rows, [2]string{label, notMeasured(notMeasuredFailed)})
@@ -66,6 +87,7 @@ func writeKeyFigures(b *strings.Builder, run Run) {
 		if c := q.Video.Codec; c != nil {
 			rows = append(rows, [2]string{"Video codec", codecRow(c)}, [2]string{"Video content bitrate", bitrateRow(c.ContentBitrateKbps)})
 		}
+		rows015()
 		a, v := q.Audio, q.Video
 		mos, concealed := notMeasured(a.Reason), notMeasured(a.Reason)
 		if a.Available {
@@ -197,7 +219,7 @@ func writeCodecMismatch(b *strings.Builder, c *scenario.VideoCodecResult) {
 	}
 }
 
-func writeVideo(b *strings.Builder, v scenario.VideoQuality, platform string) {
+func writeVideo(b *strings.Builder, v scenario.VideoQuality, platform string, reception scenario.ReceptionReports) {
 	defer writeCodecMismatch(b, v.Codec)
 	b.WriteString("\n## Video\n\n")
 	if c := v.Codec; c != nil && c.LayersNotForwarded {
@@ -208,6 +230,7 @@ func writeVideo(b *strings.Builder, v scenario.VideoQuality, platform string) {
 		return
 	}
 	fmt.Fprintf(b, "Bots receiving video: %d.\n\n", v.Bots)
+	writeReceptionWarning(b, reception)
 	writePercentiles(b, []pctRow{
 		{"Frame rate", v.FrameRate, func(f float64) string { return fmt.Sprintf("%.1f fps", f) }},
 		{"Freeze time", v.FreezeSeconds, func(f float64) string { return fmt.Sprintf("%.3f s", f) }},

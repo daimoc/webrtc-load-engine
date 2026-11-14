@@ -16,7 +16,10 @@ type fakeMediaPeer struct {
 	snap      map[string]KindMediaSnapshot
 	transport uint64 // Transport bytes received
 	height    int    // Requested video height (0: 360)
+	reception feedbackSnapshot
 }
+
+func (f *fakeMediaPeer) ReceptionReports() feedbackSnapshot { return f.reception }
 
 func (f *fakeMediaPeer) TransportBytesReceived() uint64 { return f.transport }
 func (f *fakeMediaPeer) RequestedVideoHeight() int {

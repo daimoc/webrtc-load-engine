@@ -9,10 +9,3 @@ services:
     restart: "no"
   jvb:
     restart: "no"
-    # Forward every stream whatever the bridge's bandwidth estimate: on the
-    # validation LAN it stayed at 2.9 Mbps for some bots that need 4.6, so the
-    # bridge dropped their streams while the other servers forward all
-    # (validation-report.md SC-002). Chosen by the user on 2026-11-07; the
-    # local setup keeps Jitsi's default.
-    environment:
-      JVB_CC_TRUST_BWE: "false"

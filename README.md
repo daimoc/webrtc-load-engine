@@ -179,6 +179,9 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 010 mediasoup-demo | mediasoup-demo adapter (`"platform": "mediasoup"`): the demo web client's protoo signaling, SDP built from mediasoup's parameters, the same report; bots send RFC 7675 consent checks like browsers; a pinned local server built from the demo's commit in `tests/platforms/mediasoup` |
 | 011 Janus | Janus VideoRoom adapter (`"platform": "janus"`): the Janus API over WebSocket, one multistream subscription per bot that follows the receive cap, the same report; a pinned local Janus built from its tag in `tests/platforms/janus` |
 | 012 Video latency | Video latency on every platform, also with simulcast and on Janus: a 6-byte trailer after each frame identifies it where servers rewrite timestamps; audio is unchanged |
+| 013 Remote servers | `sfu-remote` deploys, checks and removes one server of `tests/platforms` on another Linux machine over ssh; server load read through `DOCKER_HOST=ssh://` |
+| 014 Video codecs | `"video_codec"`: VP8, VP9, AV1 or H.264 on every platform, at equal picture quality (VMAF); layered as simulcast (VP8, H.264) or SVC (VP9, AV1); simulcast and requested heights on LiveKit, mediasoup and Janus too; the codec and its limits in the report |
+| 015 Bandwidth estimate parity | One headless browser beside the bots on request (`"browser"`), measured apart; every report says how completely the bots acknowledged what they received and which server settings were changed; the bots now acknowledge every packet that reaches them, which ends the Jitsi bridge's suspensions of 014 |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -201,8 +204,7 @@ Details: `specs/005-bridge-channel-subscriptions/validation-report.md`,
 
 Not done yet:
 
-* simulcast and requested heights on LiveKit, mediasoup and Janus,
-* SVC, and simulcast at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
+* layers at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
 * load distribution across several agents,
 * bandwidth limits and network instability,
 * topologies other than everyone sends to everyone (1→N, single speaker).
@@ -241,8 +243,9 @@ The other variables (receive cap, ramp‑up, metrics address, simulcast, …)
 are listed at the top of `tests/live/jitsi_live_test.go`. The test logs the
 run's quality summary at the end.
 
-Bots send pre-encoded Opus audio and VP8 video (640x360, 30 fps, about
-500 kbit/s) built into the binary, selected per scenario with
+Bots send pre-encoded Opus audio and VP8 video by default (640x360, 30 fps,
+about 500 kbit/s; other codecs below) built into the binary, selected per
+scenario with
 `"media": {"profile": "audio_video"}` in the test plan; without it they only
 receive. `"source_file": "/path/to/clip.mp4"` in the media part of the plan
 (`--media-file`, live test `JITSI_MEDIA_FILE`) makes the bots send a file
@@ -293,6 +296,34 @@ bots take 2.49 cores at 360 (MOS 4.10) and 2.51 cores at 720 (MOS 3.84),
 no more than without simulcast on the same day, but the laptop they share
 with the bridge sets that figure (`specs/006-media-quality/validation-report.md`).
 
+**Video codecs (014).** `"video_codec": "vp9"` (or `vp8`, the default,
+`av1`, `h264`) in the media part of the test plan makes every bot send that
+codec; one codec per run (`--video-codec`, live tests
+`<PLATFORM>_VIDEO_CODEC`). Each codec's content is pre-encoded by
+`scripts/gen-media.sh` at the same picture quality as the VP8 content (VMAF
+within 1.0), each at its own bitrate (`src/media/assets/content.json`): VP9
+and AV1 need less than VP8, H.264 about the same. With `"simulcast"`, VP8
+and H.264 send three simulcast layers and VP9 and AV1 one `L3T3_KEY` SVC
+stream with the dependency descriptor; requested heights work the same way
+on all four platforms. The frame trailer has a carrier per codec: after the
+frame data for VP8, the RTP padding for VP9, an `OBU_PADDING` for AV1 and an
+SEI in its own packet for H.264; Chrome and Firefox played every layered
+stream and the VP9 and H.264 single streams with it. The report
+names the codec the server actually forwarded (`quality.video.codec`), fails
+the bots that receive another codec (`mismatch`), and flags a layered run in
+which the server forwarded only the lowest layer (`layers_not_forwarded`).
+
+Limits found on the servers: Jitsi forwards only the lowest H.264
+simulcast layer; Jitsi and LiveKit drop RTP padding, so VP9 latency there is
+`frame_not_identified`; on mediasoup, bots asking for 720 spend part of the
+run on lower layers (its bandwidth estimate). On a remote machine, 10 bots,
+the server CPU against VP8 was: H.264 +6% on Janus and +13% on LiveKit, VP9
+lower on LiveKit and mediasoup (less traffic), AV1 +7% on LiveKit and the
+same as VP8 elsewhere; on Jitsi the first run after a deploy is on a cold
+bridge, so codecs could not be told apart. At 100 bots the engine spends 20% less CPU on VP9 and 12% more on
+H.264 than on VP8, following the packets it receives
+(`specs/014-video-codec-comparison/validation-report.md`).
+
 `"server_monitoring": {"containers": ["docker-jitsi-meet-jvb-1",
 "docker-jitsi-meet-jicofo-1"], "interval_seconds": 5}` in the test plan
 makes the engine sample those local containers through the Docker Engine
@@ -323,8 +354,8 @@ the 5 s default); at 100 bots the bridge used 8.7 threads on average
 (each bot signs its own access token, its peer ID as identity) or a
 ready-made `token`
 (`specs/008-livekit-platform/contracts/livekit-config.yaml`). The plan is
-checked when the scenario is created. Simulcast and requested heights are
-rejected on LiveKit in this version. Secrets are hidden (`"[redacted]"`) in
+checked when the scenario is created. Simulcast and requested heights work
+as on Jitsi (014). Secrets are hidden (`"[redacted]"`) in
 what the service returns and logs, for both platforms. Each bot publishes
 its tracks on a connection it offers and receives on the one the server
 offers. It subscribes to at most `max_received_streams` tracks per kind
@@ -393,7 +424,7 @@ of `url` (e.g. `ws://localhost:4443`) and `room`, and optionally:
 - `use_pipe_transports`: the room on two workers instead of one.
 
 The details are in `specs/010-mediasoup-platform/contracts/mediasoup-config.yaml`.
-Simulcast and requested heights are rejected on mediasoup in this version.
+Simulcast and requested heights work as on Jitsi (014).
 
 The bots speak the demo web client's protoo protocol. mediasoup has no SDP:
 the adapter builds each bot's receive offer and publish answer from the
@@ -430,7 +461,7 @@ audio degrades (MOS 2.99)
 room's `pin`, and the VideoRoom `admin_key` for creating rooms. The four
 credentials are redacted. The details are in
 `specs/011-janus-platform/contracts/janus-config.yaml`. Simulcast and
-requested heights are rejected on Janus in this version.
+requested heights work as on Jitsi (014).
 
 Each bot holds one Janus session over the WebSocket transport (subprotocol
 `janus-protocol`), kept alive every 25 s, with two VideoRoom handles:
@@ -466,11 +497,34 @@ IPv4 address (`tests/platforms/janus/README.md`).
 
 ---
 
+### A browser beside the bots (015)
+
+A test plan can ask for one headless Chrome next to the bots, as a reference: the engine starts it, opens the plan's address, reads what the browser receives once per second, and stops it at the end of the run. The page must join the room by itself; the engine does nothing in it, so any server's web page works.
+
+```json
+"browser": {
+  "url": "https://localhost:8443/room#config.prejoinConfig.enabled=false&config.startWithAudioMuted=true&config.startWithVideoMuted=true",
+  "expected_height": 720,
+  "insecure_tls": true
+}
+```
+
+* Chrome or Chromium is needed only for such a plan (`executable`, else the first of `google-chrome`, `google-chrome-stable`, `chromium`, `chromium-browser` in `PATH`). A plan without `browser` starts nothing and looks for nothing.
+* The report gives the browser's part apart from the bots': heights over time, the share at `expected_height` and when it was first reached, received bitrate, freezes as the browser counts them, its CPU. The browser is in no bot figure, and its CPU is not in the engine's.
+* A browser that cannot start, a page that does not load, or a page that receives no video never fails the run: the browser's part gives the reason (`browser_not_found`, `browser_start_failed`, `page_load_failed`, `no_video_received`, `browser_exited`).
+* Tokens in the address (`jwt`, `token`, `access_token`) are hidden in reports and answers.
+* Live tests: `<PLATFORM>_BROWSER_URL`, `_BROWSER_HEIGHT`, `_BROWSER_WINDOW`, `_BROWSER_INSECURE_TLS=1`. `jitsi-connect`: `--browser-url`, `--browser-height`, `--browser-window`, `--browser-insecure-tls`.
+* The mediasoup demo's page is not part of `tests/platforms/mediasoup`: run the demo's app as its README says, then use `https://localhost:5555/?roomId=<room>&produce=false&mic=false&webcam=false`.
+
+Every run also reports how the bots acknowledged what they received (`reception_reports`): per bot, the share of arriving packets acknowledged to the server, how regularly the feedback left, and how late arrivals were stamped. A bot under 99% acknowledged, or with more than 1% of its feedback intervals over 200 ms, is named, and the layered results carry a warning.
+
+The report also says what it knows of the server's settings (`server_settings`): those `sfu-remote` changed (written to its settings file as `<PLATFORM>_SERVER_SETTINGS`), those an operator states in the plan, or "not known to the run".
+
 ### Remote servers
 
 `sfu-remote` runs one server of `tests/platforms` on another Linux machine, so that bots and server stop sharing a CPU. It drives the machine with your own `ssh`, and opens no Docker port.
 
-A deployed Jitsi ignores its bridge's bandwidth estimate (`JVB_CC_TRUST_BWE=false` in `docker-compose.remote.yml`): on a real LAN that estimate stayed below what some bots need, and the bridge dropped their streams while the other servers forward every stream. Remote Jitsi figures therefore are not Jitsi's default behaviour; the local setup keeps it.
+A deployed Jitsi uses its bridge's bandwidth estimate as by default (since 015). Until then the remote overlay turned it off (`JVB_CC_TRUST_BWE=false`), because the bridge dropped some bots' streams; 015 found the bots caused it (they did not acknowledge the copies the bridge sends) and corrected them. What remains is the bridge's own start: it begins every receiver, a browser included, at 2.5 Mbit/s and can suspend streams for the first 10 to 20 s of a 10-bot room on a LAN. Use a ramp-up, or a hold long enough that those seconds do not weigh in the figures. Reports say which settings a deployment changed (`server_settings`).
 
 ```bash
 go run ./cmd/sfu-remote deploy janus --host user@host   # or jitsi, livekit, mediasoup

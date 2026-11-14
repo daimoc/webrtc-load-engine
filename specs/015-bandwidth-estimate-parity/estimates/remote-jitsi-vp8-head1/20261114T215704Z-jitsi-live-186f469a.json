@@ -1,0 +1,355 @@
+{
+  "format_version": 2,
+  "run_id": "186f469a",
+  "scenario": {
+    "id": "live-9e7f0054",
+    "name": "live",
+    "platform": "jitsi"
+  },
+  "test_plan": {
+    "participants": 10,
+    "ramp_up_seconds": 0,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "connect_timeout": "20s",
+      "debug": false,
+      "muc_domain": "muc.meet.jitsi",
+      "no_bridge_channel": false,
+      "room_name": "r015head1",
+      "websocket_url": "ws://192.168.1.59:8000/xmpp-websocket?room=r015head1",
+      "xmpp_domain": "meet.jitsi"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "video_codec": "vp8"
+    },
+    "server_monitoring": {
+      "containers": [
+        "sfu-jitsi-jvb-1",
+        "sfu-jitsi-jicofo-1"
+      ],
+      "interval_seconds": 5
+    }
+  },
+  "started_at": "2026-11-14T21:56:00.225262948Z",
+  "ended_at": "2026-11-14T21:57:04.69078631Z",
+  "duration_seconds": 64.466,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-9e7f0054",
+    "generated_at": "2026-11-14T22:57:04.679642933+01:00",
+    "bots": 10,
+    "video": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0035,
+        "p95": 0.0045,
+        "p99": 0.0045
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 29.768316185148265,
+        "p95": 30.517617400701386,
+        "p99": 30.517617400701386
+      },
+      "freeze_seconds": {
+        "p50": 30,
+        "p95": 50,
+        "p99": 50
+      },
+      "freezes_total": 35,
+      "resolution_switches_total": 0,
+      "keyframe_requests_sent_total": 0,
+      "keyframe_requests_received_total": 45,
+      "height_share": {
+        "360": 1
+      },
+      "requested_height_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "single",
+        "content_bitrate_kbps": {
+          "360": 500
+        },
+        "received": {
+          "vp8": 10
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0025,
+        "p95": 0.0025,
+        "p99": 0.0025
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "mos": {
+        "p50": 4.367731221064016,
+        "p95": 4.36792637907464,
+        "p99": 4.36792637907464
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-9e7f0054-0",
+          "value": 4.367714778129873
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-2",
+          "value": 4.367723913093285
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-3",
+          "value": 4.367727567078651
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-7",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-8",
+          "value": 4.367731221064016
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-1",
+          "value": 4.367738516690582
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-5",
+          "value": 4.367795057796463
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-9",
+          "value": 4.367809649049592
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-4",
+          "value": 4.367888077035169
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-6",
+          "value": 4.36792637907464
+        }
+      ],
+      "most_freeze_seconds": [
+        {
+          "peer_id": "peer-live-9e7f0054-1",
+          "value": 50
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-3",
+          "value": 50
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-5",
+          "value": 50
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-4",
+          "value": 46.823070957
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-8",
+          "value": 31.06948905
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-2",
+          "value": 30
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-0",
+          "value": 6.074519766
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-6",
+          "value": 5.138586041
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-9",
+          "value": 4.674640433
+        }
+      ],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-9e7f0054-0",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-3",
+          "value": 0.0075
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-1",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-2",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-4",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-5",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-7",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-8",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-9",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-6",
+          "value": 0.0055
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-9e7f0054-0",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-1",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-2",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-3",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-4",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-5",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-6",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-7",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-8",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-9e7f0054-9",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-14T22:56:00.225415813+01:00",
+        "end": "2026-11-14T22:57:04.679644887+01:00"
+      },
+      "containers": [
+        {
+          "name": "sfu-jitsi-jvb-1",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 1.358,
+            "peak": 1.811,
+            "first": 1.811
+          },
+          "memory_bytes": {
+            "peak": 751095808,
+            "first": 713973760
+          },
+          "samples": 14,
+          "missed": 0
+        },
+        {
+          "name": "sfu-jitsi-jicofo-1",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 0.016,
+            "peak": 0.153,
+            "first": 0.153
+          },
+          "memory_bytes": {
+            "peak": 212525056,
+            "first": 212193280
+          },
+          "samples": 14,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 2,
+        "cpu_threads": {
+          "average": 1.374,
+          "peak": 1.965,
+          "first": 1.965
+        },
+        "memory_bytes": {
+          "peak": 963366912,
+          "first": 926167040
+        },
+        "samples": 14,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-14T22:56:00.225415813+01:00",
+        "end": "2026-11-14T22:57:04.679644887+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 0.603,
+          "peak": 0.668,
+          "first": 0.506
+        },
+        "memory_bytes": {
+          "peak": 98754560,
+          "first": 20582400
+        },
+        "samples": 14,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    }
+  }
+}

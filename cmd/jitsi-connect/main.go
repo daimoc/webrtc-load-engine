@@ -44,6 +44,11 @@ func main() {
 	serverContainers := flag.String("server-containers", "", "Comma-separated local Docker containers of the media server to sample for CPU and memory (e.g. docker-jitsi-meet-jvb-1)")
 	serverInterval := flag.Int("server-interval", 0, "Seconds between server samples (default 5)")
 	reportsDir := flag.String("reports-dir", "", "Folder of the run reports (default $"+report.EnvDir+", else ./reports)")
+	browserURL := flag.String("browser-url", "", "Address a headless browser opens beside the bots; the page must join the room by itself (needs Chrome)")
+	browserHeight := flag.Int("browser-height", 0, "Video height the browser's share of time is measured against")
+	browserWindow := flag.String("browser-window", "", "Browser window size, <width>x<height> (default "+scenario.DefaultBrowserWindow+")")
+	browserInsecureTLS := flag.Bool("browser-insecure-tls", false, "Let the browser accept a self-signed certificate")
+	serverSettings := flag.String("server-settings", "", "Server settings that differ from its defaults, name=value,... (stated by the operator; default $JITSI_SERVER_SETTINGS, stated by the deployment)")
 
 	flag.Parse()
 
@@ -86,12 +91,24 @@ func main() {
 		monitoring = &scenario.ServerMonitoringConfig{Containers: strings.Split(*serverContainers, ","), IntervalSeconds: *serverInterval}
 	}
 
+	var browserCfg *scenario.BrowserConfig
+	if *browserURL != "" {
+		browserCfg = &scenario.BrowserConfig{URL: *browserURL, ExpectedHeight: *browserHeight, Window: *browserWindow, InsecureTLS: *browserInsecureTLS}
+	}
+	settings, err := serverSettingsFlag(*serverSettings)
+	if err != nil {
+		logger.Error("Invalid flags", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	// NewScenario validates the plan and applies the media defaults.
 	sc, err := scenario.NewScenario("jitsi-connect", "jitsi", scenario.TestPlan{
 		Participants:     *participants,
 		DurationSeconds:  *duration,
 		Media:            &scenario.MediaConfig{Profile: *mediaProfile, MaxReceivedStreams: *maxReceived, SourceFile: *mediaFile, VideoCodec: *videoCodec},
 		ServerMonitoring: monitoring,
+		Browser:          browserCfg,
+		ServerSettings:   settings,
 	})
 	if err != nil {
 		logger.Error("Invalid flags", slog.String("error", err.Error()))
@@ -152,4 +169,26 @@ func printLoad(q *scenario.QualitySummary) {
 		return
 	}
 	fmt.Println(string(raw))
+}
+
+// serverSettingsFlag gives the plan's server_settings: --server-settings as
+// stated by the operator, else $JITSI_SERVER_SETTINGS (written by
+// sfu-remote deploy) as stated by the deployment, else none (015 FR-012).
+func serverSettingsFlag(flagValue string) (*scenario.ServerSettingsConfig, error) {
+	if flagValue != "" {
+		values, err := scenario.ParseServerSettings(flagValue)
+		if err != nil {
+			return nil, fmt.Errorf("--server-settings: %w", err)
+		}
+		return &scenario.ServerSettingsConfig{Source: scenario.ServerSettingsOperator, Values: values}, nil
+	}
+	env, ok := os.LookupEnv("JITSI_SERVER_SETTINGS")
+	if !ok {
+		return nil, nil
+	}
+	values, err := scenario.ParseServerSettings(env)
+	if err != nil {
+		return nil, fmt.Errorf("JITSI_SERVER_SETTINGS: %w", err)
+	}
+	return &scenario.ServerSettingsConfig{Source: scenario.ServerSettingsDeployment, Values: values}, nil
 }

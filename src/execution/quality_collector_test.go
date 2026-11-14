@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -309,5 +310,117 @@ func TestMediaCollector_LatencyReason(t *testing.T) {
 	}}})
 	if r := a.summary(now).Video.LatencyReason; r != "" {
 		t.Errorf("video not received: latency reason %q, want none", r)
+	}
+}
+
+// The mediasoup comparison (015 R7, after R12) reads each bot's received
+// heights over time from this log line.
+func TestMediaCollector_LogsHeightChanges(t *testing.T) {
+	logs := &syncBuffer{}
+	c := newMediaCollector("heights-"+uuid.NewString(), 10*time.Second, slog.New(slog.NewTextHandler(logs, nil)))
+	now := time.Unix(1000, 0)
+	a := qualityPeer(now) // Streams at 360 and 180
+	c.collect(now, []mediaPeer{a})
+	if n := strings.Count(logs.String(), "Received video height changed"); n != 2 {
+		t.Fatalf("first heights logged %d times, want 2:\n%s", n, logs.String())
+	}
+	if strings.Contains(logs.String(), "requested_height=0") {
+		t.Fatalf("first lines without the requested height:\n%s", logs.String())
+	}
+	c.collect(now.Add(time.Second), []mediaPeer{a})
+	if n := strings.Count(logs.String(), "Received video height changed"); n != 2 {
+		t.Fatalf("unchanged heights logged again:\n%s", logs.String())
+	}
+	v := a.snap["video"]
+	v.Video = append([]media.VideoQualitySnapshot(nil), v.Video...)
+	v.Video[1].Height = 720
+	a.snap["video"] = v
+	c.collect(now.Add(2*time.Second), []mediaPeer{a})
+	out := logs.String()
+	if n := strings.Count(out, "Received video height changed"); n != 3 {
+		t.Fatalf("change logged %d times in all, want 3:\n%s", n, out)
+	}
+	last := out[strings.LastIndex(out, "Received video height changed"):]
+	for _, want := range []string{"peer_id=a", "stream=1", "previous_height=180", "height=720", "requested_height=360"} {
+		if !strings.Contains(last, want) {
+			t.Errorf("log lacks %s: %s", want, last)
+		}
+	}
+}
+
+// Reception reports in the summary (015 US2).
+
+func receptionPeer(id string, now time.Time, r feedbackSnapshot) *fakeMediaPeer {
+	return &fakeMediaPeer{id: id, state: PeerStateEstablished, reception: r, snap: map[string]KindMediaSnapshot{
+		"video": {Packets: 10, Offered: 1, Streams: 1, LastReceived: now, Video: []media.VideoQualitySnapshot{{
+			Frames: 60, Height: 360, HeightTime: map[int]time.Duration{360: time.Second}, PeriodIntervals: 30, PeriodSpan: time.Second}}},
+	}}
+}
+
+func goodReception() feedbackSnapshot {
+	return feedbackSnapshot{negotiated: true, counting: true, arrivedTotal: 1000, arrived: 1000, feedbackStats: feedbackStats{
+		acknowledged: 1000, feedbacks: 101, intervals: 100, intervalSum: 10 * time.Second, intervalMax: 120 * time.Millisecond,
+		lagN: 1000, lagSum: 500 * time.Millisecond, lagMax: 2 * time.Millisecond}}
+}
+
+func TestMediaCollector_ReceptionReports(t *testing.T) {
+	now := time.Unix(1000, 0)
+	lossy := goodReception()
+	lossy.acknowledged = 950
+	late := goodReception()
+	late.late = 2 // 2% of 100 intervals
+	late.intervalMax = 450 * time.Millisecond
+	c := newMediaCollector("reception-"+uuid.NewString(), 10*time.Second, quietLogger)
+	c.collect(now, []mediaPeer{
+		receptionPeer("peer-s-10", now, goodReception()),
+		receptionPeer("peer-s-2", now, lossy),
+		receptionPeer("peer-s-1", now, late),
+	})
+	r := c.summary(now).ReceptionReports
+	if !r.Available || r.Bots != 3 || len(r.PerBot) != 3 {
+		t.Fatalf("reception reports %+v", r)
+	}
+	if ids := []string{r.PerBot[0].PeerID, r.PerBot[1].PeerID, r.PerBot[2].PeerID}; !slices.Equal(ids, []string{"peer-s-1", "peer-s-2", "peer-s-10"}) {
+		t.Fatalf("not in launch order: %v", ids)
+	}
+	if !slices.Equal(r.Flagged, []string{"peer-s-1", "peer-s-2"}) {
+		t.Fatalf("flagged %v", r.Flagged)
+	}
+	if r.Limits != (scenario.ReceptionLimits{AcknowledgedShareMin: 0.99, LateShareMax: 0.01, LateIntervalMs: 200}) {
+		t.Fatalf("limits %+v", r.Limits)
+	}
+	b := r.PerBot[1]
+	if b.PacketsArrived != 1000 || b.PacketsAcknowledged != 950 || !near(b.AcknowledgedShare, 0.95) || b.FeedbacksSent != 101 {
+		t.Fatalf("bot %+v", b)
+	}
+	if !near(b.IntervalMs.Mean, 100) || !near(b.IntervalMs.Max, 120) || !near(b.StampLagMs.Mean, 0.5) || !near(b.StampLagMs.Max, 2) {
+		t.Fatalf("bot timing %+v", b)
+	}
+	if !near(r.PerBot[0].LateShare, 0.02) || r.AcknowledgedShare == nil || !near(r.AcknowledgedShare.P50, 1) || r.StampLagMaxMs == nil {
+		t.Fatalf("late share %g, percentiles %+v %+v", r.PerBot[0].LateShare, r.AcknowledgedShare, r.StampLagMaxMs)
+	}
+}
+
+func TestMediaCollector_ReceptionReasons(t *testing.T) {
+	now := time.Unix(1000, 0)
+	cases := map[string]struct {
+		peers []mediaPeer
+		want  string
+	}{
+		"no video": {[]mediaPeer{&fakeMediaPeer{id: "a", state: PeerStateEstablished, reception: goodReception(), snap: map[string]KindMediaSnapshot{
+			"audio": {Packets: 10, Offered: 1, Streams: 1, LastReceived: now, Audio: []media.AudioQualitySnapshot{{Frame: 20 * time.Millisecond, Expected: 50}}},
+		}}}, scenario.ReceptionNoVideo},
+		"not negotiated": {[]mediaPeer{receptionPeer("a", now, feedbackSnapshot{counting: true})}, scenario.ReceptionNotNegotiated},
+		"not counted":    {[]mediaPeer{receptionPeer("a", now, feedbackSnapshot{negotiated: true})}, scenario.ReceptionNotCounted},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := newMediaCollector("reasons-"+uuid.NewString(), 10*time.Second, quietLogger)
+			c.collect(now, tc.peers)
+			r := c.summary(now).ReceptionReports
+			if r.Available || r.Reason != tc.want {
+				t.Fatalf("got available=%v reason=%q, want %s", r.Available, r.Reason, tc.want)
+			}
+		})
 	}
 }

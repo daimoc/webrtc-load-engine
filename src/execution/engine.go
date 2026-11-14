@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"webrtc-load-engine/src/browser"
 	"webrtc-load-engine/src/hostload"
 	"webrtc-load-engine/src/media"
 	"webrtc-load-engine/src/platform"
@@ -38,6 +39,18 @@ type Engine struct {
 
 	sampler     *hostload.Sampler // Server and engine load (007); its last sample is taken when ctx is cancelled
 	samplerDone chan struct{}     // Closed when the sampler has finished
+
+	browser browserSession // The plan's headless browser (015); nil when none was asked for or started
+}
+
+// browserSession is a running browser of the browser package.
+type browserSession interface {
+	Stop() *scenario.BrowserResult
+}
+
+// startBrowser starts the plan's browser; a variable for tests.
+var startBrowser = func(ctx context.Context, o browser.Options, logger *slog.Logger) browserSession {
+	return browser.Start(ctx, o, logger)
 }
 
 // NewEngine creates a new execution engine.
@@ -81,6 +94,9 @@ func (e *Engine) Start() {
 			e.quality.Server = e.sampler.Summary()
 			e.quality.LoadMachine = e.sampler.LoadMachine()
 		}
+		if e.browser != nil {
+			result.Browser = e.browser.Stop()
+		}
 		result.Status, result.Quality = finalStatus, e.quality
 		result.EndedAt = time.Now().UTC()
 		e.onComplete(e.scenarioID, result)
@@ -100,6 +116,7 @@ func (e *Engine) Start() {
 		return
 	}
 	go e.runMediaCollector()
+	e.startBrowser()
 
 	// Ramp-up phase: peers are spread evenly over RampUpSeconds.
 	rampUpInterval := time.Duration(0)
@@ -143,6 +160,27 @@ func (e *Engine) Start() {
 	}
 
 	e.Stop()
+}
+
+// startBrowser starts the plan's browser, if it asks for one, before the
+// first bot (015 FR-016). It never fails the run: the browser's failures
+// are in its result (FR-019). Its context is not the engine's, so that the
+// browser is still measured while the bots leave; Start stops it before
+// the run's result is handed back.
+func (e *Engine) startBrowser() {
+	b := e.testPlan.Browser
+	if b == nil {
+		return
+	}
+	w, h := b.WindowSize()
+	e.browser = startBrowser(context.Background(), browser.Options{
+		URL:            b.URL,
+		DisplayURL:     scenario.RedactBrowserURL(b.URL),
+		Window:         [2]int{w, h},
+		InsecureTLS:    b.InsecureTLS,
+		Executable:     b.Executable,
+		ExpectedHeight: b.ExpectedHeight,
+	}, e.logger.With(slog.String("scenario_id", e.scenarioID), slog.String("participant", "browser")))
 }
 
 // startMedia starts one media source per kind the bots send; they run until

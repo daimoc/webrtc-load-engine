@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"webrtc-load-engine/src/scenario"
 )
 
 // SettingsPath gives the workstation's settings file of a target.
@@ -48,6 +50,9 @@ func tlsNote(s Server, url string) string {
 // settings-file.md). env is the server's rendered .env.
 func settingsVars(s Server, t Target, address string, env map[string]string) map[string]string {
 	v := map[string]string{"DOCKER_HOST": t.SSHURL()}
+	// The settings the overlay changes (015 FR-012); present and empty when
+	// none, so that a run says "none changed by the deployment".
+	v[strings.ToUpper(s.Name)+"_SERVER_SETTINGS"] = scenario.FormatServerSettings(s.Settings)
 	containers := strings.Join(s.Containers, ",")
 	url := serverURL(s, address)
 	switch s.Name {

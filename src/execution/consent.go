@@ -145,6 +145,9 @@ func remoteICECredentials(s string) (ufrag, pwd string) {
 // consent checks.
 type consentNet struct {
 	transport.Net
+	// feedback counts the RTP packets the sockets read (015 research R6);
+	// nil on a publish session, which receives no media.
+	feedback *transportFeedback
 
 	mu    sync.Mutex
 	conns []*consentConn
@@ -157,6 +160,9 @@ func (n *consentNet) ListenUDP(network string, laddr *net.UDPAddr) (transport.UD
 		return nil, err
 	}
 	cc := &consentConn{UDPConn: c, n: n}
+	if n.feedback != nil {
+		n.feedback.counting.Store(true)
+	}
 	n.mu.Lock()
 	n.conns = append(n.conns, cc)
 	n.mu.Unlock()
@@ -217,7 +223,11 @@ type consentConn struct {
 func (c *consentConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	for {
 		n, addr, err := c.UDPConn.ReadFrom(p)
-		if err != nil || !c.n.answered(p[:n]) {
+		if err != nil {
+			return n, addr, err
+		}
+		if !c.n.answered(p[:n]) {
+			c.arrived(p[:n])
 			return n, addr, err
 		}
 	}
@@ -226,8 +236,20 @@ func (c *consentConn) ReadFrom(p []byte) (int, net.Addr, error) {
 func (c *consentConn) ReadFromUDP(p []byte) (int, *net.UDPAddr, error) {
 	for {
 		n, addr, err := c.UDPConn.ReadFromUDP(p)
-		if err != nil || !c.n.answered(p[:n]) {
+		if err != nil {
 			return n, addr, err
 		}
+		if !c.n.answered(p[:n]) {
+			c.arrived(p[:n])
+			return n, addr, err
+		}
+	}
+}
+
+// arrived counts a datagram for the peer's reception reports, at the
+// time it is read.
+func (c *consentConn) arrived(pkt []byte) {
+	if f := c.n.feedback; f != nil {
+		f.arrive(pkt, time.Now())
 	}
 }

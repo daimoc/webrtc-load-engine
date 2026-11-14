@@ -48,7 +48,7 @@ func TestNewRunJSON(t *testing.T) {
 			t.Errorf("missing key %q in %s", k, raw)
 		}
 	}
-	if string(got["format_version"]) != "2" {
+	if string(got["format_version"]) != "3" {
 		t.Errorf("format_version = %s", got["format_version"])
 	}
 	if string(got["duration_seconds"]) != "72.123" {
@@ -62,6 +62,9 @@ func TestNewRunJSON(t *testing.T) {
 	}
 	if string(got["started_at"]) != `"2026-10-18T15:29:00Z"` {
 		t.Errorf("started_at = %s", got["started_at"])
+	}
+	if _, ok := got["browser"]; ok {
+		t.Errorf("browser given for a plan without one: %s", got["browser"])
 	}
 	// The summary is the one the API serves (SC-002).
 	want, _ := json.Marshal(testResult().Quality)
@@ -95,5 +98,23 @@ func TestNewRunFailed(t *testing.T) {
 func TestEngineVersion(t *testing.T) {
 	if v := EngineVersion(); v == "" {
 		t.Error("empty engine version")
+	}
+}
+
+func TestNewRunBrowser(t *testing.T) {
+	r := testResult()
+	r.Browser = &scenario.BrowserResult{Status: scenario.BrowserUnavailable, Reason: scenario.BrowserNotFound,
+		URL: "https://h/r", Window: "1280x720"}
+	raw, err := json.Marshal(NewRun(testScenario(), r))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"status":"unavailable","reason":"browser_not_found","url":"https://h/r","window":"1280x720"}`
+	if string(got["browser"]) != want {
+		t.Errorf("browser = %s, want %s", got["browser"], want)
 	}
 }

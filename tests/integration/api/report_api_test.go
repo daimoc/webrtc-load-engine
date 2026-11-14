@@ -158,6 +158,12 @@ func TestRunReportInScenarioAnswer(t *testing.T) {
 	if _, ok := served["report"]; ok {
 		t.Error("the quality answer gained a report field")
 	}
+	// 015: the reception reports are served with the summary (this test's
+	// engine builds its own summary, so the block is the empty one; the
+	// engine's reasons are tested in src/execution).
+	if _, ok := served["reception_reports"].(map[string]any); !ok {
+		t.Errorf("reception_reports missing: %v", served)
+	}
 }
 
 func TestRunReportNotWritten(t *testing.T) {

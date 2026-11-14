@@ -77,6 +77,14 @@ import (
 // JITSI_PARTICIPANTS bots in JITSI_ROOM_URL and checks, through the webrtc_peers metric, that the
 // Jingle negotiation with the bridge reaches an established ICE+DTLS
 // transport that holds, and that the bots then leave cleanly.
+//
+// JITSI_BROWSER_URL (015) adds a headless browser beside the bots: the
+// engine opens that address, which must join the room by itself, and the
+// report gives what the browser received; JITSI_BROWSER_HEIGHT is the
+// height its share is measured against, JITSI_BROWSER_WINDOW its window
+// (default 1280x720) and JITSI_BROWSER_INSECURE_TLS=1 accepts a
+// self-signed certificate. JITSI_SERVER_SETTINGS (written by sfu-remote
+// deploy) names the server settings the deployment changed.
 func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	raw := os.Getenv("JITSI_ROOM_URL")
 	if raw == "" {
@@ -153,6 +161,8 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 			SourceFile:         os.Getenv("JITSI_MEDIA_FILE"),
 		},
 		ServerMonitoring: serverMonitoring(t),
+		Browser:          browserFrom(t, "JITSI"),
+		ServerSettings:   serverSettingsFrom(t, "JITSI"),
 	})
 	if err != nil {
 		t.Fatalf("test plan: %v", err)
@@ -176,6 +186,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 			t.Errorf("expected the run to end stopped, got %s", status)
 		}
 		writeReport(t, sc, scenarioID, config, result)
+		logBrowser(t, result.Browser)
 		checkQuality(result.Quality)
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)

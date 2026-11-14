@@ -1,0 +1,10 @@
+{"t": "2026-11-14T10:00:00.000Z", "server": "jitsi", "receiver": "browser", "estimate_bps": 500000, "ideal_bps": 2000000, "suspended": false}
+{"t": "2026-11-14T10:00:00.000Z", "server": "jitsi", "receiver": "aaaaaaaa", "estimate_bps": 500000, "ideal_bps": 2000000, "suspended": false}
+{"t": "2026-11-14T10:00:00.000Z", "server": "jitsi", "receiver": "bbbbbbbb", "estimate_bps": 500000, "ideal_bps": 2000000, "suspended": true}
+{"t": "2026-11-14T10:00:01.000Z", "server": "jitsi", "receiver": "browser", "estimate_bps": 3000000, "ideal_bps": 2000000, "suspended": false}
+{"t": "2026-11-14T10:00:01.000Z", "server": "jitsi", "receiver": "aaaaaaaa", "estimate_bps": 3000000, "ideal_bps": 2000000, "suspended": false}
+{"t": "2026-11-14T10:00:01.000Z", "server": "jitsi", "receiver": "bbbbbbbb", "estimate_bps": 900000, "ideal_bps": 2000000, "suspended": true}
+{"t": "2026-11-14T10:00:05.000Z", "server": "jitsi", "receiver": "browser", "estimate_bps": 3000000, "ideal_bps": 2000000, "suspended": false}
+{"t": "2026-11-14T10:00:05.000Z", "server": "jitsi", "receiver": "aaaaaaaa", "estimate_bps": 3000000, "ideal_bps": 2000000, "suspended": false}
+{"t": "2026-11-14T10:00:05.000Z", "server": "jitsi", "receiver": "bbbbbbbb", "estimate_bps": 900000, "ideal_bps": 2000000, "suspended": true}
+{"t": "2026-11-14T10:00:00.500Z", "server": "jitsi", "receiver": "aaaaaaaa", "estimate_bps": -1, "ideal_bps": 2000000, "suspended": false}

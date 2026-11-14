@@ -205,3 +205,31 @@ func TestRedactTestPlan(t *testing.T) {
 		t.Error("nil config is not nil")
 	}
 }
+
+func TestRedactTestPlan_BrowserURL(t *testing.T) {
+	cases := map[string]string{
+		"https://h/r?jwt=abc#config.x=1&token=def":                       "https://h/r?jwt=[redacted]#config.x=1&token=[redacted]",
+		"https://h/r?a=1&access_token=x&b=2":                             "https://h/r?a=1&access_token=[redacted]&b=2",
+		"https://h/r#jwt=x":                                              "https://h/r#jwt=[redacted]",
+		"https://h/r?roomId=r&produce=false":                             "https://h/r?roomId=r&produce=false",
+		"https://h/r?jwt=":                                               "https://h/r?jwt=",
+		"https://h/r?myjwt=keep&jwt=x":                                   "https://h/r?myjwt=keep&jwt=[redacted]",
+		"https://localhost:8443/room#config.prejoinConfig.enabled=false": "https://localhost:8443/room#config.prejoinConfig.enabled=false",
+	}
+	for in, want := range cases {
+		tp := TestPlan{Browser: &BrowserConfig{URL: in, Window: "1280x720"}}
+		got := RedactTestPlan(tp, nil)
+		if got.Browser.URL != want {
+			t.Errorf("%s: want %s, got %s", in, want, got.Browser.URL)
+		}
+		if tp.Browser.URL != in {
+			t.Errorf("%s: the caller's plan changed to %s", in, tp.Browser.URL)
+		}
+		if got.Browser.Window != "1280x720" {
+			t.Errorf("other fields lost: %+v", got.Browser)
+		}
+	}
+	if RedactTestPlan(TestPlan{}, nil).Browser != nil {
+		t.Error("a plan without browser got one")
+	}
+}

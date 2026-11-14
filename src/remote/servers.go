@@ -31,6 +31,11 @@ type Server struct {
 	// Ready, when set, is a command on the machine that succeeds once a bot
 	// can join, which an open port does not always mean; Waiting names it.
 	Ready, Waiting string
+	// Settings are what the remote overlay changes from the server's
+	// defaults and that change results, by the server's own names (015
+	// FR-012); deploy writes them to the settings file, and the reports name
+	// them. A test checks each overlay against them.
+	Settings map[string]string
 }
 
 var servers = []Server{

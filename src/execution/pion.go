@@ -92,6 +92,9 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 		return nil, err
 	}
 	se.SetNet(c.net) // A hook may replace it (virtual network): no consent checks then
+	if !publish {
+		c.net.feedback = p.feedback // Arrivals counted at the socket (015 research R6)
+	}
 	if publish {
 		if settingEngineHook != nil {
 			settingEngineHook(&se)
@@ -130,7 +133,7 @@ type gatedBuffer struct {
 func (b *gatedBuffer) Write(pkt []byte) (int, error) {
 	b.peer.receivedBytes.Add(uint64(len(pkt)))
 	if b.rtp {
-		b.peer.feedback.record(pkt, time.Now()) // Every arriving packet, kept or not
+		b.peer.feedback.recordFromBuffer(pkt, time.Now()) // Every arriving packet, kept or not, when the sockets are not seen
 	}
 	if !b.peer.allowedSSRC(b.ssrc) {
 		b.peer.droppedPackets.Add(1)

@@ -3,6 +3,7 @@ package execution
 import (
 	"bytes"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -119,4 +120,59 @@ func (l *lockedBuffer) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.b.String()
+}
+
+// The receiving connection's sockets count every RTP packet with a
+// transport sequence number as it is read (015 T029); answers to consent
+// checks and other datagrams are not counted.
+func TestConsentNet_CountsArrivals(t *testing.T) {
+	f := negotiatedFeedback(t)
+	f.counting.Store(false)
+	c, err := newConsent(quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.net.feedback = f
+	conn, err := c.net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if !f.counting.Load() {
+		t.Fatal("a socket opened through the net does not mark the peer counted")
+	}
+	sender, err := net.DialUDP("udp4", nil, conn.LocalAddr().(*net.UDPAddr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sender.Close()
+	answer := stun.MustBuild(stun.TransactionID, stun.BindingSuccess)
+	c.net.expect(answer.TransactionID)
+	for _, pkt := range [][]byte{twccPacket(t, 11, 1, 5), answer.Raw, twccPacket(t, 11, 2, 0), twccPacket(t, 11, 3, 5)} {
+		if _, err := sender.Write(pkt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	buf := make([]byte, 1500)
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for i := 0; i < 3; i++ { // The consent answer is skipped by the read
+		if _, _, err := conn.ReadFrom(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := f.snapshot().arrivedTotal; got != 2 {
+		t.Fatalf("arrived %d, want 2", got)
+	}
+}
+
+func TestConsentNet_PublishSessionNotCounted(t *testing.T) {
+	c, err := newConsent(quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := c.net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close() // No feedback: nothing to count, and no panic
 }

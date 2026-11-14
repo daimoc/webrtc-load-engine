@@ -164,3 +164,92 @@ func TestVideoQuality_MarkLayersNotForwarded(t *testing.T) {
 	var none VideoQuality
 	none.MarkLayersNotForwarded(720) // No codec result: nothing to mark
 }
+
+func marshalKeys(t *testing.T, v any) map[string]bool {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	jsonKeys("", decoded, got)
+	return got
+}
+
+func TestReceptionReports_JSON(t *testing.T) {
+	p := &Percentiles{P50: 1, P95: 1, P99: 0.97}
+	r := ReceptionReports{
+		Available: true, Bots: 1, AcknowledgedShare: p, LateShare: p, StampLagMaxMs: p,
+		Limits:  ReceptionLimits{AcknowledgedShareMin: 0.99, LateShareMax: 0.01, LateIntervalMs: 200},
+		Flagged: []string{"bot-7"},
+		PerBot: []BotReception{{PeerID: "bot-7", PacketsArrived: 10, PacketsAcknowledged: 9, AcknowledgedShare: 0.9,
+			FeedbacksSent: 5, IntervalMs: MeanMax{100, 400}, LateShare: 0.2, StampLagMs: MeanMax{0.5, 30}}},
+	}
+	got := marshalKeys(t, r)
+	for _, k := range strings.Fields(`available bots acknowledged_share.p50 late_share.p95 stamp_lag_max_ms.p99
+		limits.acknowledged_share_min limits.late_share_max limits.late_interval_ms flagged per_bot`) {
+		if !got[k] {
+			t.Errorf("missing %s in %v", k, got)
+		}
+	}
+	if got["reason"] {
+		t.Error("reason given with available measures")
+	}
+	raw, _ := json.Marshal(r)
+	var back ReceptionReports
+	if err := json.Unmarshal(raw, &back); err != nil || back.PerBot[0].IntervalMs.Max != 400 || back.Flagged[0] != "bot-7" {
+		t.Fatalf("round trip: %v %+v", err, back)
+	}
+	raw, _ = json.Marshal(ReceptionReports{Available: true})
+	if !strings.Contains(string(raw), `"flagged":[]`) || !strings.Contains(string(raw), `"per_bot":[]`) {
+		t.Errorf("empty lists must be [], got %s", raw)
+	}
+}
+
+func TestReceptionReports_NotAvailableJSON(t *testing.T) {
+	raw, err := json.Marshal(ReceptionReports{Reason: ReceptionNoVideo, Bots: 3, PerBot: []BotReception{{PeerID: "x"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"available":false,"reason":"no_video"}` {
+		t.Fatalf("got %s", raw)
+	}
+}
+
+func TestBrowserResult_JSON(t *testing.T) {
+	share, secs := 0.94, 3.0
+	b := BrowserResult{
+		Status: BrowserMeasured, URL: "https://h/r", Window: "1280x720", BrowserVersion: "Chrome/156",
+		VideoStreams: 4, HeightShare: map[string]float64{"720": 0.94, "180": 0.06},
+		ExpectedHeight: 720, ExpectedHeightShare: &share, SecondsToExpectedHeight: &secs,
+		ReceivedBitrateKbps: MeanPeakKbps{5120, 6300}, FreezeSource: "browser",
+		Samples: []BrowserSample{{T: 1, Heights: []int{180}, Kbps: 310}},
+	}
+	got := marshalKeys(t, b)
+	for _, k := range strings.Fields(`status url window browser_version video_streams height_share.720 expected_height
+		expected_height_share seconds_to_expected_height received_bitrate_kbps.average received_bitrate_kbps.peak
+		freezes_total freeze_seconds freeze_source samples`) {
+		if !got[k] {
+			t.Errorf("missing %s in %v", k, got)
+		}
+	}
+	if got["reason"] || got["expected_height_reason"] {
+		t.Errorf("reasons given with measures: %v", got)
+	}
+}
+
+func TestBrowserResult_UnavailableJSON(t *testing.T) {
+	raw, err := json.Marshal(BrowserResult{Status: BrowserUnavailable, Reason: BrowserNotFound, URL: "https://h/r", Window: "1280x720",
+		VideoStreams: 2, Samples: []BrowserSample{{T: 1}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"status":"unavailable","reason":"browser_not_found","url":"https://h/r","window":"1280x720"}`
+	if string(raw) != want {
+		t.Fatalf("want %s, got %s", want, raw)
+	}
+}

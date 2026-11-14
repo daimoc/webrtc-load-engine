@@ -32,10 +32,13 @@ func TestSettingsVars(t *testing.T) {
 		"jitsi": {
 			"JITSI_ROOM_URL": "http://192.168.1.95:8000/loadtest", "JITSI_XMPP_DOMAIN": "meet.jitsi", "JITSI_MUC_DOMAIN": "muc.meet.jitsi",
 			"JITSI_WS_URL": "ws://192.168.1.95:8000/xmpp-websocket", "JITSI_SERVER_CONTAINERS": "sfu-jitsi-jvb-1,sfu-jitsi-jicofo-1",
+			"JITSI_SERVER_SETTINGS": "",
 		},
-		"livekit":   {"LIVEKIT_URL": "ws://192.168.1.95:7880", "LIVEKIT_API_KEY": "devkey", "LIVEKIT_API_SECRET": "s3", "LIVEKIT_SERVER_CONTAINERS": "livekit-server"},
-		"mediasoup": {"MEDIASOUP_URL": "ws://192.168.1.95:4443", "MEDIASOUP_ORIGIN": "http://192.168.1.95:4443", "MEDIASOUP_SERVER_CONTAINERS": "mediasoup-demo"},
-		"janus":     {"JANUS_URL": "ws://192.168.1.95:8188", "JANUS_SERVER_CONTAINERS": "janus"},
+		"livekit": {"LIVEKIT_URL": "ws://192.168.1.95:7880", "LIVEKIT_API_KEY": "devkey", "LIVEKIT_API_SECRET": "s3", "LIVEKIT_SERVER_CONTAINERS": "livekit-server",
+			"LIVEKIT_SERVER_SETTINGS": ""},
+		"mediasoup": {"MEDIASOUP_URL": "ws://192.168.1.95:4443", "MEDIASOUP_ORIGIN": "http://192.168.1.95:4443", "MEDIASOUP_SERVER_CONTAINERS": "mediasoup-demo",
+			"MEDIASOUP_SERVER_SETTINGS": ""},
+		"janus": {"JANUS_URL": "ws://192.168.1.95:8188", "JANUS_SERVER_CONTAINERS": "janus", "JANUS_SERVER_SETTINGS": ""},
 	} {
 		got := settingsVars(lookup(name), target, "192.168.1.95", env)
 		want["DOCKER_HOST"] = "ssh://fetis@192.168.1.95"
@@ -165,5 +168,25 @@ func TestTLSNote(t *testing.T) {
 		if got := tlsNote(lookup(tc.server), tc.url); got != tc.want {
 			t.Errorf("%s %s: %q", tc.server, tc.url, got)
 		}
+	}
+}
+
+// Several settings are sorted by name and joined by commas, as the live
+// tests and jitsi-connect read them (015 contracts/test-plan.md).
+func TestSettingsVars_ServerSettingsSorted(t *testing.T) {
+	target, _ := ParseTarget("fetis@192.168.1.95")
+	s := lookup("janus")
+	s.Settings = map[string]string{"B": "2", "A": "x y"}
+	got := settingsVars(s, target, "192.168.1.95", nil)["JANUS_SERVER_SETTINGS"]
+	if got != "A=x y,B=2" {
+		t.Fatalf("JANUS_SERVER_SETTINGS = %q", got)
+	}
+	path := filepath.Join(t.TempDir(), "h.env")
+	if err := writeSettings(path, map[string]string{"JANUS_SERVER_SETTINGS": got}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(path)
+	if string(raw) != "JANUS_SERVER_SETTINGS='A=x y,B=2'\n" {
+		t.Fatalf("settings file %q", raw)
 	}
 }

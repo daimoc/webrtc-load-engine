@@ -1,0 +1,5 @@
+time=2026-11-14T11:00:00.500+01:00 level=INFO msg="Received video height changed" scenario_id=s peer_id=bot-0 stream=0 previous_height=0 height=180 requested_height=180
+time=2026-11-14T11:00:00.500+01:00 level=INFO msg="Received video height changed" scenario_id=s peer_id=bot-1 stream=0 previous_height=0 height=360 requested_height=720
+time=2026-11-14T11:00:00.500+01:00 level=INFO msg="Received video height changed" scenario_id=s peer_id=bot-2 stream=0 previous_height=0 height=360 requested_height=720
+time=2026-11-14T11:00:02.500+01:00 level=INFO msg="Received video height changed" scenario_id=s peer_id=bot-2 stream=0 previous_height=360 height=720 requested_height=720
+time=2026-11-14T11:00:06.000+01:00 level=INFO msg="Received video height changed" scenario_id=s peer_id=bot-1 stream=0 previous_height=360 height=720 requested_height=720
