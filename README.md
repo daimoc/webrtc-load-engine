@@ -315,8 +315,10 @@ which the server forwarded only the lowest layer (`layers_not_forwarded`).
 
 Limits found on the servers: Jitsi forwards only the lowest H.264
 simulcast layer; Jitsi and LiveKit drop RTP padding, so VP9 latency there is
-`frame_not_identified`; on mediasoup, bots asking for 720 spend part of the
-run on lower layers (its bandwidth estimate). On a remote machine, 10 bots,
+`frame_not_identified`; on mediasoup 3.30.1, bots asking for 720 spend part
+of the run on lower layers when they all join at once: a worker bug makes
+the probes of most receiving transports fail SRTP, so their estimate stays
+low (015; spread the joins, e.g. a 20 s ramp-up for 10 bots). On a remote machine, 10 bots,
 the server CPU against VP8 was: H.264 +6% on Janus and +13% on LiveKit, VP9
 lower on LiveKit and mediasoup (less traffic), AV1 +7% on LiveKit and the
 same as VP8 elsewhere; on Jitsi the first run after a deploy is on a cold

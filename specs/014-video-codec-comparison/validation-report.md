@@ -818,9 +818,10 @@ over the 013 baseline in all.
   1 minute locally 0.53 (VP8), 0.61 (VP9), 0.86 (AV1), H.264 0.996; on the
   remote machine 0.55 (VP8), 0.71 (VP9), 0.85 (AV1), H.264 0.70 and 0.59.
   Cause between mediasoup's ramp-up and the bots' feedback not settled
-  (not compared with a browser). **015**: compared with a browser in the
-  same room: verdict "the bots"; the held bots never receive mediasoup's
-  probes, which mediasoup's own SRTP refuses; not corrected
+  (not compared with a browser). **015**: the cause is a mediasoup 3.30.1
+  worker bug (probe packets share one buffer across transports, so new
+  transports make the others' probes fail SRTP); with a 20 s ramp-up every
+  720 bot stayed at 0.986 or more
   (specs/015-bandwidth-estimate-parity/validation-report.md, SC-004).
 - SC-008 for H.264 on Jitsi (T055, T059, T060): the bridge forwards only
   the lowest H.264 simulcast layer (no H.264 parser in

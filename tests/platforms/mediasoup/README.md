@@ -72,17 +72,19 @@ Limits found (specs/014-video-codec-comparison/validation-report.md):
   and AV1).
 
 Found in 015 (specs/015-bandwidth-estimate-parity/validation-report.md,
-SC-004): a bot held under 720 is one whose receiving session never gets
-mediasoup's probe packets. mediasoup counts them as sent, and its log has
-`srtp_protect() failed: replay check failed (index too old)` and
-`kWaitingForProbingResult: timeout` in proportion to the bots held; its
-estimate toward those bots then stays near the demo's 1 Mbit/s start.
-Their feedback is complete. A headless browser in the same room, receiving
-every participant, had 720 within a second. Why mediasoup refuses those
-bots' probes is not found; the bots were not changed for it. With
-`"log_server_stats": true` in `platform_config` (`MEDIASOUP_LOG_SERVER_STATS=1`)
-each bot logs mediasoup's estimate toward it once per second and the
-server's layer and score notifications.
+SC-004): bots asking for 720 are held on lower layers by a bug in
+mediasoup 3.30.1's worker, not by the bots. Every transport's probe
+generator shares one packet buffer (`static thread_local` in
+`RTP/ProbationGenerator.cpp`), so each new receiving transport resets the
+probe sequence number of all the others; on transports where it lands
+behind, the worker's own SRTP refuses every later probe (`srtp_protect()
+failed: replay check failed (index too old)`), and their estimate stays near
+the demo's 1 Mbit/s start. It shows when many receivers start together:
+spread the bots' joins (`ramp_up_seconds` 20 for 10 bots kept every 720 bot
+at 0.986 or more), or set the first seconds aside. With
+`"log_server_stats": true` in `platform_config`
+(`MEDIASOUP_LOG_SERVER_STATS=1`) each bot logs mediasoup's estimate toward
+it once per second and the server's layer and score notifications.
 
 Live test, from the repository root:
 

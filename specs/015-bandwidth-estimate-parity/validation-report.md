@@ -113,7 +113,7 @@ Gate T040: shown to the user before any correction is built.
 | Server | Verdict | Runs behind it | Cause the measures point to |
 |---|---|---|---|
 | Jitsi stable-11248 (local, default bridge settings) | **the bots** | VP8 run 4, AV1 run 1 (below); VP8 runs 1–3 and 5 without the problem | R8 cause 2: the bots do not acknowledge the bridge's duplicate packets (Pion's SRTP replay check drops them before the feedback recorder) |
-| mediasoup 3.30.1 (local) | **the bots** | VP8 run 3; runs 1 and 2 without the problem | not identified: every bot acknowledged 100%, feedback regular, stamp lag under 4 ms |
+| mediasoup 3.30.1 (local) | **the server** (revised 2026-11-15; first "the bots") | VP8 run 3 against the browser; root cause in SC-004, "Root cause" | a mediasoup worker bug: every transport's probe generator shares one packet buffer, so its probes are refused by the transport's own SRTP; the browser escaped by joining alone, before the bots |
 
 On both servers the browser, in the same room, received more than any bot
 (10 streams against the bots' cap of 4 on mediasoup; a larger need on
@@ -318,8 +318,11 @@ twice); with a 10 s ramp-up, AV1 3 of 3.
 
 ## SC-004: mediasoup, 720 at least 95% of the time
 
-Not met: nothing was changed for mediasoup (verdict "the bots", mechanism
-below). In 17 layered VP8 runs at 10 bots on 2026-11-14 the lowest 720-bot
+Not met with mediasoup 3.30.1 as released, at ramp-up 0: the cause is a
+bug in mediasoup's worker (root cause below), not in the bots, so the
+verdict is "the server". Met with that bug patched (5 runs of 5, lowest
+720-bot share 0.985), and with the release worker when the bots join over
+20 s (3 runs of 3, lowest 0.986). In 17 layered VP8 runs at 10 bots on 2026-11-14 the lowest 720-bot
 share ranged from 0.38 to 1.000; the other codecs were not rerun, since
 the bots are the same as in 014.
 
@@ -395,6 +398,61 @@ refused before they leave. What in the bots' sessions makes mediasoup
 refuse them, and a browser's not (never held in T037), is not found. The
 "too many tuples, removing the oldest non selected one" warning comes once
 per bot in every run, held or not.
+
+### Root cause (2026-11-15)
+
+**Which packets.** A debug build of the worker, with the SSRC, sequence
+number and SRTP session added to that one warning (a throwaway build in a
+scratch container; the repository's image is unchanged), shows that every
+refused packet is a probe: SSRC 1234 in three runs out of three (221,
+2,380 and 10,337 refusals; the last with four 720 bots at 0.53–0.60).
+
+**Why.** In the same log the probes' sequence numbers interleave across
+sessions of different transports (55956 in one, 55957 in another at the
+same millisecond; 38358, 38359, 38362 in three others): one counter numbers
+the probes of every transport on the worker. The reason is in
+`worker/src/RTC/RTP/ProbationGenerator.cpp`: the packet buffer is
+`static thread_local uint8_t ProbationPacketBuffer[...]`, so every
+transport's `ProbationGenerator` writes into the same packet, sequence
+number included, and each new generator sets that number to a new random
+value (`SetSequenceNumber(GetRandomUInt(...))`). A generator is created
+with a transport's congestion-control client, when its first video
+consumer arrives. For every other transport on the worker, the probe stream
+(SSRC 1234) then jumps to a random sequence number; when it lands behind
+what that transport has already sent, libsrtp refuses every later probe as
+`index too old` until the shared counter climbs past it again. The
+transport's estimate gets no probe result and stays near the demo's
+1 Mbit/s start, growing about 10% a second; mediasoup forwards lower
+layers meanwhile.
+
+**Why the bots and not the browser.** With ramp-up 0 the 10 bots' receive
+transports start within about a second, during everyone's first probing,
+so each bot's probe stream is reset by the others; about half end up
+behind. The browser joined first, alone, finished its first probing
+(17–30 Mbit/s within a second) before the bots arrived, and needed no
+probe afterwards. Nothing in the bots is at fault: a browser starting
+with them would be hit the same way.
+
+**Confirmed by both predictions** (2026-11-15 00:24–00:40, the T037
+conditions without a browser):
+
+| Worker | Ramp-up | Runs | Refused probes | Lowest 720-bot share |
+|---|---|---|---|---|
+| 3.30.1, debug, numbering per generator (patch below) | 0 | 5 | 0 in all | 0.993, 0.989, 0.996, 0.985, 0.985 |
+| 3.30.1 release (the repository's image) | 20 s | 3 | 1,728, 1,685, 1,710 | 0.990, 0.989, 0.986 |
+| 3.30.1 release, for comparison (above) | 0 | 17 | 52 to 10,337 | 0.38 to 1.000 |
+
+The patch used for the check keeps a sequence number and timestamp per
+generator (a `thread_local` map keyed by the generator, read and advanced
+in `GetNextPacket`) and leaves the shared buffer alone; it is not in the
+repository. With a ramp-up the release worker still refuses probes, but
+each bot's first probing ends before the next bot arrives, so its estimate
+is already high and the refusals cost nothing visible.
+
+**Run conditions on mediasoup 3.30.1** (FR-013): spread the bots' joins
+(20 s for 10 bots kept every 720 bot at 0.986 or more), or set aside the first
+seconds; a layered result at ramp-up 0 describes this bug. No report has
+been sent to mediasoup yet.
 
 ## SC-005: local Jitsi, default bridge settings
 
@@ -562,10 +620,10 @@ was not run on the demo page), and each sample is bounded to 5 s.
 
 ## Not met or not checked
 
-- SC-004 (mediasoup, 720 at least 95%): not met; verdict "the bots", the
-  held bots never receive mediasoup's probes, which mediasoup's own SRTP
-  refuses ("replay check failed (index too old)"); what in those bots'
-  sessions triggers it is not found; nothing changed for mediasoup.
+- SC-004 (mediasoup, 720 at least 95%): not met on mediasoup 3.30.1 as
+  released at ramp-up 0, because of a worker bug (probe packets share one
+  buffer across transports, so their SRTP refuses them); verdict "the
+  server". Met with the bug patched, and with a 20 s ramp-up.
 - SC-005 (local Jitsi, 0 freezes in 5 VP8 and 5 AV1 runs): not met as
   worded. VP8: no suspended stream after the correction, but a one-off
   freeze of about 1 s on some streams 4 s after the start (with either

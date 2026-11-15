@@ -371,10 +371,13 @@ overlay and `Server.Settings` (FR-011).
   were built and tried: the AV1 start-up suspensions were the same (2 of 5
   runs with and without), so they were removed (user's choice): no measured
   benefit, one allocation more per packet.
-- **mediasoup**: nothing changed in the bots. The held bots' sessions never
-  get mediasoup's probes, which mediasoup's own SRTP layer refuses
-  ("replay check failed (index too old)"); a receive section for the probe
-  stream (mediasoup-client's "probator") was considered and not built,
-  since it cannot change what the server sends. A validation option,
+- **mediasoup**: nothing changed in the bots. Root cause (2026-11-15): a
+  worker bug, every transport's probe generator sharing one packet buffer
+  (`static thread_local` in `RTP/ProbationGenerator.cpp`), so new transports
+  reset the others' probe sequence numbers and their SRTP refuses the
+  probes; verdict "the server". Confirmed with a patched debug worker (no
+  refusal, every 720 bot at 0.985 or more at ramp-up 0) and by a 20 s
+  ramp-up on the release worker. A receive section for the probe stream
+  (mediasoup-client's "probator") was considered and not built. A validation option,
   `log_server_stats`, logs mediasoup's estimate and layer decisions per
   bot.
