@@ -20,6 +20,9 @@ type RunResult struct {
 	// Browser is the browser's result when the plan asked for one (015);
 	// nil otherwise.
 	Browser *BrowserResult
+	// Network is the network section when the plan has one (016); nil
+	// otherwise.
+	Network *NetworkResult
 }
 
 // ReportFile is one report file of a run: exactly one of Path and Error is

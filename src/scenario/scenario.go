@@ -55,6 +55,9 @@ type TestPlan struct {
 	// ServerSettings states the server's settings that differ from its
 	// defaults (015); nil: not known to the run.
 	ServerSettings *ServerSettingsConfig `json:"server_settings,omitempty"`
+	// Network puts groups of bots under network conditions (016); nil: no
+	// condition, and the run behaves as before.
+	Network *NetworkConfig `json:"network,omitempty"`
 }
 
 // Limits of the server_monitoring section.
@@ -331,6 +334,11 @@ func NewScenario(name, platform string, testPlan TestPlan) (*Scenario, error) {
 		return nil, err
 	}
 	testPlan.ServerSettings = settings
+	network, err := testPlan.Network.withDefaults(testPlan, testPlan.Media.Profile)
+	if err != nil {
+		return nil, err
+	}
+	testPlan.Network = network
 
 	return &Scenario{
 		Name:      name,
@@ -343,8 +351,8 @@ func NewScenario(name, platform string, testPlan TestPlan) (*Scenario, error) {
 
 // snapshot returns a copy of the scenario that callers may read without the
 // service lock. TestPlan.PlatformConfig, TestPlan.Media,
-// TestPlan.ServerMonitoring, TestPlan.Browser and TestPlan.ServerSettings
-// are shared: they are never modified after creation.
+// TestPlan.ServerMonitoring, TestPlan.Browser, TestPlan.ServerSettings and
+// TestPlan.Network are shared: they are never modified after creation.
 func (s *Scenario) snapshot() *Scenario {
 	c := *s
 	return &c

@@ -286,3 +286,33 @@ func TestPeer_ReceiveOnlyHasNoPublishSession(t *testing.T) {
 		t.Errorf("state = %s, want established", p.State())
 	}
 }
+
+// Both sessions of a peer that publishes on its own session open their
+// sockets on the peer's one link (016 T011).
+func TestPeer_SessionsShareTheShaper(t *testing.T) {
+	s := &shaper{down: newLinkShaper(1), up: newLinkShaper(2)}
+	defer s.close()
+	p, err := NewPeer("peer-shaped", "sc", PeerMedia{Kinds: []string{"audio"}, PublishSession: true, shaper: s}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.closeConnections()
+	if len(p.nets) != 2 {
+		t.Fatalf("%d session networks, want 2", len(p.nets))
+	}
+	for i, n := range p.nets {
+		if n.shaper != s {
+			t.Errorf("session %d has shaper %p, want the peer's %p", i, n.shaper, s)
+		}
+	}
+	q, err := NewPeer("peer-plain", "sc", PeerMedia{Kinds: []string{"audio"}, PublishSession: true}, quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.closeConnections()
+	for i, n := range q.nets {
+		if n.shaper != nil {
+			t.Errorf("unconstrained peer's session %d has a shaper", i)
+		}
+	}
+}

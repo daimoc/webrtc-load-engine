@@ -182,6 +182,7 @@ Implemented (each feature is specified, planned and validated under `specs/`):
 | 013 Remote servers | `sfu-remote` deploys, checks and removes one server of `tests/platforms` on another Linux machine over ssh; server load read through `DOCKER_HOST=ssh://` |
 | 014 Video codecs | `"video_codec"`: VP8, VP9, AV1 or H.264 on every platform, at equal picture quality (VMAF); layered as simulcast (VP8, H.264) or SVC (VP9, AV1); simulcast and requested heights on LiveKit, mediasoup and Janus too; the codec and its limits in the report |
 | 015 Bandwidth estimate parity | One headless browser beside the bots on request (`"browser"`), measured apart; every report says how completely the bots acknowledged what they received and which server settings were changed; the bots now acknowledge every packet that reaches them, which ends the Jitsi bridge's suspensions of 014 |
+| 016 Network conditions | `"network"`: groups of bots with a schedule of bandwidth caps, delay and jitter, and random or burst loss, on each direction of their link, applied by the engine on the bots' own sockets; senders under an upload condition drop and restore layers like a browser; the report gives what each condition did, how fast the server reacted and recovered, and each group's quality |
 
 Measured on a local docker‑jitsi‑meet, bots and Jitsi on one laptop (16 threads):
 
@@ -206,7 +207,6 @@ Not done yet:
 
 * layers at 100 bots with the bridge on its own machine (on one laptop the bots take 2.5 cores next to the bridge),
 * load distribution across several agents,
-* bandwidth limits and network instability,
 * topologies other than everyone sends to everyone (1→N, single speaker).
 
 ---
@@ -521,6 +521,47 @@ A test plan can ask for one headless Chrome next to the bots, as a reference: th
 Every run also reports how the bots acknowledged what they received (`reception_reports`): per bot, the share of arriving packets acknowledged to the server, how regularly the feedback left, and how late arrivals were stamped. A bot under 99% acknowledged, or with more than 1% of its feedback intervals over 200 ms, is named, and the layered results carry a warning.
 
 The report also says what it knows of the server's settings (`server_settings`): those `sfu-remote` changed (written to its settings file as `<PLATFORM>_SERVER_SETTINGS`), those an operator states in the plan, or "not known to the run".
+
+### Network conditions per bot (016)
+
+A test plan can put groups of bots behind a slow or unstable link. The engine applies the conditions itself, on each bot's own sockets: per bot, with no administrator rights, the same against a local or a remote server.
+
+```json
+"network": {
+  "seed": 7,
+  "groups": [
+    { "name": "slow", "count": 3, "schedule": [
+      { "start_seconds": 30, "duration_seconds": 20, "downlink": { "rate_kbps": 1200 } } ] },
+    { "name": "lossy", "share": 0.2, "schedule": [
+      { "start_seconds": 30, "downlink": { "delay_ms": 40, "jitter_ms": 10, "loss": { "share": 0.03, "mean_burst": 2 } },
+        "uplink": { "rate_kbps": 400 } } ] }
+  ]
+}
+```
+
+* **Groups** take bots from the end of the launch order (`requested_heights` takes them from the start). Each group has a schedule of steps, in seconds from the first launch; between steps, no condition. A step that starts less than `settle_seconds` (10) after the last join is flagged.
+* **Conditions**, per direction (`downlink`: server to bot, `uplink`: bot to server):
+  * `rate_kbps`, a cap behind a drop-tail queue of `queue_ms` (200 ms);
+  * `delay_ms` with `jitter_ms`, held 20 ms at a time and never reordering;
+  * `loss`, random or in bursts of `mean_burst` packets.
+
+  Loss and jitter come from `seed`, drawn and reported when absent.
+* **The report** (format 4, `network`, and a "Network conditions" section in the Markdown) gives:
+  * what each condition did, measured by the link: rate delivered, packets dropped by the cap and by loss, delay added;
+  * per bot and step, the reaction time (first lower height or freeze) and the recovery time (the requested height back for 5 s without a freeze), at the collector's 2 s resolution;
+  * the video still missing after retransmission;
+  * the quality of each group and of the bots in no group.
+* **Senders under an upload condition** adapt like a browser: they estimate their upload from the server's transport-wide feedback (Pion's estimator) and drop their top simulcast or SVC layer after 1 s of congestion. They try it again after 2, 4, then 8 s, and a layer comes back at its next keyframe. A single-stream sender cannot adapt, and the report says so. Bots without an upload condition send exactly as before.
+* **mediasoup** gives its estimate toward each constrained bot through its signaling, and the report has it; the other servers give none.
+* **Live tests and `jitsi-connect`:** `<PLATFORM>_NETWORK=<file.json>`, `--network <file.json>` (the file holds the `network` object).
+* **Two bot behaviours changed in every run:**
+  * where a server asks for REMB and not for transport-cc (LiveKit on its defaults), the bots estimate their download and send REMB, as a browser does; before 016, LiveKit never lowered a slow bot;
+  * a bot asks at most 10 times for a lost packet, as libwebrtc does; Pion asked forever, and retransmissions filled a slow link 14-fold on Jitsi.
+
+What the servers do (`specs/016-network-conditions/validation-report.md`):
+* With a cap toward 3 of 10 bots, LiveKit, mediasoup and Jitsi lower those bots' layers within one collection (2 s). They give 720 back after the cap ends: mediasoup in about 6 s, LiveKit in about 32 s, Jitsi in about 38 s (medians of three runs). The other bots keep 720. Janus keeps forwarding the layer asked for: it has no downlink estimation, so its capped bots freeze.
+* With 3% loss, LiveKit, mediasoup and Jitsi retransmit nearly everything, and Janus almost nothing.
+* A constrained sender's top layers stop within 2 s of the upload cap and come back 6–7 s after it, on every server.
 
 ### Remote servers
 

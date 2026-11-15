@@ -2,8 +2,11 @@ package execution
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -41,6 +44,16 @@ type Engine struct {
 	samplerDone chan struct{}     // Closed when the sampler has finished
 
 	browser browserSession // The plan's headless browser (015); nil when none was asked for or started
+
+	// Network conditions (016); net is nil without a network section.
+	net        *schedule
+	netSeed    uint64
+	netSource  string
+	netStop    chan struct{}
+	network    *scenario.NetworkResult // Built by the media collector before collectorDone is closed
+	estMu      sync.Mutex
+	estimates  map[string][]scenario.EstimateSample // The server's estimate per constrained bot; nil when not given
+	launchedAs []string                             // Peer ID by launch index, guarded by peersMutex
 }
 
 // browserSession is a running browser of the browser package.
@@ -97,6 +110,7 @@ func (e *Engine) Start() {
 		if e.browser != nil {
 			result.Browser = e.browser.Stop()
 		}
+		result.Network = e.network
 		result.Status, result.Quality = finalStatus, e.quality
 		result.EndedAt = time.Now().UTC()
 		e.onComplete(e.scenarioID, result)
@@ -115,6 +129,7 @@ func (e *Engine) Start() {
 		e.Stop()
 		return
 	}
+	e.startNetwork()
 	go e.runMediaCollector()
 	e.startBrowser()
 
@@ -160,6 +175,76 @@ func (e *Engine) Start() {
 	}
 
 	e.Stop()
+}
+
+// startNetwork creates the bots' links and starts the plan's network
+// schedule, if it has one (016): its times count from now, just before the
+// first launch.
+func (e *Engine) startNetwork() {
+	e.launchedAs = make([]string, e.testPlan.Participants)
+	cfg := e.testPlan.Network
+	if cfg == nil {
+		return
+	}
+	e.netSeed, e.netSource = drawSeed(), scenario.SeedDrawn
+	if cfg.Seed != nil {
+		e.netSeed, e.netSource = *cfg.Seed, scenario.SeedFromTestPlan
+	}
+	e.net = newSchedule(cfg, e.testPlan.Participants, e.testPlan.RampUpSeconds+e.testPlan.DurationSeconds, e.netSeed)
+	e.net.logger = e.logger.With(slog.String("scenario_id", e.scenarioID))
+	e.net.begin(time.Now())
+	e.netStop = make(chan struct{})
+	go e.net.run(e.netStop)
+	if est, ok := e.adapter.(platform.ReceiverEstimator); ok {
+		e.estimates = map[string][]scenario.EstimateSample{}
+		go e.sampleEstimates(est)
+	}
+	e.logger.Info("Network conditions in force", slog.String("scenario_id", e.scenarioID),
+		slog.Uint64("seed", e.netSeed), slog.String("seed_source", e.netSource), slog.Int("groups", len(cfg.Groups)))
+}
+
+// estimateInterval is how often the server's estimate is read (016 R9).
+var estimateInterval = time.Second
+
+// sampleEstimates reads the server's estimate toward each constrained bot
+// once per estimateInterval until the network schedule stops.
+func (e *Engine) sampleEstimates(est platform.ReceiverEstimator) {
+	t := time.NewTicker(estimateInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-e.netStop:
+			return
+		case now := <-t.C:
+			e.peersMutex.RLock()
+			var ids []string
+			for i, id := range e.launchedAs {
+				if id != "" && e.net.groupOf(i) != "" {
+					ids = append(ids, id)
+				}
+			}
+			e.peersMutex.RUnlock()
+			for _, id := range ids {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				kbps, ok, err := est.ReceiverEstimate(ctx, id)
+				cancel()
+				if err != nil || !ok {
+					continue
+				}
+				at := math.Round(now.Sub(e.net.start).Seconds()*10) / 10
+				e.estMu.Lock()
+				e.estimates[id] = append(e.estimates[id], scenario.EstimateSample{AtSeconds: at, Kbps: kbps})
+				e.estMu.Unlock()
+			}
+		}
+	}
+}
+
+// drawSeed draws a seed for a plan that gives none.
+func drawSeed() uint64 {
+	var b [8]byte
+	_, _ = cryptorand.Read(b[:])
+	return binary.BigEndian.Uint64(b[:])
 }
 
 // startBrowser starts the plan's browser, if it asks for one, before the
@@ -267,6 +352,7 @@ func (e *Engine) runMediaCollector() {
 		stall = time.Duration(m.StallTimeoutSeconds) * time.Second
 	}
 	c := newMediaCollector(e.scenarioID, stall, e.logger)
+	c.timelines = e.testPlan.Network != nil
 	defer c.finish()
 
 	ticker := time.NewTicker(mediaCollectInterval)
@@ -277,10 +363,16 @@ func (e *Engine) runMediaCollector() {
 			c.collect(now, e.mediaPeers())
 		case <-e.ctx.Done():
 			now := time.Now()
+			if e.net != nil {
+				e.net.finish(now)
+			}
 			c.collect(now, e.mediaPeers())
 			e.quality = c.summary(now)
 			e.quality.Video.Codec = codecResult(e.testPlan.Media, e.codecPeers())
 			e.quality.Video.MarkLayersNotForwarded(maxRequestedHeight(e.testPlan.Media))
+			if e.net != nil {
+				e.network = e.networkResult(c, now)
+			}
 			return
 		}
 	}
@@ -300,6 +392,9 @@ func (e *Engine) mediaPeers() []mediaPeer {
 // onPeerState subscribes a peer's tracks to the media sources when its
 // transport is established, and unsubscribes them when it ends.
 func (e *Engine) onPeerState(p *Peer, to PeerState) {
+	if to == PeerStateEstablished && e.net != nil {
+		e.net.joined(time.Now())
+	}
 	if layers := p.LocalLayerTracks(); len(layers) > 0 && e.sources[media.KindVideo] != nil {
 		src := e.sources[media.KindVideo]
 		switch to {
@@ -341,6 +436,10 @@ func (e *Engine) peerMedia(i int) PeerMedia {
 		m.RequestedHeight = mc.HeightFor(i, e.testPlan.Participants)
 		m.VideoCodec = mc.Codec()
 	}
+	if sh := e.net.shaperFor(i); sh != nil {
+		m.shaper = sh
+		m.adaptSending = sh.up != nil && len(m.Kinds) > 0
+	}
 	for kind, src := range e.sources {
 		if m.SendTimes == nil {
 			m.SendTimes = map[string]*media.SendTimes{}
@@ -371,6 +470,9 @@ func (e *Engine) launchPeer(i int) bool {
 	}
 	peer.OnStateChange(func(to PeerState) { e.onPeerState(peer, to) })
 	e.peers[peerID] = peer
+	if i < len(e.launchedAs) {
+		e.launchedAs[i] = peerID
+	}
 	e.wg.Add(1)
 	go e.connectPeer(peer)
 	return true
@@ -441,5 +543,39 @@ func (e *Engine) stop() {
 	}
 	disconnects.Wait()
 	e.peersMutex.RUnlock()
+	if e.net != nil {
+		close(e.netStop)
+		e.net.close()
+	}
 	e.logger.Info("All peers disconnected, engine stopped", slog.String("scenario_id", e.scenarioID))
+}
+
+// networkResult builds the run's network section from the schedule and the
+// media collector.
+func (e *Engine) networkResult(c *mediaCollector, now time.Time) *scenario.NetworkResult {
+	e.peersMutex.RLock()
+	ids := slices.Clone(e.launchedAs)
+	e.peersMutex.RUnlock()
+	requested := make([]int, len(ids))
+	for i := range requested {
+		requested[i] = e.testPlan.Media.HeightFor(i, e.testPlan.Participants)
+	}
+	senders := map[string]*scenario.SenderResult{}
+	e.peersMutex.RLock()
+	for id, p := range e.peers {
+		if r := p.senderResult(e.net.start); r != nil {
+			senders[id] = r
+		}
+	}
+	e.peersMutex.RUnlock()
+	var estimates map[string][]scenario.EstimateSample
+	if e.estimates != nil {
+		e.estMu.Lock()
+		estimates = map[string][]scenario.EstimateSample{}
+		for id, s := range e.estimates {
+			estimates[id] = slices.Clone(s)
+		}
+		e.estMu.Unlock()
+	}
+	return buildNetwork(e.net, ids, requested, c, now, e.netSeed, e.netSource, senders, estimates)
 }

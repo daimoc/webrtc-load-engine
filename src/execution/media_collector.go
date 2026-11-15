@@ -36,6 +36,7 @@ type mediaCollector struct {
 	transport map[string]uint64                       // Peer ID -> transport bytes received at the last collection
 	bots      map[string]*botQuality                  // Peer ID -> quality record, kept after the peer leaves
 	reception map[string]feedbackSnapshot             // Peer ID -> reception reports at the last collection (015)
+	timelines bool                                    // Keep each bot's per-stream timeline (016: a plan with network conditions)
 }
 
 func newMediaCollector(scenarioID string, stallTimeout time.Duration, logger *slog.Logger) *mediaCollector {

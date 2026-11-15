@@ -424,3 +424,57 @@ func TestMediaCollector_ReceptionReasons(t *testing.T) {
 		})
 	}
 }
+
+// A summary over some bots gives what a run of only those bots would give
+// (016 T017).
+func TestMediaCollector_SubsetSummary(t *testing.T) {
+	full := summaryCollector(t, 12)
+	now := time.Unix(2000, 0)
+	keep := map[string]bool{"bot-09": true, "bot-10": true, "bot-11": true}
+	sub := full.summaryOf(now, func(id string) bool { return keep[id] })
+	only := summaryCollector(t, 12)
+	for id := range only.bots {
+		if !keep[id] {
+			delete(only.bots, id)
+			delete(only.reception, id)
+		}
+	}
+	want := only.summary(now)
+	if sub.Bots != 3 || sub.Video.Bots != want.Video.Bots || sub.Video.FreezesTotal != want.Video.FreezesTotal ||
+		*sub.Video.FrameRate != *want.Video.FrameRate || *sub.Audio.MOS != *want.Audio.MOS ||
+		len(sub.Worst.LowestMOS) != len(want.Worst.LowestMOS) || sub.ReceptionReports.Reason != want.ReceptionReports.Reason {
+		t.Errorf("subset summary %+v\nwant %+v", sub, want)
+	}
+}
+
+// With timelines on (a plan with network conditions), each collection
+// appends each received video stream's height and whether it froze since
+// the previous one (016 T023); off, nothing is kept.
+func TestMediaCollector_Timeline(t *testing.T) {
+	c := newMediaCollector("sc", 10*time.Second, quietLogger)
+	c.timelines = true
+	t0 := time.Unix(2000, 0)
+	snap := func(h0, h1 int, f0 uint64) map[string]KindMediaSnapshot {
+		return map[string]KindMediaSnapshot{"video": {Video: []media.VideoQualitySnapshot{
+			{Frames: 10, Height: h0, Freezes: f0, HeightTime: map[int]time.Duration{h0: time.Second}},
+			{Frames: 10, Height: h1, HeightTime: map[int]time.Duration{h1: time.Second}},
+		}}}
+	}
+	c.collectQuality("a", 720, snap(720, 720, 0), t0)
+	c.collectQuality("a", 720, snap(180, 720, 1), t0.Add(2*time.Second))
+	tl := c.bots["a"].timeline
+	if len(tl) != 2 || len(tl[0]) != 2 || len(tl[1]) != 2 {
+		t.Fatalf("timeline %+v", tl)
+	}
+	if s := tl[0][1]; s.height != 180 || !s.froze || !s.at.Equal(t0.Add(2*time.Second)) {
+		t.Errorf("stream 0, second sample %+v, want 180, froze", s)
+	}
+	if s := tl[1][1]; s.height != 720 || s.froze {
+		t.Errorf("stream 1, second sample %+v", s)
+	}
+	off := newMediaCollector("sc", 10*time.Second, quietLogger)
+	off.collectQuality("a", 720, snap(720, 720, 0), t0)
+	if len(off.bots["a"].timeline) != 0 {
+		t.Error("timeline kept without network conditions")
+	}
+}

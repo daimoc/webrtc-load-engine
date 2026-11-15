@@ -45,6 +45,9 @@ func Markdown(run Run) []byte {
 	if run.Browser != nil {
 		writeBrowser(&b, run.Browser)
 	}
+	if run.Network != nil {
+		writeNetwork(&b, run.Network)
+	}
 	if q != nil {
 		writeWorst(&b, q.Worst)
 	} else {

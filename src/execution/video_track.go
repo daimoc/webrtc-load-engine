@@ -59,6 +59,23 @@ type videoTrack struct {
 	capability        webrtc.RTPCodecCapability
 	id, rid, streamID string
 	mid               func() string // The sender's transceiver MID, for the MID extension; nil: none
+	ctl               *layerControl // What a sender that adapts lets through (016 US4); nil: everything
+}
+
+// layerControl drops whole layers of a track for a sender that adapts to
+// its upload (016 research R7): a simulcast layer's track pauses, a
+// scalable track drops its spatial layers above a limit. A layer comes
+// back at its next keyframe. The track renumbers what it sends, so that
+// the server sees no gap. Only the bot's own track changes: the shared
+// source's packets are never touched.
+type layerControl struct {
+	mu         sync.Mutex
+	parser     media.FrameParser
+	paused     bool // Simulcast: the layer is not sent
+	waitKey    bool // Simulcast: sent again from the next keyframe
+	maxSpatial int  // SVC: highest spatial layer sent; -1: all
+	pending    int  // SVC: a higher limit, in force from the next keyframe; -1: none
+	skipped    uint16
 }
 
 // setMID gives the track its transceiver's MID, written with its RID where
@@ -71,6 +88,87 @@ func (t *videoTrack) setMID(mid func() string) {
 }
 
 var _ sendTrack = (*videoTrack)(nil)
+
+// enableLayerControl lets the track's layers be dropped and restored.
+func (t *videoTrack) enableLayerControl() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.ctl == nil {
+		t.ctl = &layerControl{parser: media.NewFrameParser(t.codec, media.SourceDDExtID), maxSpatial: -1, pending: -1}
+	}
+}
+
+// setLayerEnabled pauses or resumes a simulcast layer's track.
+func (t *videoTrack) setLayerEnabled(on bool) {
+	c := t.control()
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if on && c.paused {
+		c.paused, c.waitKey = false, true
+	} else if !on {
+		c.paused, c.waitKey = true, false
+	}
+}
+
+// setMaxSpatial sets the highest spatial layer a scalable track sends: a
+// lower limit applies at once, a higher one from the next keyframe.
+func (t *videoTrack) setMaxSpatial(n int) {
+	c := t.control()
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.maxSpatial < 0 || n < c.maxSpatial {
+		c.maxSpatial, c.pending = n, -1
+		return
+	}
+	if n > c.maxSpatial {
+		c.pending = n
+	}
+}
+
+func (t *videoTrack) control() *layerControl {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.ctl
+}
+
+// filter decides whether the track sends p, and with which sequence number
+// and marker.
+func (c *layerControl) filter(p *rtp.Packet) (send bool, seq uint16, marker bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	marker = p.Marker
+	switch {
+	case c.paused:
+		c.skipped++
+		return false, 0, false
+	case c.waitKey:
+		d, ok := c.parser.Parse(&p.Header, p.Payload)
+		if !ok || !d.Start || !d.Keyframe {
+			c.skipped++
+			return false, 0, false
+		}
+		c.waitKey = false
+	case c.maxSpatial >= 0:
+		d, ok := c.parser.Parse(&p.Header, p.Payload)
+		if ok && c.pending >= 0 && d.Start && d.Keyframe {
+			c.maxSpatial, c.pending = c.pending, -1
+		}
+		if ok && d.SpatialID > c.maxSpatial {
+			c.skipped++
+			return false, 0, false
+		}
+		if ok && d.End && d.SpatialID == c.maxSpatial {
+			marker = true // The picture's last packet sent
+		}
+	}
+	return true, p.SequenceNumber - c.skipped, marker
+}
 
 func newVideoTrack(codec media.VideoCodec, id, streamID, rid string) *videoTrack {
 	return &videoTrack{
@@ -197,9 +295,17 @@ func (t *videoTrack) Codec() webrtc.RTPCodecCapability { return t.capability }
 func (t *videoTrack) WriteRTP(p *rtp.Packet) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+	seq, marker := p.SequenceNumber, p.Marker
+	if t.ctl != nil {
+		var send bool
+		if send, seq, marker = t.ctl.filter(p); !send {
+			return nil
+		}
+	}
 	var errs []error
 	for _, b := range t.bindings {
 		h := p.Header
+		h.SequenceNumber, h.Marker = seq, marker
 		h.SSRC = uint32(b.ssrc)
 		h.PayloadType = uint8(b.payloadType)
 		if err := t.setExtensions(&h, &p.Header, b); err != nil {

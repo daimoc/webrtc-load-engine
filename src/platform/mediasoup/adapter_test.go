@@ -398,3 +398,21 @@ func TestAdapter_URLAndSecret(t *testing.T) {
 		t.Errorf("logs lack the config:\n%s", logs.String())
 	}
 }
+
+// The adapter reads mediasoup's estimate toward a bot from its receive
+// transport's stats (016 T040).
+func TestAdapter_ReceiverEstimate(t *testing.T) {
+	fake := newFakeMediasoup(t)
+	a := newTestAdapter(t, fake, nil, nil)
+	var _ platform.ReceiverEstimator = a
+	ctx := context.Background()
+	if _, ok, err := a.ReceiverEstimate(ctx, "nobody"); ok || err != nil {
+		t.Errorf("unknown bot: ok %v, err %v", ok, err)
+	}
+	b := newBot(t, uuid.NewString(), "est-1", audioVideo, 0)
+	connect(t, fake, a, b)
+	kbps, ok, err := a.ReceiverEstimate(ctx, "est-1")
+	if err != nil || !ok || kbps != 1234 {
+		t.Errorf("estimate %d (%v, %v), want 1234 kbit/s", kbps, ok, err)
+	}
+}

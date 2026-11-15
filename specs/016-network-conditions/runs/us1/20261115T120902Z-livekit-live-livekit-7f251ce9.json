@@ -1,0 +1,807 @@
+{
+  "format_version": 4,
+  "run_id": "7f251ce9",
+  "scenario": {
+    "id": "live-6ab33a99",
+    "name": "live-livekit",
+    "platform": "livekit"
+  },
+  "test_plan": {
+    "participants": 10,
+    "ramp_up_seconds": 10,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "api_key": "devkey",
+      "api_secret": "[redacted]",
+      "room": "us1-016",
+      "url": "ws://localhost:7880"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "max_received_streams": 4,
+      "simulcast": {
+        "max_height": 720
+      },
+      "requested_heights": [
+        {
+          "height": 720,
+          "share": 1
+        }
+      ]
+    },
+    "server_monitoring": {
+      "containers": [
+        "livekit-server"
+      ],
+      "interval_seconds": 5
+    },
+    "network": {
+      "groups": [
+        {
+          "name": "slow",
+          "count": 3,
+          "schedule": [
+            {
+              "start_seconds": 30,
+              "downlink": {
+                "rate_kbps": 500,
+                "queue_ms": 200
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "started_at": "2026-11-15T12:07:44.179366819Z",
+  "ended_at": "2026-11-15T12:09:02.030839432Z",
+  "duration_seconds": 77.851,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-6ab33a99",
+    "generated_at": "2026-11-15T13:09:02.025333059+01:00",
+    "bots": 10,
+    "video": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0005,
+        "p95": 0.0015,
+        "p99": 0.0015
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 30.000914232433015,
+        "p95": 30.001565370453942,
+        "p99": 30.001565370453942
+      },
+      "freeze_seconds": {
+        "p50": 0,
+        "p95": 134.259623514,
+        "p99": 134.259623514
+      },
+      "freezes_total": 295,
+      "resolution_switches_total": 8,
+      "keyframe_requests_sent_total": 328,
+      "keyframe_requests_received_total": 222,
+      "height_share": {
+        "180": 0.0007071082056618319,
+        "360": 0.001766915460092369,
+        "720": 0.9975259763342458
+      },
+      "requested_height_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "simulcast",
+        "content_bitrate_kbps": {
+          "180": 150,
+          "360": 500,
+          "720": 1500
+        },
+        "received": {
+          "vp8": 10
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0005,
+        "p95": 0.1855,
+        "p99": 0.1855
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0,
+        "p95": 0.6959731053131623,
+        "p99": 0.6959731053131623
+      },
+      "mos": {
+        "p50": 4.368813704474177,
+        "p95": 4.368813704474177,
+        "p99": 4.368813704474177
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-6ab33a99-8",
+          "value": 2.132637687780933
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-9",
+          "value": 2.141473335915548
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-7",
+          "value": 2.19480154161735
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-0",
+          "value": 4.368813704474177
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-1",
+          "value": 4.368813704474177
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-2",
+          "value": 4.368813704474177
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-3",
+          "value": 4.368813704474177
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-4",
+          "value": 4.368813704474177
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-5",
+          "value": 4.368813704474177
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-6",
+          "value": 4.368813704474177
+        }
+      ],
+      "most_freeze_seconds": [
+        {
+          "peer_id": "peer-live-6ab33a99-8",
+          "value": 134.259623514
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-7",
+          "value": 110.2200466
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-9",
+          "value": 108.174644882
+        }
+      ],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-6ab33a99-7",
+          "value": 0.2025
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-8",
+          "value": 0.2025
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-9",
+          "value": 0.2025
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-0",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-1",
+          "value": 0.0025
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-2",
+          "value": 0.0015
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-3",
+          "value": 0.0015
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-4",
+          "value": 0.0015
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-5",
+          "value": 0.0015
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-6",
+          "value": 0.0015
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-6ab33a99-9",
+          "value": 0.9872963711221939
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-1",
+          "value": 0.9932709214754678
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-3",
+          "value": 0.9966016282120825
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-2",
+          "value": 0.9966307938957983
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-0",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-4",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-5",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-6",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-7",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-6ab33a99-8",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-15T13:07:44.179442301+01:00",
+        "end": "2026-11-15T13:09:02.025336899+01:00"
+      },
+      "containers": [
+        {
+          "name": "livekit-server",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 0.678,
+            "peak": 0.783,
+            "first": 0.349
+          },
+          "memory_bytes": {
+            "peak": 130158592,
+            "first": 16936960
+          },
+          "samples": 17,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 1,
+        "cpu_threads": {
+          "average": 0.678,
+          "peak": 0.783,
+          "first": 0.349
+        },
+        "memory_bytes": {
+          "peak": 130158592,
+          "first": 16936960
+        },
+        "samples": 17,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-15T13:07:44.179442301+01:00",
+        "end": "2026-11-15T13:09:02.025336899+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 0.806,
+          "peak": 0.88,
+          "first": 0.348
+        },
+        "memory_bytes": {
+          "peak": 214192128,
+          "first": 20213760
+        },
+        "samples": 17,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    },
+    "reception_reports": {
+      "available": false,
+      "reason": "not_negotiated"
+    }
+  },
+  "network": {
+    "seed": 2134229028989897847,
+    "seed_source": "drawn",
+    "settle_seconds": 10,
+    "timeline_resolution_seconds": 2,
+    "groups": [
+      {
+        "name": "slow",
+        "bots": [
+          "peer-live-6ab33a99-7",
+          "peer-live-6ab33a99-8",
+          "peer-live-6ab33a99-9"
+        ],
+        "steps": [
+          {
+            "index": 0,
+            "planned": {
+              "start_seconds": 30,
+              "downlink": {
+                "rate_kbps": 500,
+                "queue_ms": 200
+              }
+            },
+            "started_at_seconds": 30,
+            "ended_at_seconds": 77.841,
+            "during_start_up": false
+          }
+        ],
+        "quality": {
+          "scenario_id": "live-6ab33a99",
+          "generated_at": "2026-11-15T13:09:02.025333059+01:00",
+          "bots": 3,
+          "video": {
+            "available": true,
+            "bots": 3,
+            "latency_seconds": {
+              "p50": 0.0015,
+              "p95": 0.0015,
+              "p99": 0.0015
+            },
+            "latency_available": true,
+            "frame_rate": {
+              "p50": 16.548100347493637,
+              "p95": 19.55196110022237,
+              "p99": 19.55196110022237
+            },
+            "freeze_seconds": {
+              "p50": 110.2200466,
+              "p95": 134.259623514,
+              "p99": 134.259623514
+            },
+            "freezes_total": 295,
+            "resolution_switches_total": 4,
+            "keyframe_requests_sent_total": 328,
+            "keyframe_requests_received_total": 0,
+            "height_share": {
+              "180": 0.0012791395920472557,
+              "360": 0.0025583265151801807,
+              "720": 0.9961625338927725
+            },
+            "requested_height_share": {
+              "p50": 1,
+              "p95": 1,
+              "p99": 1
+            }
+          },
+          "audio": {
+            "available": true,
+            "bots": 3,
+            "latency_seconds": {
+              "p50": 0.1855,
+              "p95": 0.1855,
+              "p99": 0.1855
+            },
+            "latency_available": true,
+            "concealed_ratio": {
+              "p50": 0.6859468414607793,
+              "p95": 0.6959731053131623,
+              "p99": 0.6959731053131623
+            },
+            "mos": {
+              "p50": 2.141473335915548,
+              "p95": 2.19480154161735,
+              "p99": 2.19480154161735
+            }
+          },
+          "worst": {
+            "lowest_mos": [
+              {
+                "peer_id": "peer-live-6ab33a99-8",
+                "value": 2.132637687780933
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-9",
+                "value": 2.141473335915548
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-7",
+                "value": 2.19480154161735
+              }
+            ],
+            "most_freeze_seconds": [
+              {
+                "peer_id": "peer-live-6ab33a99-8",
+                "value": 134.259623514
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-7",
+                "value": 110.2200466
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-9",
+                "value": 108.174644882
+              }
+            ],
+            "highest_latency_p95_seconds": [
+              {
+                "peer_id": "peer-live-6ab33a99-7",
+                "value": 0.2025
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-8",
+                "value": 0.2025
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-9",
+                "value": 0.2025
+              }
+            ],
+            "lowest_requested_height_share": [
+              {
+                "peer_id": "peer-live-6ab33a99-9",
+                "value": 0.9872963711221939
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-7",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-6ab33a99-8",
+                "value": 1
+              }
+            ]
+          },
+          "server": {
+            "available": false
+          },
+          "load_machine": {
+            "engine": {
+              "cpu_threads": {
+                "average": 0,
+                "peak": 0,
+                "first": 0
+              },
+              "memory_bytes": {
+                "peak": 0,
+                "first": 0
+              },
+              "samples": 0,
+              "missed": 0
+            },
+            "hardware_threads": 0,
+            "usable_threads": 0
+          },
+          "reception_reports": {
+            "available": false,
+            "reason": "not_negotiated"
+          }
+        }
+      }
+    ],
+    "unconstrained_quality": {
+      "scenario_id": "live-6ab33a99",
+      "generated_at": "2026-11-15T13:09:02.025333059+01:00",
+      "bots": 7,
+      "video": {
+        "available": true,
+        "bots": 7,
+        "latency_seconds": {
+          "p50": 0.0005,
+          "p95": 0.0015,
+          "p99": 0.0015
+        },
+        "latency_available": true,
+        "frame_rate": {
+          "p50": 30.00121296008621,
+          "p95": 30.001565370453942,
+          "p99": 30.001565370453942
+        },
+        "freeze_seconds": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "freezes_total": 0,
+        "resolution_switches_total": 4,
+        "keyframe_requests_sent_total": 0,
+        "keyframe_requests_received_total": 222,
+        "height_share": {
+          "180": 0.0004887144942787152,
+          "360": 0.0014647656101647295,
+          "720": 0.9980465198955567
+        },
+        "requested_height_share": {
+          "p50": 1,
+          "p95": 1,
+          "p99": 1
+        }
+      },
+      "audio": {
+        "available": true,
+        "bots": 7,
+        "latency_seconds": {
+          "p50": 0.0005,
+          "p95": 0.0005,
+          "p99": 0.0005
+        },
+        "latency_available": true,
+        "concealed_ratio": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "mos": {
+          "p50": 4.368813704474177,
+          "p95": 4.368813704474177,
+          "p99": 4.368813704474177
+        }
+      },
+      "worst": {
+        "lowest_mos": [
+          {
+            "peer_id": "peer-live-6ab33a99-0",
+            "value": 4.368813704474177
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-1",
+            "value": 4.368813704474177
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-2",
+            "value": 4.368813704474177
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-3",
+            "value": 4.368813704474177
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-4",
+            "value": 4.368813704474177
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-5",
+            "value": 4.368813704474177
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-6",
+            "value": 4.368813704474177
+          }
+        ],
+        "most_freeze_seconds": [],
+        "highest_latency_p95_seconds": [
+          {
+            "peer_id": "peer-live-6ab33a99-0",
+            "value": 0.0025
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-1",
+            "value": 0.0025
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-2",
+            "value": 0.0015
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-3",
+            "value": 0.0015
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-4",
+            "value": 0.0015
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-5",
+            "value": 0.0015
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-6",
+            "value": 0.0015
+          }
+        ],
+        "lowest_requested_height_share": [
+          {
+            "peer_id": "peer-live-6ab33a99-1",
+            "value": 0.9932709214754678
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-3",
+            "value": 0.9966016282120825
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-2",
+            "value": 0.9966307938957983
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-0",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-4",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-5",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-6ab33a99-6",
+            "value": 1
+          }
+        ]
+      },
+      "server": {
+        "available": false
+      },
+      "load_machine": {
+        "engine": {
+          "cpu_threads": {
+            "average": 0,
+            "peak": 0,
+            "first": 0
+          },
+          "memory_bytes": {
+            "peak": 0,
+            "first": 0
+          },
+          "samples": 0,
+          "missed": 0
+        },
+        "hardware_threads": 0,
+        "usable_threads": 0
+      },
+      "reception_reports": {
+        "available": false,
+        "reason": "not_negotiated"
+      }
+    },
+    "bots": [
+      {
+        "bot": "peer-live-6ab33a99-7",
+        "group": "slow",
+        "requested_height": 720,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 100657,
+              "delivered_packets": 7211,
+              "delivered_kbps": {
+                "mean": 501.6,
+                "max_10s": 500.6
+              },
+              "dropped_by_cap_share": 0.9283606703955015,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 196.6,
+                "max": 220
+              }
+            },
+            "uplink": null,
+            "missing_after_retransmission_share": null,
+            "reaction_seconds": null,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "no_uplink_condition"
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-6ab33a99-8",
+        "group": "slow",
+        "requested_height": 720,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 98023,
+              "delivered_packets": 7021,
+              "delivered_kbps": {
+                "mean": 501.6,
+                "max_10s": 500.4
+              },
+              "dropped_by_cap_share": 0.9283739530518348,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 196.9,
+                "max": 220
+              }
+            },
+            "uplink": null,
+            "missing_after_retransmission_share": null,
+            "reaction_seconds": null,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "no_uplink_condition"
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-6ab33a99-9",
+        "group": "slow",
+        "requested_height": 720,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 78324,
+              "delivered_packets": 6272,
+              "delivered_kbps": {
+                "mean": 501.5,
+                "max_10s": 500.5
+              },
+              "dropped_by_cap_share": 0.9199223737296359,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 197.8,
+                "max": 220
+              }
+            },
+            "uplink": null,
+            "missing_after_retransmission_share": null,
+            "reaction_seconds": null,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "no_uplink_condition"
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      }
+    ]
+  }
+}

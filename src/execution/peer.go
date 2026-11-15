@@ -55,6 +55,12 @@ type Peer struct {
 	scenarioID string
 	pc         *webrtc.PeerConnection
 	logger     *slog.Logger
+	shaper     *shaper        // Network conditions of all the peer's sessions (016); nil: none
+	adapt      bool           // Adapts what it sends to its upload (016 US4)
+	nets       []*consentNet  // The networks its sessions' sockets were opened on
+	remb       *rembEstimator // Receive-side estimate, on only where the server asks for REMB (016 R14)
+	sender     *peerSender    // Upload estimate and layer policy (016 US4); nil when the peer does not adapt
+	pubSession bool           // The peer sends on a publish session of its own (set before the sessions are made)
 
 	gatherTimeout time.Duration
 	kinds         []string                    // Media kinds the peer sends, fixed at construction
@@ -157,6 +163,12 @@ type PeerMedia struct {
 	// media apart from what they send it (008 research R4). The session
 	// the remote side offers then only receives.
 	PublishSession bool
+	// shaper is the peer's network conditions (016), shared by all its
+	// sessions; nil: none.
+	shaper *shaper
+	// adaptSending makes the peer estimate its upload and adapt the layers
+	// it sends (016 US4); only peers with an uplink condition.
+	adaptSending bool
 }
 
 // NewPeer creates a new Peer in the "new" state.
@@ -194,6 +206,13 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 	}
 	p.allowed.Store(&map[uint32]bool{})
 	p.feedback = newTransportFeedback()
+	p.shaper = m.shaper
+	p.adapt = m.adaptSending
+	p.remb = newREMBEstimator(p.sendREMB)
+	p.pubSession = m.PublishSession && len(m.Kinds) > 0
+	if p.adapt && len(m.Kinds) > 0 {
+		p.sender = &peerSender{}
+	}
 	if skipRecordEvery > 0 && id == skipRecordPeer {
 		p.feedback.skipEvery = uint64(skipRecordEvery)
 	}
@@ -220,6 +239,9 @@ func NewPeer(id, scenarioID string, m PeerMedia, logger *slog.Logger) (*Peer, er
 	if err := p.addLocalTracks(); err != nil {
 		p.closeConnections()
 		return nil, err
+	}
+	if p.sender != nil {
+		p.startSending()
 	}
 	peersByState.WithLabelValues(scenarioID, string(PeerStateNew)).Inc()
 	pc.OnConnectionStateChange(p.onConnectionStateChange)
@@ -613,6 +635,10 @@ func (p *Peer) recordOffered(offer string) {
 	}
 	p.allowed.Store(&allowed)
 	p.feedback.setExtension(parsed)
+	if id := rembNegotiated(parsed); id != 0 && !p.remb.enabled() {
+		p.remb.setExtension(id) // The server asks for REMB (016 research R14)
+		p.logger.Info("Sending REMB: the server asks for receive-side estimation", slog.Int("abs_send_time_id", int(id)))
+	}
 	if p.feedback.extID.Load() != 0 && p.pc != nil {
 		p.feedback.run(p.pc.WriteRTCP)
 	}
@@ -842,6 +868,7 @@ func (p *Peer) fail(stage string, cause error) {
 
 // Close releases the peer connection and its media resources.
 func (p *Peer) Close() error {
+	p.stopSending()
 	p.feedback.close()
 	p.stopLayerReaders()
 	err := p.closeConnections()
@@ -1279,4 +1306,18 @@ func (p *Peer) LocalVideoSize() (width, height int) {
 		return 0, 0
 	}
 	return c.Width, c.Height
+}
+
+// sendREMB sends the receive session's estimate to the server, off the
+// socket read that produced it.
+func (p *Peer) sendREMB(r *rtcp.ReceiverEstimatedMaximumBitrate) {
+	pc := p.pc
+	if pc == nil {
+		return
+	}
+	go func() {
+		if err := pc.WriteRTCP([]rtcp.Packet{r}); err != nil {
+			p.logger.Debug("REMB not sent", slog.String("error", err.Error()))
+		}
+	}()
 }

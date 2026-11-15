@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -81,6 +82,73 @@ func serverSettingsFrom(t *testing.T, prefix string) *scenario.ServerSettingsCon
 		t.Fatalf("%s_SERVER_SETTINGS: %v", prefix, err)
 	}
 	return &scenario.ServerSettingsConfig{Source: scenario.ServerSettingsDeployment, Values: values}
+}
+
+// networkFrom reads <prefix>_NETWORK, a JSON file holding the plan's network
+// section (016); nil without it.
+func networkFrom(t *testing.T, prefix string) *scenario.NetworkConfig {
+	t.Helper()
+	path := os.Getenv(prefix + "_NETWORK")
+	if path == "" {
+		return nil
+	}
+	n, err := scenario.ReadNetworkFile(path)
+	if err != nil {
+		t.Fatalf("%s_NETWORK: %v", prefix, err)
+	}
+	return n
+}
+
+// logNetwork logs each group's steps and quality, if the plan had a network
+// section.
+func logNetwork(t *testing.T, n *scenario.NetworkResult) {
+	t.Helper()
+	if n == nil {
+		return
+	}
+	t.Logf("network: seed %d (%s)", n.Seed, n.SeedSource)
+	for _, g := range n.Groups {
+		for _, st := range g.Steps {
+			t.Logf("  group %s step %d: started %v ended %v during start-up %v", g.Name, st.Index, deref(st.StartedAtSeconds), deref(st.EndedAtSeconds), st.DuringStartUp)
+		}
+		if q := g.Quality; q != nil && q.Video.RequestedHeightShare != nil {
+			t.Logf("  group %s: %d bots, heights %v, requested height share p50 %.3f, freezes %d", g.Name, len(g.Bots), q.Video.HeightShare, q.Video.RequestedHeightShare.P50, q.Video.FreezesTotal)
+		}
+	}
+	if q := n.UnconstrainedQuality; q != nil && q.Video.RequestedHeightShare != nil {
+		t.Logf("  no condition: %d bots, heights %v, requested height share p50 %.3f, freezes %d", q.Bots, q.Video.HeightShare, q.Video.RequestedHeightShare.P50, q.Video.FreezesTotal)
+	}
+}
+
+// conditionedHold returns holdFreezes, or NaN (not checked) when the plan
+// put bots under network conditions: the counter covers every bot, and the
+// constrained bots' freezes are a result, reported, not a failure (016).
+// The other checks then apply to the bots in no group (unconstrained).
+func conditionedHold(t *testing.T, n *scenario.NetworkResult, holdFreezes float64) float64 {
+	t.Helper()
+	if n == nil {
+		return holdFreezes
+	}
+	t.Logf("network conditions: %.0f freezes during the hold, reported, not checked", holdFreezes)
+	return math.NaN()
+}
+
+// unconstrained returns the summary the requested-height check applies to:
+// the bots in no group when the plan has network conditions (016).
+func unconstrained(q *scenario.QualitySummary, n *scenario.NetworkResult) *scenario.QualitySummary {
+	if n == nil || n.UnconstrainedQuality == nil {
+		return q
+	}
+	u := *n.UnconstrainedQuality
+	u.Video.Codec = q.Video.Codec // A run's result, not a group's
+	return &u
+}
+
+func deref(v *float64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
 }
 
 // logBrowser logs the browser's result, if the plan asked for one. A

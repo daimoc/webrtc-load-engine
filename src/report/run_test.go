@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,7 +49,7 @@ func TestNewRunJSON(t *testing.T) {
 			t.Errorf("missing key %q in %s", k, raw)
 		}
 	}
-	if string(got["format_version"]) != "3" {
+	if string(got["format_version"]) != "4" {
 		t.Errorf("format_version = %s", got["format_version"])
 	}
 	if string(got["duration_seconds"]) != "72.123" {
@@ -116,5 +117,57 @@ func TestNewRunBrowser(t *testing.T) {
 	want := `{"status":"unavailable","reason":"browser_not_found","url":"https://h/r","window":"1280x720"}`
 	if string(got["browser"]) != want {
 		t.Errorf("browser = %s, want %s", got["browser"], want)
+	}
+}
+
+// A run without network has no network key; one with it carries the
+// contract's shape (016).
+func TestNewRunNetwork(t *testing.T) {
+	raw, err := json.Marshal(NewRun(testScenario(), testResult()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["network"]; ok {
+		t.Error("network key in a run without network")
+	}
+	if string(got["format_version"]) != "4" {
+		t.Errorf("format_version = %s, want 4", got["format_version"])
+	}
+
+	r := testResult()
+	f := func(v float64) *float64 { return &v }
+	yes := true
+	r.Network = &scenario.NetworkResult{Seed: 42, SeedSource: scenario.SeedFromTestPlan, SettleSeconds: 10, TimelineResolutionSeconds: 1,
+		Groups: []scenario.GroupResult{{Name: "slow", Bots: []string{"b1"}, Steps: []scenario.AppliedStep{{Index: 0,
+			Planned:          scenario.ScheduleStep{StartSeconds: 20, Downlink: &scenario.LinkCondition{RateKbps: 300, QueueMs: 200}},
+			StartedAtSeconds: f(20), EndedAtSeconds: f(40)}}}},
+		Bots: []scenario.BotNetwork{{Bot: "b1", Group: "slow", RequestedHeight: 720, Steps: []scenario.BotStep{{Index: 0,
+			Downlink:        &scenario.DirectionMeasure{OfferedPackets: 10, DeliveredPackets: 9, DeliveredKbps: scenario.KbpsMean{Mean: 297, Max10s: 301}, DroppedByCapShare: f(0.1), AddedDelayMs: scenario.MeanMax{Mean: 150, Max: 201}},
+			ReactionSeconds: f(2), RecoverySeconds: f(6), Recovered: &yes}},
+			Sender:         &scenario.SenderResult{Reason: scenario.NoUplinkCondition},
+			ServerEstimate: &scenario.ServerEstimate{Reason: scenario.NotGivenByServer}}}}
+	raw, err = json.Marshal(NewRun(testScenario(), r))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back struct {
+		Network scenario.NetworkResult `json:"network"`
+	}
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatal(err)
+	}
+	n := back.Network
+	if n.Seed != 42 || n.Groups[0].Steps[0].Planned.Downlink.RateKbps != 300 || *n.Bots[0].Steps[0].RecoverySeconds != 6 ||
+		n.Bots[0].Steps[0].Downlink.DeliveredKbps.Max10s != 301 || n.Bots[0].ServerEstimate.Reason != scenario.NotGivenByServer {
+		t.Errorf("network did not round-trip: %+v", n)
+	}
+	for _, key := range []string{`"max_10s":301`, `"during_start_up":false`, `"dropped_by_loss_share":null`, `"recovered":true`, `"timeline_resolution_seconds":1`} {
+		if !strings.Contains(string(raw), key) {
+			t.Errorf("report lacks %s", key)
+		}
 	}
 }

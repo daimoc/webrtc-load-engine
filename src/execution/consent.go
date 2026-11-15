@@ -4,8 +4,10 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pion/ice/v2"
@@ -148,6 +150,12 @@ type consentNet struct {
 	// feedback counts the RTP packets the sockets read (015 research R6);
 	// nil on a publish session, which receives no media.
 	feedback *transportFeedback
+	// shaper is the bot's link conditions (016), shared by all its
+	// sessions; nil when the bot has none.
+	shaper *shaper
+	// remb is the receive session's REMB estimator (016 research R14); nil
+	// on a publish session.
+	remb *rembEstimator
 
 	mu    sync.Mutex
 	conns []*consentConn
@@ -214,20 +222,58 @@ func (n *consentNet) answered(pkt []byte) bool {
 }
 
 // consentConn is a UDP socket whose reads skip the answers to consent
-// checks.
+// checks. When the bot has a shaper (016), its reads come out of the down
+// link and its writes go into the up link.
 type consentConn struct {
 	transport.UDPConn
 	n *consentNet
+
+	// Shaped reads (research R1): one goroutine reads the socket into the
+	// down link, which hands each datagram to in when it is due.
+	readOnce sync.Once
+	in       chan shapedRead
+	dead     chan struct{} // Closed when the socket's read fails
+	readErr  error         // Set before dead is closed
+	deadline atomic.Pointer[time.Time]
+}
+
+// shapedRead is a datagram that left the down link, at its time.
+type shapedRead struct {
+	pkt  []byte
+	addr net.Addr
+	at   time.Time
+}
+
+// shapedReadBuffer is how many delivered datagrams a shaped socket holds
+// for its reader, as a kernel socket buffer does; more are dropped.
+const shapedReadBuffer = 4096
+
+// receiveMTU is the largest datagram a shaped socket reads, as Pion's ICE
+// agent reads.
+const receiveMTU = 8192
+
+func (c *consentConn) down() *linkShaper {
+	if c.n.shaper == nil {
+		return nil
+	}
+	return c.n.shaper.down
+}
+
+func (c *consentConn) up() *linkShaper {
+	if c.n.shaper == nil {
+		return nil
+	}
+	return c.n.shaper.up
 }
 
 func (c *consentConn) ReadFrom(p []byte) (int, net.Addr, error) {
 	for {
-		n, addr, err := c.UDPConn.ReadFrom(p)
+		n, addr, at, err := c.read(p)
 		if err != nil {
 			return n, addr, err
 		}
 		if !c.n.answered(p[:n]) {
-			c.arrived(p[:n])
+			c.arrived(p[:n], at)
 			return n, addr, err
 		}
 	}
@@ -235,21 +281,106 @@ func (c *consentConn) ReadFrom(p []byte) (int, net.Addr, error) {
 
 func (c *consentConn) ReadFromUDP(p []byte) (int, *net.UDPAddr, error) {
 	for {
-		n, addr, err := c.UDPConn.ReadFromUDP(p)
+		n, addr, at, err := c.read(p)
 		if err != nil {
-			return n, addr, err
+			ua, _ := addr.(*net.UDPAddr)
+			return n, ua, err
 		}
 		if !c.n.answered(p[:n]) {
-			c.arrived(p[:n])
-			return n, addr, err
+			c.arrived(p[:n], at)
+			ua, _ := addr.(*net.UDPAddr)
+			return n, ua, err
 		}
 	}
 }
 
+// read returns the next datagram and the time it arrived: from the socket,
+// or from the down link when the bot has one.
+func (c *consentConn) read(p []byte) (int, net.Addr, time.Time, error) {
+	down := c.down()
+	if down == nil {
+		n, addr, err := c.UDPConn.ReadFrom(p)
+		return n, addr, time.Now(), err
+	}
+	c.readOnce.Do(func() {
+		c.in = make(chan shapedRead, shapedReadBuffer)
+		c.dead = make(chan struct{})
+		go c.readSocket(down)
+	})
+	var timeout <-chan time.Time
+	if d := c.deadline.Load(); d != nil && !d.IsZero() {
+		t := time.NewTimer(time.Until(*d))
+		defer t.Stop()
+		timeout = t.C
+	}
+	select {
+	case r := <-c.in:
+		return copy(p, r.pkt), r.addr, r.at, nil
+	case <-c.dead:
+		select {
+		case r := <-c.in: // Delivered before the socket failed
+			return copy(p, r.pkt), r.addr, r.at, nil
+		default:
+		}
+		return 0, nil, time.Time{}, c.readErr
+	case <-timeout:
+		return 0, nil, time.Time{}, os.ErrDeadlineExceeded
+	}
+}
+
+// readSocket feeds the down link with what the socket reads, until the
+// socket fails (it is closed).
+func (c *consentConn) readSocket(down *linkShaper) {
+	buf := make([]byte, receiveMTU)
+	for {
+		n, addr, err := c.UDPConn.ReadFrom(buf)
+		if err != nil {
+			c.readErr = err
+			close(c.dead)
+			return
+		}
+		down.offer(append([]byte(nil), buf[:n]...), func(pkt []byte) {
+			select {
+			case c.in <- shapedRead{pkt: pkt, addr: addr, at: time.Now()}:
+			case <-c.dead:
+			default: // The reader is too far behind: dropped, as a full socket buffer does
+			}
+		})
+	}
+}
+
+// SetReadDeadline also applies to shaped reads.
+func (c *consentConn) SetReadDeadline(t time.Time) error {
+	c.deadline.Store(&t)
+	return c.UDPConn.SetReadDeadline(t)
+}
+
+// SetDeadline also applies to shaped reads.
+func (c *consentConn) SetDeadline(t time.Time) error {
+	c.deadline.Store(&t)
+	return c.UDPConn.SetDeadline(t)
+}
+
+func (c *consentConn) WriteTo(p []byte, addr net.Addr) (int, error) {
+	up := c.up()
+	if up == nil {
+		return c.UDPConn.WriteTo(p, addr)
+	}
+	up.offer(append([]byte(nil), p...), func(pkt []byte) { _, _ = c.UDPConn.WriteTo(pkt, addr) })
+	return len(p), nil
+}
+
+func (c *consentConn) WriteToUDP(p []byte, addr *net.UDPAddr) (int, error) {
+	return c.WriteTo(p, addr)
+}
+
 // arrived counts a datagram for the peer's reception reports, at the
-// time it is read.
-func (c *consentConn) arrived(pkt []byte) {
+// time it arrived (left the down link, for a shaped bot).
+func (c *consentConn) arrived(pkt []byte, at time.Time) {
 	if f := c.n.feedback; f != nil {
-		f.arrive(pkt, time.Now())
+		f.arrive(pkt, at)
+	}
+	if r := c.n.remb; r != nil {
+		r.arrive(pkt, at)
 	}
 }

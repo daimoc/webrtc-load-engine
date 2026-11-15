@@ -657,6 +657,36 @@ func (a *Adapter) Disconnect(peerID string) error {
 	return nil
 }
 
+// ReceiverEstimate is mediasoup's estimate toward peerID: the receive
+// transport's availableOutgoingBitrate (016 research R9).
+func (a *Adapter) ReceiverEstimate(ctx context.Context, peerID string) (int, bool, error) {
+	a.mu.Lock()
+	s := a.sessions[peerID]
+	a.mu.Unlock()
+	if s == nil || !s.ready.Load() {
+		return 0, false, nil
+	}
+	stats, err := s.transportStats(ctx, s.recvT.TransportID)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, st := range stats {
+		if v, ok := st["availableOutgoingBitrate"].(float64); ok && v > 0 {
+			return int(v / 1000), true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+// transportStats asks the server for a transport's stats.
+func (s *session) transportStats(ctx context.Context, transportID string) ([]map[string]any, error) {
+	var reply struct {
+		Stats []map[string]any `json:"stats"`
+	}
+	err := s.conn.Request(ctx, "getTransportStats", map[string]string{"transportId": transportID}, &reply)
+	return reply.Stats, err
+}
+
 // logTransportStats logs the receiving transport's stats once per second
 // until the session closes (Config.LogServerStats).
 func (s *session) logTransportStats(transportID string) {
@@ -671,11 +701,7 @@ func (s *session) logTransportStats(transportID string) {
 		case <-ticker.C:
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		var reply struct {
-			Stats []map[string]any `json:"stats"`
-		}
-		err := s.conn.Request(ctx, "getTransportStats", map[string]string{"transportId": transportID}, &reply)
-		stats := reply.Stats
+		stats, err := s.transportStats(ctx, transportID)
 		cancel()
 		if err != nil {
 			s.logger.Debug("mediasoup transport stats", slog.String("error", err.Error()))

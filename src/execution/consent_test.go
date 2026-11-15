@@ -14,6 +14,8 @@ import (
 	"github.com/pion/ice/v2"
 	"github.com/pion/stun"
 	"github.com/pion/webrtc/v3"
+
+	"webrtc-load-engine/src/scenario"
 )
 
 // liteServer is an ICE-lite PeerConnection, as SFU transports often are,
@@ -175,4 +177,100 @@ func TestConsentNet_PublishSessionNotCounted(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.Close() // No feedback: nothing to count, and no panic
+}
+
+// shapedConn opens a socket through a consent net whose bot has a shaper
+// capping both directions at kbps (016 T009).
+func shapedConn(t *testing.T, kbps int, f *transportFeedback) *consentConn {
+	t.Helper()
+	c, err := newConsent(quietLogger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.net.feedback = f
+	s := &shaper{down: newLinkShaper(1), up: newLinkShaper(2)}
+	now := time.Now()
+	s.down.setCondition(0, &scenario.LinkCondition{RateKbps: kbps, QueueMs: 2000}, now)
+	s.up.setCondition(0, &scenario.LinkCondition{RateKbps: kbps, QueueMs: 2000}, now)
+	t.Cleanup(s.close)
+	c.net.shaper = s
+	conn, err := c.net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return conn.(*consentConn)
+}
+
+// Reads of a shaped socket come out at the link's rate, consent answers
+// still skipped and arrivals still counted.
+func TestConsentNet_ShapedReads(t *testing.T) {
+	f := negotiatedFeedback(t)
+	conn := shapedConn(t, 80, f) // 1000 bytes on the wire: 100 ms each
+	sender, err := net.DialUDP("udp4", nil, conn.LocalAddr().(*net.UDPAddr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sender.Close()
+	answer := stun.MustBuild(stun.TransactionID, stun.BindingSuccess)
+	conn.n.expect(answer.TransactionID)
+	pad := make([]byte, 1000-udpIPHeaderBytes)
+	start := time.Now()
+	if _, err := sender.Write(answer.Raw); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		pkt := append(twccPacket(t, 11, uint16(i+1), 5), pad[:len(pad)-len(twccPacket(t, 11, 1, 5))]...)
+		if _, err := sender.Write(pkt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	buf := make([]byte, 1500)
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for i := 0; i < 5; i++ {
+		if _, _, err := conn.ReadFrom(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if took := time.Since(start); took < 450*time.Millisecond {
+		t.Errorf("5 datagrams read in %v through 80 kbit/s, want about 500 ms", took)
+	}
+	if got := f.snapshot().arrivedTotal; got != 5 {
+		t.Errorf("arrived %d, want 5", got)
+	}
+	// A deadline still ends a read with nothing to deliver.
+	conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+	if _, _, err := conn.ReadFrom(buf); err == nil {
+		t.Error("read past its deadline returned no error")
+	}
+}
+
+// Writes of a shaped socket return at once and leave at the link's rate.
+func TestConsentNet_ShapedWrites(t *testing.T) {
+	conn := shapedConn(t, 80, nil)
+	rx, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rx.Close()
+	pkt := make([]byte, 1000-udpIPHeaderBytes)
+	start := time.Now()
+	for i := 0; i < 5; i++ {
+		if n, err := conn.WriteTo(pkt, rx.LocalAddr()); err != nil || n != len(pkt) {
+			t.Fatalf("write: %d, %v", n, err)
+		}
+	}
+	if took := time.Since(start); took > 50*time.Millisecond {
+		t.Errorf("writes blocked for %v", took)
+	}
+	buf := make([]byte, 1500)
+	rx.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for i := 0; i < 5; i++ {
+		if _, _, err := rx.ReadFrom(buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if took := time.Since(start); took < 450*time.Millisecond {
+		t.Errorf("5 datagrams arrived in %v through 80 kbit/s, want about 500 ms", took)
+	}
 }

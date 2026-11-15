@@ -48,6 +48,7 @@ func main() {
 	browserHeight := flag.Int("browser-height", 0, "Video height the browser's share of time is measured against")
 	browserWindow := flag.String("browser-window", "", "Browser window size, <width>x<height> (default "+scenario.DefaultBrowserWindow+")")
 	browserInsecureTLS := flag.Bool("browser-insecure-tls", false, "Let the browser accept a self-signed certificate")
+	networkFile := flag.String("network", "", "JSON file holding the test plan's network section: network conditions per group of bots (016)")
 	serverSettings := flag.String("server-settings", "", "Server settings that differ from its defaults, name=value,... (stated by the operator; default $JITSI_SERVER_SETTINGS, stated by the deployment)")
 
 	flag.Parse()
@@ -95,6 +96,15 @@ func main() {
 	if *browserURL != "" {
 		browserCfg = &scenario.BrowserConfig{URL: *browserURL, ExpectedHeight: *browserHeight, Window: *browserWindow, InsecureTLS: *browserInsecureTLS}
 	}
+	var network *scenario.NetworkConfig
+	if *networkFile != "" {
+		n, err := scenario.ReadNetworkFile(*networkFile)
+		if err != nil {
+			logger.Error("Invalid flags", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		network = n
+	}
 	settings, err := serverSettingsFlag(*serverSettings)
 	if err != nil {
 		logger.Error("Invalid flags", slog.String("error", err.Error()))
@@ -109,6 +119,7 @@ func main() {
 		ServerMonitoring: monitoring,
 		Browser:          browserCfg,
 		ServerSettings:   settings,
+		Network:          network,
 	})
 	if err != nil {
 		logger.Error("Invalid flags", slog.String("error", err.Error()))

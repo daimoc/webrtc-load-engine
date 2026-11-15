@@ -120,6 +120,7 @@ func TestMediasoupLive_JoinAndEstablishMedia(t *testing.T) {
 		ServerMonitoring: monitoring,
 		Browser:          browserFrom(t, "MEDIASOUP"),
 		ServerSettings:   serverSettingsFrom(t, "MEDIASOUP"),
+		Network:          networkFrom(t, "MEDIASOUP"),
 	})
 	if err != nil {
 		t.Fatalf("test plan: %v", err)
@@ -161,15 +162,17 @@ func TestMediasoupLive_JoinAndEstablishMedia(t *testing.T) {
 		}
 		writeReport(t, sc, scenarioID, config, result)
 		logBrowser(t, result.Browser)
+		logNetwork(t, result.Network)
 		quality := result.Quality
 		t.Logf("bots left in %s", time.Since(stopped).Round(time.Millisecond))
 		if time.Since(stopped) > 10*time.Second {
 			t.Errorf("bots took %s to leave, want under 10 s (SC-001)", time.Since(stopped).Round(time.Second))
 		}
 		single := plan.Media.Simulcast == nil && plan.Media.RequestedHeights == nil
-		qualityChecks(t, quality, participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
+		holdFreezes = conditionedHold(t, result.Network, holdFreezes)
+		qualityChecks(t, unconstrained(quality, result.Network), participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
 		if checkVideo && !single {
-			requestedHeightChecks(t, quality)
+			requestedHeightChecks(t, unconstrained(quality, result.Network))
 		}
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)

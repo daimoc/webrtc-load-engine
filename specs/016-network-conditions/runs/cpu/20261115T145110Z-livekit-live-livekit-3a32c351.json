@@ -1,0 +1,303 @@
+{
+  "format_version": 4,
+  "run_id": "3a32c351",
+  "scenario": {
+    "id": "live-5f65ffc3",
+    "name": "live-livekit",
+    "platform": "livekit"
+  },
+  "test_plan": {
+    "participants": 100,
+    "ramp_up_seconds": 20,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "api_key": "devkey",
+      "api_secret": "[redacted]",
+      "room": "cpu-after-3",
+      "url": "ws://localhost:7880"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "max_received_streams": 10
+    },
+    "server_monitoring": {
+      "containers": [
+        "livekit-server"
+      ],
+      "interval_seconds": 5
+    }
+  },
+  "started_at": "2026-11-15T14:48:44.551474262Z",
+  "ended_at": "2026-11-15T14:51:10.484402803Z",
+  "duration_seconds": 145.933,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-5f65ffc3",
+    "generated_at": "2026-11-15T15:51:10.473288078+01:00",
+    "bots": 100,
+    "video": {
+      "available": true,
+      "bots": 100,
+      "latency_seconds": {
+        "p50": 0.0075,
+        "p95": 0.0095,
+        "p99": 0.0095
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 30.002291265255607,
+        "p95": 30.008941737094144,
+        "p99": 30.010893239979378
+      },
+      "freeze_seconds": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "freezes_total": 0,
+      "resolution_switches_total": 0,
+      "keyframe_requests_sent_total": 83,
+      "keyframe_requests_received_total": 873,
+      "height_share": {
+        "360": 1
+      },
+      "requested_height_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "single",
+        "content_bitrate_kbps": {
+          "360": 500
+        },
+        "received": {
+          "vp8": 100
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 100,
+      "latency_seconds": {
+        "p50": 0.0045,
+        "p95": 0.0055,
+        "p99": 0.0055
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0.0014958758562840769,
+        "p95": 0.002108057464084947,
+        "p99": 0.0023
+      },
+      "mos": {
+        "p50": 4.352741657538644,
+        "p95": 4.358015258533846,
+        "p99": 4.3604420736444816
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-5f65ffc3-20",
+          "value": 4.341181210307375
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-73",
+          "value": 4.344905202839394
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-28",
+          "value": 4.345073548109235
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-37",
+          "value": 4.345434884290102
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-50",
+          "value": 4.346110886920947
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-86",
+          "value": 4.346592904946793
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-91",
+          "value": 4.347364212025158
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-54",
+          "value": 4.347404996341924
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-69",
+          "value": 4.34746288832126
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-62",
+          "value": 4.347595595004369
+        }
+      ],
+      "most_freeze_seconds": [],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-5f65ffc3-34",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-47",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-48",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-51",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-60",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-66",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-67",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-68",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-69",
+          "value": 0.0175
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-70",
+          "value": 0.0175
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-5f65ffc3-0",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-1",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-10",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-11",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-12",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-13",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-14",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-15",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-16",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-5f65ffc3-17",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-15T15:48:44.551578863+01:00",
+        "end": "2026-11-15T15:51:10.473261696+01:00"
+      },
+      "containers": [
+        {
+          "name": "livekit-server",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 5.123,
+            "peak": 5.615,
+            "first": 1.531
+          },
+          "memory_bytes": {
+            "peak": 1138868224,
+            "first": 16904192
+          },
+          "samples": 31,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 1,
+        "cpu_threads": {
+          "average": 5.123,
+          "peak": 5.615,
+          "first": 1.531
+        },
+        "memory_bytes": {
+          "peak": 1138868224,
+          "first": 16904192
+        },
+        "samples": 31,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-15T15:48:44.551578863+01:00",
+        "end": "2026-11-15T15:51:10.473261696+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 4.501,
+          "peak": 4.88,
+          "first": 1.549
+        },
+        "memory_bytes": {
+          "peak": 1005187072,
+          "first": 20627456
+        },
+        "samples": 31,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    },
+    "reception_reports": {
+      "available": false,
+      "reason": "not_negotiated"
+    }
+  }
+}

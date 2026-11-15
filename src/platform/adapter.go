@@ -93,6 +93,13 @@ type PublishSessionAdapter interface {
 	PublishSession() bool
 }
 
+// ReceiverEstimator is implemented by adapters whose platform gives, through
+// its signaling, its bandwidth estimate toward one of the bots (016 research
+// R9). ok is false while the estimate is not known (the bot is not joined).
+type ReceiverEstimator interface {
+	ReceiverEstimate(ctx context.Context, peerID string) (kbps int, ok bool, err error)
+}
+
 // PlatformAdapter defines the interface for a platform-specific signaling client.
 type PlatformAdapter interface {
 	// Connect joins peerID to the platform and blocks until it is joined, the

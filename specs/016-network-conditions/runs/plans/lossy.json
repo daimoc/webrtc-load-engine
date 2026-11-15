@@ -1,0 +1,2 @@
+{ "seed": 7, "groups": [ { "name": "lossy", "count": 3, "schedule": [
+  { "start_seconds": 30, "downlink": { "delay_ms": 40, "jitter_ms": 10, "loss": { "share": 0.03 } } } ] } ] }

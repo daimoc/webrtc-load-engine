@@ -1,0 +1,2 @@
+{ "groups": [ { "name": "both", "count": 10, "schedule": [
+  { "start_seconds": 30, "downlink": { "rate_kbps": 500 }, "uplink": { "rate_kbps": 400 } } ] } ] }

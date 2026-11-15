@@ -14,8 +14,8 @@ import (
 
 // FormatVersion is the version of the JSON report's layout: 2 adds
 // quality.video.codec (014); 3 adds quality.reception_reports, browser and
-// server settings (015).
-const FormatVersion = 3
+// server settings (015); 4 adds network (016).
+const FormatVersion = 4
 
 // Run is one run's report (contracts/run-report.schema.yaml).
 type Run struct {
@@ -31,6 +31,8 @@ type Run struct {
 	Quality         *scenario.QualitySummary `json:"quality"`
 	// Browser is the browser's result when the plan asked for one (015).
 	Browser *scenario.BrowserResult `json:"browser,omitempty"`
+	// Network is the network section when the plan had one (016).
+	Network *scenario.NetworkResult `json:"network,omitempty"`
 }
 
 // Identity names the scenario of a run.
@@ -67,6 +69,7 @@ func NewRun(sc *scenario.Scenario, r scenario.RunResult) Run {
 		Engine:          Engine{Version: EngineVersion(), GoVersion: runtime.Version()},
 		Quality:         r.Quality,
 		Browser:         r.Browser,
+		Network:         r.Network,
 	}
 }
 

@@ -269,6 +269,20 @@ func (p *fakePeer) handle(method string, data json.RawMessage) (any, error) {
 		}
 		p.mu.Unlock()
 		return ft.info, nil
+	case "getTransportStats":
+		var req struct {
+			TransportID string `json:"transportId"`
+		}
+		if err := json.Unmarshal(data, &req); err != nil {
+			return nil, err
+		}
+		p.mu.Lock()
+		recv := p.recv
+		p.mu.Unlock()
+		if recv == nil || recv.info.TransportID != req.TransportID {
+			return nil, fmt.Errorf("unknown transport %q", req.TransportID)
+		}
+		return map[string]any{"stats": []map[string]any{{"type": "webrtc-transport", "availableOutgoingBitrate": 1234567.0}}}, nil
 	case "connectWebRtcTransport":
 		var req connectTransportRequest
 		if err := json.Unmarshal(data, &req); err != nil {

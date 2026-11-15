@@ -48,8 +48,30 @@ type botQuality struct {
 	freezeLog []streamFreezeLog
 	heights   []int // Last height logged per received video stream (015)
 
+	// Per received video stream, a sample at each collection, kept only
+	// when the plan has network conditions (016 research R8).
+	timeline    [][]timelineSample
+	prevFreezes []uint64
+	videoCounts []countSample // Received video packets and those still missing, at each collection
+
 	latency map[string]*media.LatencyBuckets // By kind, over the bot's streams
 	lookups map[string]uint64                // By kind: frames looked up in the send times, found or not
+}
+
+// timelineSample is one received video stream at one collection: the
+// height it was received at, and whether it froze since the previous one.
+type timelineSample struct {
+	at     time.Time
+	height int
+	froze  bool
+}
+
+// countSample is a bot's cumulative received video packets, and those
+// still missing after retransmissions, at one collection.
+type countSample struct {
+	at      time.Time
+	packets uint64
+	lost    int64
 }
 
 // streamFreezeLog rate-limits the freeze logs of one received video stream.
@@ -87,6 +109,9 @@ func (c *mediaCollector) collectQuality(peerID string, requested int, snap map[s
 	}
 	c.collectVideo(peerID, b, video, now)
 	c.collectAudio(b, audio)
+	if c.timelines && video.Packets > 0 {
+		b.videoCounts = append(b.videoCounts, countSample{at: now, packets: video.Packets, lost: video.Lost})
+	}
 }
 
 func (c *mediaCollector) collectVideo(peerID string, b *botQuality, k KindMediaSnapshot, now time.Time) {
@@ -122,6 +147,14 @@ func (c *mediaCollector) collectVideo(peerID string, b *botQuality, k KindMediaS
 		}
 		c.logFreeze(peerID, b, i, s, now)
 		c.logHeight(peerID, b, i, s.Height)
+		if c.timelines {
+			for len(b.timeline) <= i {
+				b.timeline = append(b.timeline, nil)
+				b.prevFreezes = append(b.prevFreezes, 0)
+			}
+			b.timeline[i] = append(b.timeline[i], timelineSample{at: now, height: s.Height, froze: s.Freezes > b.prevFreezes[i]})
+			b.prevFreezes[i] = s.Freezes
+		}
 	}
 	if latency.N > 0 {
 		b.latency[media.KindVideo] = &latency
@@ -232,10 +265,25 @@ func addCount(counter interface{ Add(float64) }, last *uint64, value uint64) {
 
 // summary builds the quality summary from the per-bot records (FR-015).
 func (c *mediaCollector) summary(now time.Time) *scenario.QualitySummary {
+	return c.summaryOf(now, nil)
+}
+
+// summaryOf builds the quality summary of the bots include accepts (all
+// with nil), as a run of only those bots would give it (016 FR-007).
+func (c *mediaCollector) summaryOf(now time.Time, include func(peerID string) bool) *scenario.QualitySummary {
+	bots := c.bots
+	if include != nil {
+		bots = map[string]*botQuality{}
+		for id, b := range c.bots {
+			if include(id) {
+				bots[id] = b
+			}
+		}
+	}
 	s := &scenario.QualitySummary{
 		ScenarioID:  c.scenarioID,
 		GeneratedAt: now,
-		Bots:        len(c.bots),
+		Bots:        len(bots),
 		Worst: scenario.WorstBots{
 			LowestMOS:                []scenario.BotValue{},
 			MostFreezeSeconds:        []scenario.BotValue{},
@@ -248,7 +296,7 @@ func (c *mediaCollector) summary(now time.Time) *scenario.QualitySummary {
 	latencies := map[string][]float64{} // By kind: each bot's median, seconds
 	heightTime := map[int]time.Duration{}
 	var totalHeight time.Duration
-	for peerID, b := range c.bots {
+	for peerID, b := range bots {
 		worstP95 := -1.0
 		for kind, l := range b.latency {
 			median, _ := l.Quantile(0.5)
@@ -330,7 +378,7 @@ func (c *mediaCollector) summary(now time.Time) *scenario.QualitySummary {
 			continue
 		}
 		kq.LatencyReason = scenario.LatencyNotMeasured
-		for _, b := range c.bots {
+		for _, b := range bots {
 			if b.lookups[kind] > 0 {
 				kq.LatencyReason = scenario.LatencyFrameNotIdentified
 				break
@@ -341,7 +389,7 @@ func (c *mediaCollector) summary(now time.Time) *scenario.QualitySummary {
 	s.Worst.LowestMOS = worst(mosBots, false)
 	s.Worst.LowestRequestedHeight = worst(requestedBots, false)
 	s.Worst.MostFreezeSeconds = worst(freezeBots, true)
-	s.ReceptionReports = c.receptionReports(s.Video.Bots)
+	s.ReceptionReports = c.receptionReports(s.Video.Bots, include)
 	return s
 }
 
@@ -384,13 +432,16 @@ func worst(bots []scenario.BotValue, highFirst bool) []scenario.BotValue {
 // receptionReports builds the reception reports part of the summary (015
 // research R6) from the peers' last snapshots. videoBots is the number of
 // bots that received video.
-func (c *mediaCollector) receptionReports(videoBots int) scenario.ReceptionReports {
+func (c *mediaCollector) receptionReports(videoBots int, include func(string) bool) scenario.ReceptionReports {
 	if videoBots == 0 {
 		return scenario.ReceptionReports{Reason: scenario.ReceptionNoVideo}
 	}
 	var negotiated, counted bool
 	var ids []string
 	for id, r := range c.reception {
+		if include != nil && !include(id) {
+			continue
+		}
 		negotiated = negotiated || r.negotiated
 		counted = counted || (r.negotiated && r.counting)
 		if r.negotiated && r.counting && r.arrived > 0 {

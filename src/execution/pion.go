@@ -10,6 +10,7 @@ import (
 	"webrtc-load-engine/src/media"
 
 	"github.com/pion/interceptor"
+	"github.com/pion/interceptor/pkg/nack"
 	"github.com/pion/logging"
 	"github.com/pion/sdp/v3"
 	"github.com/pion/transport/v2/packetio"
@@ -51,7 +52,7 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 	// acknowledges every arriving packet itself (transportFeedback), with the
 	// same header extension and RTCP feedback negotiated.
 	registry := &interceptor.Registry{}
-	if err := webrtc.ConfigureNack(m, registry); err != nil {
+	if err := configureNack(m, registry); err != nil {
 		return nil, err
 	}
 	if err := webrtc.ConfigureRTCPReports(registry); err != nil {
@@ -82,18 +83,34 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 			if err := m.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: sdp.TransportCCURI}, kind); err != nil {
 				return nil, err
 			}
+			// As a browser's answer: REMB with abs-send-time, used only
+			// where the server asks for it and not for transport-cc (016
+			// research R14).
+			if err := m.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: absSendTimeURI}, kind); err != nil {
+				return nil, err
+			}
 		}
+		m.RegisterFeedback(webrtc.RTCPFeedback{Type: webrtc.TypeRTCPFBGoogREMB}, webrtc.RTPCodecTypeVideo)
 	}
 
+	// The session that sends, for a peer that adapts its upload (016 US4).
+	if p.sender != nil && (publish || !p.pubSession) {
+		if err := registerSenderEstimation(p.sender, m, registry, p.sendingBitrate()); err != nil {
+			return nil, err
+		}
+	}
 	var se webrtc.SettingEngine
 	se.LoggerFactory = slogLoggerFactory{p.logger}
 	c, err := newConsent(p.logger)
 	if err != nil {
 		return nil, err
 	}
+	c.net.shaper = p.shaper // One link per bot, whichever session (016 research R1)
+	p.nets = append(p.nets, c.net)
 	se.SetNet(c.net) // A hook may replace it (virtual network): no consent checks then
 	if !publish {
 		c.net.feedback = p.feedback // Arrivals counted at the socket (015 research R6)
+		c.net.remb = p.remb
 	}
 	if publish {
 		if settingEngineHook != nil {
@@ -116,6 +133,30 @@ func newPeerConnection(p *Peer, publish bool) (*webrtc.PeerConnection, error) {
 	}
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(m), webrtc.WithInterceptorRegistry(registry), webrtc.WithSettingEngine(se))
 	return c.start(api.NewPeerConnection(webrtc.Configuration{}))
+}
+
+// maxNacksPerPacket is how many times a bot asks for one lost packet, as
+// libwebrtc does (kMaxNackRetries); Pion's default asks forever, every
+// 100 ms, which under heavy loss makes the server's retransmissions fill
+// the bot's link (016 research R15).
+const maxNacksPerPacket = 10
+
+// configureNack is webrtc.ConfigureNack with a browser's limit on the
+// requests per lost packet.
+func configureNack(m *webrtc.MediaEngine, registry *interceptor.Registry) error {
+	generator, err := nack.NewGeneratorInterceptor(nack.GeneratorMaxNacksPerPacket(maxNacksPerPacket))
+	if err != nil {
+		return err
+	}
+	responder, err := nack.NewResponderInterceptor()
+	if err != nil {
+		return err
+	}
+	m.RegisterFeedback(webrtc.RTCPFeedback{Type: "nack"}, webrtc.RTPCodecTypeVideo)
+	m.RegisterFeedback(webrtc.RTCPFeedback{Type: "nack", Parameter: "pli"}, webrtc.RTPCodecTypeVideo)
+	registry.Add(responder)
+	registry.Add(generator)
+	return nil
 }
 
 // gatedBuffer is an SRTP/SRTCP read buffer that drops what it is given while

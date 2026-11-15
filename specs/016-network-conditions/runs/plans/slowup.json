@@ -1,0 +1,2 @@
+{ "groups": [ { "name": "slowup", "count": 2, "schedule": [
+  { "start_seconds": 30, "duration_seconds": 30, "uplink": { "rate_kbps": 400 } } ] } ] }

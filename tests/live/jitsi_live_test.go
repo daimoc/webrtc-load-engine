@@ -53,6 +53,7 @@ package live
 import (
 	"encoding/json"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
@@ -163,6 +164,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		ServerMonitoring: serverMonitoring(t),
 		Browser:          browserFrom(t, "JITSI"),
 		ServerSettings:   serverSettingsFrom(t, "JITSI"),
+		Network:          networkFrom(t, "JITSI"),
 	})
 	if err != nil {
 		t.Fatalf("test plan: %v", err)
@@ -187,6 +189,7 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 		}
 		writeReport(t, sc, scenarioID, config, result)
 		logBrowser(t, result.Browser)
+		logNetwork(t, result.Network)
 		checkQuality(result.Quality)
 		if n := peers(t, scenarioID, execution.PeerStateDisconnected); int(n) != participants {
 			t.Errorf("expected %d bots to end disconnected, got %v", participants, n)
@@ -238,9 +241,10 @@ func TestJitsiLive_JoinAndEstablishMedia(t *testing.T) {
 	holdFreezes := -1.0 // Video freezes counted during the hold
 	checkQuality = func(q *scenario.QualitySummary) {
 		single := plan.Media.Simulcast == nil && plan.Media.RequestedHeights == nil
-		qualityChecks(t, q, participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
+		holdFreezes = conditionedHold(t, result.Network, holdFreezes)
+		qualityChecks(t, unconstrained(q, result.Network), participants > 1 && len(kinds) > 0, checkVideo, single, holdFreezes)
 		if checkVideo && !single {
-			requestedHeightChecks(t, q)
+			requestedHeightChecks(t, unconstrained(q, result.Network))
 		}
 	}
 
@@ -401,7 +405,7 @@ func qualityChecks(t *testing.T, q *scenario.QualitySummary, checkAudio, checkVi
 				t.Errorf("%d bots with a latency, want at least %d", n, want)
 			}
 			t.Logf("video freezes: %.0f during the hold, %d over the whole run", holdFreezes, v.FreezesTotal)
-			if holdFreezes != 0 {
+			if holdFreezes != 0 && !math.IsNaN(holdFreezes) {
 				t.Errorf("%.0f freezes during the hold, want none", holdFreezes)
 			}
 		}

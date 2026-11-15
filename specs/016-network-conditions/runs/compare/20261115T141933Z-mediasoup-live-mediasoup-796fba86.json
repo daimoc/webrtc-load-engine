@@ -1,0 +1,2292 @@
+{
+  "format_version": 4,
+  "run_id": "796fba86",
+  "scenario": {
+    "id": "live-f28a0686",
+    "name": "live-mediasoup",
+    "platform": "mediasoup"
+  },
+  "test_plan": {
+    "participants": 10,
+    "ramp_up_seconds": 20,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "room": "r-change3",
+      "url": "ws://localhost:4443"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "max_received_streams": 4,
+      "simulcast": {
+        "max_height": 720
+      },
+      "requested_heights": [
+        {
+          "height": 720,
+          "share": 1
+        }
+      ],
+      "video_codec": "vp8"
+    },
+    "server_monitoring": {
+      "containers": [
+        "mediasoup-demo"
+      ],
+      "interval_seconds": 5
+    },
+    "network": {
+      "groups": [
+        {
+          "name": "slow",
+          "count": 3,
+          "schedule": [
+            {
+              "start_seconds": 30,
+              "duration_seconds": 20,
+              "downlink": {
+                "rate_kbps": 1200,
+                "queue_ms": 200
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "started_at": "2026-11-15T14:17:46.809290001Z",
+  "ended_at": "2026-11-15T14:19:33.868638466Z",
+  "duration_seconds": 107.059,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-f28a0686",
+    "generated_at": "2026-11-15T15:19:33.865853126+01:00",
+    "bots": 10,
+    "video": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0025,
+        "p95": 0.0035,
+        "p99": 0.0035
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 30.001049192350578,
+        "p95": 30.005940065492226,
+        "p99": 30.005940065492226
+      },
+      "freeze_seconds": {
+        "p50": 0,
+        "p95": 55.320982977,
+        "p99": 55.320982977
+      },
+      "freezes_total": 141,
+      "resolution_switches_total": 50,
+      "keyframe_requests_sent_total": 76,
+      "keyframe_requests_received_total": 201,
+      "height_share": {
+        "180": 0.062368163450099566,
+        "360": 0.018530404759394898,
+        "720": 0.9191014317905055
+      },
+      "requested_height_share": {
+        "p50": 0.9707623101271015,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "simulcast",
+        "content_bitrate_kbps": {
+          "180": 150,
+          "360": 500,
+          "720": 1500
+        },
+        "received": {
+          "vp8": 10
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 10,
+      "latency_seconds": {
+        "p50": 0.0005,
+        "p95": 0.0015,
+        "p99": 0.0015
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0,
+        "p95": 0.15194425713643514,
+        "p99": 0.15194425713643514
+      },
+      "mos": {
+        "p50": 4.368640443857248,
+        "p95": 4.368729883087835,
+        "p99": 4.368729883087835
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-f28a0686-9",
+          "value": 3.8022660061125273
+        },
+        {
+          "peer_id": "peer-live-f28a0686-7",
+          "value": 4.08127176716565
+        },
+        {
+          "peer_id": "peer-live-f28a0686-8",
+          "value": 4.085245584314133
+        },
+        {
+          "peer_id": "peer-live-f28a0686-2",
+          "value": 4.368629046817405
+        },
+        {
+          "peer_id": "peer-live-f28a0686-1",
+          "value": 4.368640443857248
+        },
+        {
+          "peer_id": "peer-live-f28a0686-0",
+          "value": 4.368650944500698
+        },
+        {
+          "peer_id": "peer-live-f28a0686-6",
+          "value": 4.368689775005124
+        },
+        {
+          "peer_id": "peer-live-f28a0686-3",
+          "value": 4.368693826438729
+        },
+        {
+          "peer_id": "peer-live-f28a0686-5",
+          "value": 4.368697822373244
+        },
+        {
+          "peer_id": "peer-live-f28a0686-4",
+          "value": 4.368729883087835
+        }
+      ],
+      "most_freeze_seconds": [
+        {
+          "peer_id": "peer-live-f28a0686-7",
+          "value": 55.320982977
+        },
+        {
+          "peer_id": "peer-live-f28a0686-9",
+          "value": 49.734945259
+        },
+        {
+          "peer_id": "peer-live-f28a0686-8",
+          "value": 45.265383504
+        }
+      ],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-f28a0686-9",
+          "value": 0.1975
+        },
+        {
+          "peer_id": "peer-live-f28a0686-7",
+          "value": 0.0155
+        },
+        {
+          "peer_id": "peer-live-f28a0686-8",
+          "value": 0.0155
+        },
+        {
+          "peer_id": "peer-live-f28a0686-0",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-f28a0686-1",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-f28a0686-2",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-f28a0686-3",
+          "value": 0.0065
+        },
+        {
+          "peer_id": "peer-live-f28a0686-4",
+          "value": 0.0055
+        },
+        {
+          "peer_id": "peer-live-f28a0686-5",
+          "value": 0.0055
+        },
+        {
+          "peer_id": "peer-live-f28a0686-6",
+          "value": 0.0055
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-f28a0686-7",
+          "value": 0.6159189753912092
+        },
+        {
+          "peer_id": "peer-live-f28a0686-9",
+          "value": 0.8064410082359199
+        },
+        {
+          "peer_id": "peer-live-f28a0686-8",
+          "value": 0.8116334613620223
+        },
+        {
+          "peer_id": "peer-live-f28a0686-1",
+          "value": 0.9676104654429992
+        },
+        {
+          "peer_id": "peer-live-f28a0686-6",
+          "value": 0.9707623101271015
+        },
+        {
+          "peer_id": "peer-live-f28a0686-0",
+          "value": 0.9825074008320551
+        },
+        {
+          "peer_id": "peer-live-f28a0686-5",
+          "value": 0.9869541124309007
+        },
+        {
+          "peer_id": "peer-live-f28a0686-3",
+          "value": 0.992447390839803
+        },
+        {
+          "peer_id": "peer-live-f28a0686-2",
+          "value": 0.9924848487646537
+        },
+        {
+          "peer_id": "peer-live-f28a0686-4",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-15T15:17:46.809392778+01:00",
+        "end": "2026-11-15T15:19:33.865859848+01:00"
+      },
+      "containers": [
+        {
+          "name": "mediasoup-demo",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 0.242,
+            "peak": 0.288,
+            "first": 0.042
+          },
+          "memory_bytes": {
+            "peak": 91660288,
+            "first": 90427392
+          },
+          "samples": 23,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 1,
+        "cpu_threads": {
+          "average": 0.242,
+          "peak": 0.288,
+          "first": 0.042
+        },
+        "memory_bytes": {
+          "peak": 91660288,
+          "first": 90427392
+        },
+        "samples": 23,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-15T15:17:46.809392778+01:00",
+        "end": "2026-11-15T15:19:33.865859848+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 0.698,
+          "peak": 0.783,
+          "first": 0.128
+        },
+        "memory_bytes": {
+          "peak": 209997824,
+          "first": 20529152
+        },
+        "samples": 23,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    },
+    "reception_reports": {
+      "available": true,
+      "bots": 10,
+      "acknowledged_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "late_share": {
+        "p50": 0.0010183299389002036,
+        "p95": 0.0034602076124567475,
+        "p99": 0.0034602076124567475
+      },
+      "stamp_lag_max_ms": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0
+      },
+      "limits": {
+        "acknowledged_share_min": 0.99,
+        "late_share_max": 0.01,
+        "late_interval_ms": 200
+      },
+      "flagged": [],
+      "per_bot": [
+        {
+          "peer_id": "peer-live-f28a0686-0",
+          "packets_arrived": 68386,
+          "packets_acknowledged": 68386,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 1032,
+          "interval_ms": {
+            "mean": 101.74631867992241,
+            "max": 1900.159048
+          },
+          "late_share": 0.0009699321047526673,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-1",
+          "packets_arrived": 67839,
+          "packets_acknowledged": 67839,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 1041,
+          "interval_ms": {
+            "mean": 99.99974031346154,
+            "max": 101.330364
+          },
+          "late_share": 0,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-2",
+          "packets_arrived": 68705,
+          "packets_acknowledged": 68705,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 1022,
+          "interval_ms": {
+            "mean": 100.78300164250736,
+            "max": 900.191882
+          },
+          "late_share": 0.0009794319294809011,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-3",
+          "packets_arrived": 68350,
+          "packets_acknowledged": 68350,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 1002,
+          "interval_ms": {
+            "mean": 100.79894499999999,
+            "max": 899.991141
+          },
+          "late_share": 0.000999000999000999,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-4",
+          "packets_arrived": 67692,
+          "packets_acknowledged": 67692,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 983,
+          "interval_ms": {
+            "mean": 100.7127120101833,
+            "max": 800.791734
+          },
+          "late_share": 0.0010183299389002036,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-5",
+          "packets_arrived": 65802,
+          "packets_acknowledged": 65802,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 963,
+          "interval_ms": {
+            "mean": 100.72672857276507,
+            "max": 799.989273
+          },
+          "late_share": 0.0010395010395010396,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-6",
+          "packets_arrived": 63759,
+          "packets_acknowledged": 63759,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 942,
+          "interval_ms": {
+            "mean": 100.6378298767269,
+            "max": 699.942627
+          },
+          "late_share": 0.0010626992561105207,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-7",
+          "packets_arrived": 36855,
+          "packets_acknowledged": 36855,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 922,
+          "interval_ms": {
+            "mean": 100.7600364581976,
+            "max": 799.757248
+          },
+          "late_share": 0.0010857763300760044,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-8",
+          "packets_arrived": 47897,
+          "packets_acknowledged": 47897,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 902,
+          "interval_ms": {
+            "mean": 100.77711241509434,
+            "max": 799.497403
+          },
+          "late_share": 0.0011098779134295228,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        },
+        {
+          "peer_id": "peer-live-f28a0686-9",
+          "packets_arrived": 48272,
+          "packets_acknowledged": 48272,
+          "acknowledged_share": 1,
+          "feedbacks_sent": 868,
+          "interval_ms": {
+            "mean": 102.42212628373703,
+            "max": 1000.428662
+          },
+          "late_share": 0.0034602076124567475,
+          "stamp_lag_ms": {
+            "mean": 0,
+            "max": 0
+          }
+        }
+      ]
+    }
+  },
+  "network": {
+    "seed": 6884591836125048141,
+    "seed_source": "drawn",
+    "settle_seconds": 10,
+    "timeline_resolution_seconds": 2,
+    "groups": [
+      {
+        "name": "slow",
+        "bots": [
+          "peer-live-f28a0686-7",
+          "peer-live-f28a0686-8",
+          "peer-live-f28a0686-9"
+        ],
+        "steps": [
+          {
+            "index": 0,
+            "planned": {
+              "start_seconds": 30,
+              "duration_seconds": 20,
+              "downlink": {
+                "rate_kbps": 1200,
+                "queue_ms": 200
+              }
+            },
+            "started_at_seconds": 30,
+            "ended_at_seconds": 50,
+            "during_start_up": false
+          }
+        ],
+        "quality": {
+          "scenario_id": "live-f28a0686",
+          "generated_at": "2026-11-15T15:19:33.865853126+01:00",
+          "bots": 3,
+          "video": {
+            "available": true,
+            "bots": 3,
+            "latency_seconds": {
+              "p50": 0.0025,
+              "p95": 0.0035,
+              "p99": 0.0035
+            },
+            "latency_available": true,
+            "frame_rate": {
+              "p50": 27.546712612121496,
+              "p95": 28.011022822032277,
+              "p99": 28.011022822032277
+            },
+            "freeze_seconds": {
+              "p50": 49.734945259,
+              "p95": 55.320982977,
+              "p99": 55.320982977
+            },
+            "freezes_total": 141,
+            "resolution_switches_total": 34,
+            "keyframe_requests_sent_total": 76,
+            "keyframe_requests_received_total": 9,
+            "height_share": {
+              "180": 0.22039355338230318,
+              "360": 0.0338407532631865,
+              "720": 0.7457656933545104
+            },
+            "requested_height_share": {
+              "p50": 0.8064410082359199,
+              "p95": 0.8116334613620223,
+              "p99": 0.8116334613620223
+            }
+          },
+          "audio": {
+            "available": true,
+            "bots": 3,
+            "latency_seconds": {
+              "p50": 0.0015,
+              "p95": 0.0015,
+              "p99": 0.0015
+            },
+            "latency_available": true,
+            "concealed_ratio": {
+              "p50": 0.0805011830501183,
+              "p95": 0.15194425713643514,
+              "p99": 0.15194425713643514
+            },
+            "mos": {
+              "p50": 4.08127176716565,
+              "p95": 4.085245584314133,
+              "p99": 4.085245584314133
+            }
+          },
+          "worst": {
+            "lowest_mos": [
+              {
+                "peer_id": "peer-live-f28a0686-9",
+                "value": 3.8022660061125273
+              },
+              {
+                "peer_id": "peer-live-f28a0686-7",
+                "value": 4.08127176716565
+              },
+              {
+                "peer_id": "peer-live-f28a0686-8",
+                "value": 4.085245584314133
+              }
+            ],
+            "most_freeze_seconds": [
+              {
+                "peer_id": "peer-live-f28a0686-7",
+                "value": 55.320982977
+              },
+              {
+                "peer_id": "peer-live-f28a0686-9",
+                "value": 49.734945259
+              },
+              {
+                "peer_id": "peer-live-f28a0686-8",
+                "value": 45.265383504
+              }
+            ],
+            "highest_latency_p95_seconds": [
+              {
+                "peer_id": "peer-live-f28a0686-9",
+                "value": 0.1975
+              },
+              {
+                "peer_id": "peer-live-f28a0686-7",
+                "value": 0.0155
+              },
+              {
+                "peer_id": "peer-live-f28a0686-8",
+                "value": 0.0155
+              }
+            ],
+            "lowest_requested_height_share": [
+              {
+                "peer_id": "peer-live-f28a0686-7",
+                "value": 0.6159189753912092
+              },
+              {
+                "peer_id": "peer-live-f28a0686-9",
+                "value": 0.8064410082359199
+              },
+              {
+                "peer_id": "peer-live-f28a0686-8",
+                "value": 0.8116334613620223
+              }
+            ]
+          },
+          "server": {
+            "available": false
+          },
+          "load_machine": {
+            "engine": {
+              "cpu_threads": {
+                "average": 0,
+                "peak": 0,
+                "first": 0
+              },
+              "memory_bytes": {
+                "peak": 0,
+                "first": 0
+              },
+              "samples": 0,
+              "missed": 0
+            },
+            "hardware_threads": 0,
+            "usable_threads": 0
+          },
+          "reception_reports": {
+            "available": true,
+            "bots": 3,
+            "acknowledged_share": {
+              "p50": 1,
+              "p95": 1,
+              "p99": 1
+            },
+            "late_share": {
+              "p50": 0.0011098779134295228,
+              "p95": 0.0034602076124567475,
+              "p99": 0.0034602076124567475
+            },
+            "stamp_lag_max_ms": {
+              "p50": 0,
+              "p95": 0,
+              "p99": 0
+            },
+            "limits": {
+              "acknowledged_share_min": 0.99,
+              "late_share_max": 0.01,
+              "late_interval_ms": 200
+            },
+            "flagged": [],
+            "per_bot": [
+              {
+                "peer_id": "peer-live-f28a0686-7",
+                "packets_arrived": 36855,
+                "packets_acknowledged": 36855,
+                "acknowledged_share": 1,
+                "feedbacks_sent": 922,
+                "interval_ms": {
+                  "mean": 100.7600364581976,
+                  "max": 799.757248
+                },
+                "late_share": 0.0010857763300760044,
+                "stamp_lag_ms": {
+                  "mean": 0,
+                  "max": 0
+                }
+              },
+              {
+                "peer_id": "peer-live-f28a0686-8",
+                "packets_arrived": 47897,
+                "packets_acknowledged": 47897,
+                "acknowledged_share": 1,
+                "feedbacks_sent": 902,
+                "interval_ms": {
+                  "mean": 100.77711241509434,
+                  "max": 799.497403
+                },
+                "late_share": 0.0011098779134295228,
+                "stamp_lag_ms": {
+                  "mean": 0,
+                  "max": 0
+                }
+              },
+              {
+                "peer_id": "peer-live-f28a0686-9",
+                "packets_arrived": 48272,
+                "packets_acknowledged": 48272,
+                "acknowledged_share": 1,
+                "feedbacks_sent": 868,
+                "interval_ms": {
+                  "mean": 102.42212628373703,
+                  "max": 1000.428662
+                },
+                "late_share": 0.0034602076124567475,
+                "stamp_lag_ms": {
+                  "mean": 0,
+                  "max": 0
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "unconstrained_quality": {
+      "scenario_id": "live-f28a0686",
+      "generated_at": "2026-11-15T15:19:33.865853126+01:00",
+      "bots": 7,
+      "video": {
+        "available": true,
+        "bots": 7,
+        "latency_seconds": {
+          "p50": 0.0025,
+          "p95": 0.0035,
+          "p99": 0.0035
+        },
+        "latency_available": true,
+        "frame_rate": {
+          "p50": 30.001450654570075,
+          "p95": 30.005940065492226,
+          "p99": 30.005940065492226
+        },
+        "freeze_seconds": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "freezes_total": 0,
+        "resolution_switches_total": 16,
+        "keyframe_requests_sent_total": 0,
+        "keyframe_requests_received_total": 192,
+        "height_share": {
+          "180": 0.0025448041354714395,
+          "360": 0.012734396408031541,
+          "720": 0.9847207994564972
+        },
+        "requested_height_share": {
+          "p50": 0.9869541124309007,
+          "p95": 1,
+          "p99": 1
+        }
+      },
+      "audio": {
+        "available": true,
+        "bots": 7,
+        "latency_seconds": {
+          "p50": 0.0005,
+          "p95": 0.0005,
+          "p99": 0.0005
+        },
+        "latency_available": true,
+        "concealed_ratio": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "mos": {
+          "p50": 4.368689775005124,
+          "p95": 4.368729883087835,
+          "p99": 4.368729883087835
+        }
+      },
+      "worst": {
+        "lowest_mos": [
+          {
+            "peer_id": "peer-live-f28a0686-2",
+            "value": 4.368629046817405
+          },
+          {
+            "peer_id": "peer-live-f28a0686-1",
+            "value": 4.368640443857248
+          },
+          {
+            "peer_id": "peer-live-f28a0686-0",
+            "value": 4.368650944500698
+          },
+          {
+            "peer_id": "peer-live-f28a0686-6",
+            "value": 4.368689775005124
+          },
+          {
+            "peer_id": "peer-live-f28a0686-3",
+            "value": 4.368693826438729
+          },
+          {
+            "peer_id": "peer-live-f28a0686-5",
+            "value": 4.368697822373244
+          },
+          {
+            "peer_id": "peer-live-f28a0686-4",
+            "value": 4.368729883087835
+          }
+        ],
+        "most_freeze_seconds": [],
+        "highest_latency_p95_seconds": [
+          {
+            "peer_id": "peer-live-f28a0686-0",
+            "value": 0.0065
+          },
+          {
+            "peer_id": "peer-live-f28a0686-1",
+            "value": 0.0065
+          },
+          {
+            "peer_id": "peer-live-f28a0686-2",
+            "value": 0.0065
+          },
+          {
+            "peer_id": "peer-live-f28a0686-3",
+            "value": 0.0065
+          },
+          {
+            "peer_id": "peer-live-f28a0686-4",
+            "value": 0.0055
+          },
+          {
+            "peer_id": "peer-live-f28a0686-5",
+            "value": 0.0055
+          },
+          {
+            "peer_id": "peer-live-f28a0686-6",
+            "value": 0.0055
+          }
+        ],
+        "lowest_requested_height_share": [
+          {
+            "peer_id": "peer-live-f28a0686-1",
+            "value": 0.9676104654429992
+          },
+          {
+            "peer_id": "peer-live-f28a0686-6",
+            "value": 0.9707623101271015
+          },
+          {
+            "peer_id": "peer-live-f28a0686-0",
+            "value": 0.9825074008320551
+          },
+          {
+            "peer_id": "peer-live-f28a0686-5",
+            "value": 0.9869541124309007
+          },
+          {
+            "peer_id": "peer-live-f28a0686-3",
+            "value": 0.992447390839803
+          },
+          {
+            "peer_id": "peer-live-f28a0686-2",
+            "value": 0.9924848487646537
+          },
+          {
+            "peer_id": "peer-live-f28a0686-4",
+            "value": 1
+          }
+        ]
+      },
+      "server": {
+        "available": false
+      },
+      "load_machine": {
+        "engine": {
+          "cpu_threads": {
+            "average": 0,
+            "peak": 0,
+            "first": 0
+          },
+          "memory_bytes": {
+            "peak": 0,
+            "first": 0
+          },
+          "samples": 0,
+          "missed": 0
+        },
+        "hardware_threads": 0,
+        "usable_threads": 0
+      },
+      "reception_reports": {
+        "available": true,
+        "bots": 7,
+        "acknowledged_share": {
+          "p50": 1,
+          "p95": 1,
+          "p99": 1
+        },
+        "late_share": {
+          "p50": 0.000999000999000999,
+          "p95": 0.0010626992561105207,
+          "p99": 0.0010626992561105207
+        },
+        "stamp_lag_max_ms": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "limits": {
+          "acknowledged_share_min": 0.99,
+          "late_share_max": 0.01,
+          "late_interval_ms": 200
+        },
+        "flagged": [],
+        "per_bot": [
+          {
+            "peer_id": "peer-live-f28a0686-0",
+            "packets_arrived": 68386,
+            "packets_acknowledged": 68386,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 1032,
+            "interval_ms": {
+              "mean": 101.74631867992241,
+              "max": 1900.159048
+            },
+            "late_share": 0.0009699321047526673,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          },
+          {
+            "peer_id": "peer-live-f28a0686-1",
+            "packets_arrived": 67839,
+            "packets_acknowledged": 67839,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 1041,
+            "interval_ms": {
+              "mean": 99.99974031346154,
+              "max": 101.330364
+            },
+            "late_share": 0,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          },
+          {
+            "peer_id": "peer-live-f28a0686-2",
+            "packets_arrived": 68705,
+            "packets_acknowledged": 68705,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 1022,
+            "interval_ms": {
+              "mean": 100.78300164250736,
+              "max": 900.191882
+            },
+            "late_share": 0.0009794319294809011,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          },
+          {
+            "peer_id": "peer-live-f28a0686-3",
+            "packets_arrived": 68350,
+            "packets_acknowledged": 68350,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 1002,
+            "interval_ms": {
+              "mean": 100.79894499999999,
+              "max": 899.991141
+            },
+            "late_share": 0.000999000999000999,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          },
+          {
+            "peer_id": "peer-live-f28a0686-4",
+            "packets_arrived": 67692,
+            "packets_acknowledged": 67692,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 983,
+            "interval_ms": {
+              "mean": 100.7127120101833,
+              "max": 800.791734
+            },
+            "late_share": 0.0010183299389002036,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          },
+          {
+            "peer_id": "peer-live-f28a0686-5",
+            "packets_arrived": 65802,
+            "packets_acknowledged": 65802,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 963,
+            "interval_ms": {
+              "mean": 100.72672857276507,
+              "max": 799.989273
+            },
+            "late_share": 0.0010395010395010396,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          },
+          {
+            "peer_id": "peer-live-f28a0686-6",
+            "packets_arrived": 63759,
+            "packets_acknowledged": 63759,
+            "acknowledged_share": 1,
+            "feedbacks_sent": 942,
+            "interval_ms": {
+              "mean": 100.6378298767269,
+              "max": 699.942627
+            },
+            "late_share": 0.0010626992561105207,
+            "stamp_lag_ms": {
+              "mean": 0,
+              "max": 0
+            }
+          }
+        ]
+      }
+    },
+    "bots": [
+      {
+        "bot": "peer-live-f28a0686-7",
+        "group": "slow",
+        "requested_height": 720,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 10427,
+              "delivered_packets": 4801,
+              "delivered_kbps": {
+                "mean": 808,
+                "max_10s": 1029.9
+              },
+              "dropped_by_cap_share": 0.5395607557303155,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 72.4,
+                "max": 209.5
+              }
+            },
+            "uplink": null,
+            "missing_after_retransmission_share": 0.31764097258147955,
+            "reaction_seconds": 2.000130543,
+            "recovery_seconds": 26.000138105,
+            "recovered": true
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "no_uplink_condition"
+        },
+        "server_estimate": {
+          "kbps": [
+            {
+              "at_seconds": 15,
+              "kbps": 6477
+            },
+            {
+              "at_seconds": 16,
+              "kbps": 6579
+            },
+            {
+              "at_seconds": 17,
+              "kbps": 7106
+            },
+            {
+              "at_seconds": 18,
+              "kbps": 7673
+            },
+            {
+              "at_seconds": 19,
+              "kbps": 8161
+            },
+            {
+              "at_seconds": 20,
+              "kbps": 8419
+            },
+            {
+              "at_seconds": 21,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 22,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 23,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 24,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 25,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 26,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 27,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 28,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 29,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 30,
+              "kbps": 8505
+            },
+            {
+              "at_seconds": 31,
+              "kbps": 4474
+            },
+            {
+              "at_seconds": 32,
+              "kbps": 2481
+            },
+            {
+              "at_seconds": 33,
+              "kbps": 1357
+            },
+            {
+              "at_seconds": 34,
+              "kbps": 760
+            },
+            {
+              "at_seconds": 35,
+              "kbps": 439
+            },
+            {
+              "at_seconds": 36,
+              "kbps": 271
+            },
+            {
+              "at_seconds": 37,
+              "kbps": 271
+            },
+            {
+              "at_seconds": 38,
+              "kbps": 220
+            },
+            {
+              "at_seconds": 39,
+              "kbps": 245
+            },
+            {
+              "at_seconds": 40,
+              "kbps": 260
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 264
+            },
+            {
+              "at_seconds": 42,
+              "kbps": 264
+            },
+            {
+              "at_seconds": 43,
+              "kbps": 264
+            },
+            {
+              "at_seconds": 44,
+              "kbps": 272
+            },
+            {
+              "at_seconds": 45,
+              "kbps": 276
+            },
+            {
+              "at_seconds": 46,
+              "kbps": 278
+            },
+            {
+              "at_seconds": 47,
+              "kbps": 287
+            },
+            {
+              "at_seconds": 48,
+              "kbps": 760
+            },
+            {
+              "at_seconds": 49,
+              "kbps": 604
+            },
+            {
+              "at_seconds": 50,
+              "kbps": 444
+            },
+            {
+              "at_seconds": 51,
+              "kbps": 463
+            },
+            {
+              "at_seconds": 52,
+              "kbps": 479
+            },
+            {
+              "at_seconds": 53,
+              "kbps": 484
+            },
+            {
+              "at_seconds": 54,
+              "kbps": 506
+            },
+            {
+              "at_seconds": 55,
+              "kbps": 524
+            },
+            {
+              "at_seconds": 56,
+              "kbps": 524
+            },
+            {
+              "at_seconds": 57,
+              "kbps": 535
+            },
+            {
+              "at_seconds": 58,
+              "kbps": 554
+            },
+            {
+              "at_seconds": 59,
+              "kbps": 554
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 554
+            },
+            {
+              "at_seconds": 61,
+              "kbps": 557
+            },
+            {
+              "at_seconds": 62,
+              "kbps": 571
+            },
+            {
+              "at_seconds": 63,
+              "kbps": 597
+            },
+            {
+              "at_seconds": 64,
+              "kbps": 628
+            },
+            {
+              "at_seconds": 65,
+              "kbps": 627
+            },
+            {
+              "at_seconds": 66,
+              "kbps": 672
+            },
+            {
+              "at_seconds": 67,
+              "kbps": 725
+            },
+            {
+              "at_seconds": 68,
+              "kbps": 777
+            },
+            {
+              "at_seconds": 69,
+              "kbps": 808
+            },
+            {
+              "at_seconds": 70,
+              "kbps": 859
+            },
+            {
+              "at_seconds": 71,
+              "kbps": 896
+            },
+            {
+              "at_seconds": 72,
+              "kbps": 910
+            },
+            {
+              "at_seconds": 73,
+              "kbps": 941
+            },
+            {
+              "at_seconds": 74,
+              "kbps": 7496
+            },
+            {
+              "at_seconds": 75,
+              "kbps": 7496
+            },
+            {
+              "at_seconds": 76,
+              "kbps": 7496
+            },
+            {
+              "at_seconds": 77,
+              "kbps": 7554
+            },
+            {
+              "at_seconds": 78,
+              "kbps": 8158
+            },
+            {
+              "at_seconds": 79,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 80,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 81,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 82,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 83,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 84,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 85,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 86,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 87,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 88,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 89,
+              "kbps": 8526
+            },
+            {
+              "at_seconds": 90,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 91,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 92,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 93,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 94,
+              "kbps": 8300
+            },
+            {
+              "at_seconds": 95,
+              "kbps": 8573
+            },
+            {
+              "at_seconds": 96,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 97,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 98,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 99,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 100,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 101,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 102,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 103,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 104,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 105,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 106,
+              "kbps": 8686
+            },
+            {
+              "at_seconds": 107,
+              "kbps": 8686
+            }
+          ]
+        }
+      },
+      {
+        "bot": "peer-live-f28a0686-8",
+        "group": "slow",
+        "requested_height": 720,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 10300,
+              "delivered_packets": 4811,
+              "delivered_kbps": {
+                "mean": 796.6,
+                "max_10s": 1004.4
+              },
+              "dropped_by_cap_share": 0.5329126213592233,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 68,
+                "max": 208.5
+              }
+            },
+            "uplink": null,
+            "missing_after_retransmission_share": 0.31534526854219946,
+            "reaction_seconds": 2.000130543,
+            "recovery_seconds": 6.000141493,
+            "recovered": true
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "no_uplink_condition"
+        },
+        "server_estimate": {
+          "kbps": [
+            {
+              "at_seconds": 17,
+              "kbps": 6530
+            },
+            {
+              "at_seconds": 18,
+              "kbps": 6251
+            },
+            {
+              "at_seconds": 19,
+              "kbps": 6596
+            },
+            {
+              "at_seconds": 20,
+              "kbps": 7070
+            },
+            {
+              "at_seconds": 21,
+              "kbps": 7461
+            },
+            {
+              "at_seconds": 22,
+              "kbps": 8058
+            },
+            {
+              "at_seconds": 23,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 24,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 25,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 26,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 27,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 28,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 29,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 30,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 31,
+              "kbps": 5227
+            },
+            {
+              "at_seconds": 32,
+              "kbps": 2991
+            },
+            {
+              "at_seconds": 33,
+              "kbps": 1618
+            },
+            {
+              "at_seconds": 34,
+              "kbps": 891
+            },
+            {
+              "at_seconds": 35,
+              "kbps": 503
+            },
+            {
+              "at_seconds": 36,
+              "kbps": 302
+            },
+            {
+              "at_seconds": 37,
+              "kbps": 229
+            },
+            {
+              "at_seconds": 38,
+              "kbps": 232
+            },
+            {
+              "at_seconds": 39,
+              "kbps": 245
+            },
+            {
+              "at_seconds": 40,
+              "kbps": 247
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 247
+            },
+            {
+              "at_seconds": 42,
+              "kbps": 249
+            },
+            {
+              "at_seconds": 43,
+              "kbps": 249
+            },
+            {
+              "at_seconds": 44,
+              "kbps": 260
+            },
+            {
+              "at_seconds": 45,
+              "kbps": 264
+            },
+            {
+              "at_seconds": 46,
+              "kbps": 264
+            },
+            {
+              "at_seconds": 47,
+              "kbps": 571
+            },
+            {
+              "at_seconds": 48,
+              "kbps": 573
+            },
+            {
+              "at_seconds": 49,
+              "kbps": 588
+            },
+            {
+              "at_seconds": 50,
+              "kbps": 588
+            },
+            {
+              "at_seconds": 51,
+              "kbps": 608
+            },
+            {
+              "at_seconds": 52,
+              "kbps": 631
+            },
+            {
+              "at_seconds": 53,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 54,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 55,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 56,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 57,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 58,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 59,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 61,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 62,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 63,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 64,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 65,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 66,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 67,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 68,
+              "kbps": 8397
+            },
+            {
+              "at_seconds": 69,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 70,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 71,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 72,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 73,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 74,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 75,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 76,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 77,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 78,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 79,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 80,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 81,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 82,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 83,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 84,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 85,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 86,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 87,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 88,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 89,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 90,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 91,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 92,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 93,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 94,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 95,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 96,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 97,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 98,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 99,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 100,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 101,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 102,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 103,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 104,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 105,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 106,
+              "kbps": 8512
+            },
+            {
+              "at_seconds": 107,
+              "kbps": 8512
+            }
+          ]
+        }
+      },
+      {
+        "bot": "peer-live-f28a0686-9",
+        "group": "slow",
+        "requested_height": 720,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 11926,
+              "delivered_packets": 5157,
+              "delivered_kbps": {
+                "mean": 976.8,
+                "max_10s": 1025.3
+              },
+              "dropped_by_cap_share": 0.5675834311588127,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 134,
+                "max": 208.5
+              }
+            },
+            "uplink": null,
+            "missing_after_retransmission_share": 0.2602739726027397,
+            "reaction_seconds": 2.000130543,
+            "recovery_seconds": 4.000129879,
+            "recovered": true
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "no_uplink_condition"
+        },
+        "server_estimate": {
+          "kbps": [
+            {
+              "at_seconds": 19,
+              "kbps": 6622
+            },
+            {
+              "at_seconds": 20,
+              "kbps": 6227
+            },
+            {
+              "at_seconds": 21,
+              "kbps": 6725
+            },
+            {
+              "at_seconds": 22,
+              "kbps": 7263
+            },
+            {
+              "at_seconds": 23,
+              "kbps": 7844
+            },
+            {
+              "at_seconds": 24,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 25,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 26,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 27,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 28,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 29,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 30,
+              "kbps": 8610
+            },
+            {
+              "at_seconds": 31,
+              "kbps": 5288
+            },
+            {
+              "at_seconds": 32,
+              "kbps": 2953
+            },
+            {
+              "at_seconds": 33,
+              "kbps": 1598
+            },
+            {
+              "at_seconds": 34,
+              "kbps": 892
+            },
+            {
+              "at_seconds": 35,
+              "kbps": 519
+            },
+            {
+              "at_seconds": 36,
+              "kbps": 324
+            },
+            {
+              "at_seconds": 37,
+              "kbps": 237
+            },
+            {
+              "at_seconds": 38,
+              "kbps": 237
+            },
+            {
+              "at_seconds": 39,
+              "kbps": 237
+            },
+            {
+              "at_seconds": 40,
+              "kbps": 247
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 1087
+            },
+            {
+              "at_seconds": 42,
+              "kbps": 141
+            },
+            {
+              "at_seconds": 43,
+              "kbps": 141
+            },
+            {
+              "at_seconds": 44,
+              "kbps": 1044
+            },
+            {
+              "at_seconds": 45,
+              "kbps": 754
+            },
+            {
+              "at_seconds": 46,
+              "kbps": 1021
+            },
+            {
+              "at_seconds": 47,
+              "kbps": 746
+            },
+            {
+              "at_seconds": 48,
+              "kbps": 511
+            },
+            {
+              "at_seconds": 49,
+              "kbps": 353
+            },
+            {
+              "at_seconds": 50,
+              "kbps": 328
+            },
+            {
+              "at_seconds": 51,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 52,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 53,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 54,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 55,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 56,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 57,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 58,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 59,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 61,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 62,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 63,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 64,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 65,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 66,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 67,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 68,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 69,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 70,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 71,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 72,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 73,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 74,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 75,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 76,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 77,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 78,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 79,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 80,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 81,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 82,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 83,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 84,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 85,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 86,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 87,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 88,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 89,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 90,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 91,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 92,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 93,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 94,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 95,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 96,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 97,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 98,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 99,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 100,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 101,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 102,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 103,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 104,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 105,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 106,
+              "kbps": 7779
+            },
+            {
+              "at_seconds": 107,
+              "kbps": 7779
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,6288 @@
+{
+  "format_version": 4,
+  "run_id": "27f42d79",
+  "scenario": {
+    "id": "live-e22986f4",
+    "name": "live-livekit",
+    "platform": "livekit"
+  },
+  "test_plan": {
+    "participants": 100,
+    "ramp_up_seconds": 20,
+    "duration_seconds": 3600,
+    "platform_config": {
+      "api_key": "devkey",
+      "api_secret": "[redacted]",
+      "room": "cpu-shaped-3",
+      "url": "ws://localhost:7880"
+    },
+    "media": {
+      "profile": "audio_video",
+      "stall_timeout_seconds": 10,
+      "max_received_streams": 10
+    },
+    "server_monitoring": {
+      "containers": [
+        "livekit-server"
+      ],
+      "interval_seconds": 5
+    },
+    "network": {
+      "groups": [
+        {
+          "name": "both",
+          "count": 10,
+          "schedule": [
+            {
+              "start_seconds": 30,
+              "downlink": {
+                "rate_kbps": 500,
+                "queue_ms": 200
+              },
+              "uplink": {
+                "rate_kbps": 400,
+                "queue_ms": 200
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "started_at": "2026-11-15T14:56:21.557509402Z",
+  "ended_at": "2026-11-15T14:58:47.694062234Z",
+  "duration_seconds": 146.137,
+  "outcome": {
+    "status": "stopped"
+  },
+  "engine": {
+    "version": "devel",
+    "go_version": "go1.27.2"
+  },
+  "quality": {
+    "scenario_id": "live-e22986f4",
+    "generated_at": "2026-11-15T15:58:47.685371154+01:00",
+    "bots": 100,
+    "video": {
+      "available": true,
+      "bots": 100,
+      "latency_seconds": {
+        "p50": 0.0055,
+        "p95": 0.0105,
+        "p99": 0.0105
+      },
+      "latency_available": true,
+      "frame_rate": {
+        "p50": 30.02454292130168,
+        "p95": 30.272325314853504,
+        "p99": 30.355776686109383
+      },
+      "freeze_seconds": {
+        "p50": 0,
+        "p95": 809.144312979,
+        "p99": 952.015657736
+      },
+      "freezes_total": 8733,
+      "resolution_switches_total": 0,
+      "keyframe_requests_sent_total": 7310,
+      "keyframe_requests_received_total": 4287,
+      "height_share": {
+        "360": 1
+      },
+      "requested_height_share": {
+        "p50": 1,
+        "p95": 1,
+        "p99": 1
+      },
+      "codec": {
+        "sent": "vp8",
+        "arrangement": "single",
+        "content_bitrate_kbps": {
+          "360": 500
+        },
+        "received": {
+          "vp8": 100
+        },
+        "mismatch": [],
+        "layers_not_forwarded": false
+      }
+    },
+    "audio": {
+      "available": true,
+      "bots": 100,
+      "latency_seconds": {
+        "p50": 0.0045,
+        "p95": 0.1955,
+        "p99": 0.1965
+      },
+      "latency_available": true,
+      "concealed_ratio": {
+        "p50": 0.0007517643448910709,
+        "p95": 0.9169238072632329,
+        "p99": 0.9228355736764986
+      },
+      "mos": {
+        "p50": 4.357844578162088,
+        "p95": 4.364810514837613,
+        "p99": 4.365544600264368
+      }
+    },
+    "worst": {
+      "lowest_mos": [
+        {
+          "peer_id": "peer-live-e22986f4-98",
+          "value": 1.31644990891836
+        },
+        {
+          "peer_id": "peer-live-e22986f4-99",
+          "value": 1.3170545108453404
+        },
+        {
+          "peer_id": "peer-live-e22986f4-97",
+          "value": 1.3612002903574467
+        },
+        {
+          "peer_id": "peer-live-e22986f4-94",
+          "value": 1.3656189270131591
+        },
+        {
+          "peer_id": "peer-live-e22986f4-93",
+          "value": 1.3698838827848592
+        },
+        {
+          "peer_id": "peer-live-e22986f4-91",
+          "value": 1.3734182546649196
+        },
+        {
+          "peer_id": "peer-live-e22986f4-92",
+          "value": 1.3734922672459748
+        },
+        {
+          "peer_id": "peer-live-e22986f4-90",
+          "value": 1.376561919944096
+        },
+        {
+          "peer_id": "peer-live-e22986f4-95",
+          "value": 1.3905451843826109
+        },
+        {
+          "peer_id": "peer-live-e22986f4-96",
+          "value": 1.412234742974414
+        }
+      ],
+      "most_freeze_seconds": [
+        {
+          "peer_id": "peer-live-e22986f4-99",
+          "value": 983.482574348
+        },
+        {
+          "peer_id": "peer-live-e22986f4-92",
+          "value": 952.015657736
+        },
+        {
+          "peer_id": "peer-live-e22986f4-93",
+          "value": 903.543913977
+        },
+        {
+          "peer_id": "peer-live-e22986f4-90",
+          "value": 896.071009496
+        },
+        {
+          "peer_id": "peer-live-e22986f4-97",
+          "value": 812.557395293
+        },
+        {
+          "peer_id": "peer-live-e22986f4-96",
+          "value": 809.144312979
+        },
+        {
+          "peer_id": "peer-live-e22986f4-94",
+          "value": 784.070878607
+        },
+        {
+          "peer_id": "peer-live-e22986f4-98",
+          "value": 754.363811475
+        },
+        {
+          "peer_id": "peer-live-e22986f4-95",
+          "value": 728.391967352
+        },
+        {
+          "peer_id": "peer-live-e22986f4-91",
+          "value": 712.626797835
+        }
+      ],
+      "highest_latency_p95_seconds": [
+        {
+          "peer_id": "peer-live-e22986f4-95",
+          "value": 0.395
+        },
+        {
+          "peer_id": "peer-live-e22986f4-97",
+          "value": 0.385
+        },
+        {
+          "peer_id": "peer-live-e22986f4-96",
+          "value": 0.2235
+        },
+        {
+          "peer_id": "peer-live-e22986f4-98",
+          "value": 0.2225
+        },
+        {
+          "peer_id": "peer-live-e22986f4-92",
+          "value": 0.2205
+        },
+        {
+          "peer_id": "peer-live-e22986f4-94",
+          "value": 0.2205
+        },
+        {
+          "peer_id": "peer-live-e22986f4-90",
+          "value": 0.2195
+        },
+        {
+          "peer_id": "peer-live-e22986f4-91",
+          "value": 0.2195
+        },
+        {
+          "peer_id": "peer-live-e22986f4-93",
+          "value": 0.2195
+        },
+        {
+          "peer_id": "peer-live-e22986f4-99",
+          "value": 0.2195
+        }
+      ],
+      "lowest_requested_height_share": [
+        {
+          "peer_id": "peer-live-e22986f4-0",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-1",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-10",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-11",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-12",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-13",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-14",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-15",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-16",
+          "value": 1
+        },
+        {
+          "peer_id": "peer-live-e22986f4-17",
+          "value": 1
+        }
+      ]
+    },
+    "server": {
+      "available": true,
+      "interval_seconds": 5,
+      "period": {
+        "start": "2026-11-15T15:56:21.557602475+01:00",
+        "end": "2026-11-15T15:58:47.685389078+01:00"
+      },
+      "containers": [
+        {
+          "name": "livekit-server",
+          "status": "measured",
+          "cpu_threads": {
+            "average": 4.616,
+            "peak": 5.377,
+            "first": 1.578
+          },
+          "memory_bytes": {
+            "peak": 1177317376,
+            "first": 17334272
+          },
+          "samples": 31,
+          "missed": 0
+        }
+      ],
+      "total": {
+        "containers_measured": 1,
+        "cpu_threads": {
+          "average": 4.616,
+          "peak": 5.377,
+          "first": 1.578
+        },
+        "memory_bytes": {
+          "peak": 1177317376,
+          "first": 17334272
+        },
+        "samples": 31,
+        "missed": 0
+      }
+    },
+    "load_machine": {
+      "period": {
+        "start": "2026-11-15T15:56:21.557602475+01:00",
+        "end": "2026-11-15T15:58:47.685389078+01:00"
+      },
+      "engine": {
+        "cpu_threads": {
+          "average": 4.427,
+          "peak": 4.943,
+          "first": 1.6
+        },
+        "memory_bytes": {
+          "peak": 1106915328,
+          "first": 21028864
+        },
+        "samples": 31,
+        "missed": 0
+      },
+      "hardware_threads": 16,
+      "usable_threads": 16
+    },
+    "reception_reports": {
+      "available": false,
+      "reason": "not_negotiated"
+    }
+  },
+  "network": {
+    "seed": 11574630954175925871,
+    "seed_source": "drawn",
+    "settle_seconds": 10,
+    "timeline_resolution_seconds": 2,
+    "groups": [
+      {
+        "name": "both",
+        "bots": [
+          "peer-live-e22986f4-90",
+          "peer-live-e22986f4-91",
+          "peer-live-e22986f4-92",
+          "peer-live-e22986f4-93",
+          "peer-live-e22986f4-94",
+          "peer-live-e22986f4-95",
+          "peer-live-e22986f4-96",
+          "peer-live-e22986f4-97",
+          "peer-live-e22986f4-98",
+          "peer-live-e22986f4-99"
+        ],
+        "steps": [
+          {
+            "index": 0,
+            "planned": {
+              "start_seconds": 30,
+              "downlink": {
+                "rate_kbps": 500,
+                "queue_ms": 200
+              },
+              "uplink": {
+                "rate_kbps": 400,
+                "queue_ms": 200
+              }
+            },
+            "started_at_seconds": 30,
+            "ended_at_seconds": 146.126,
+            "during_start_up": true
+          }
+        ],
+        "quality": {
+          "scenario_id": "live-e22986f4",
+          "generated_at": "2026-11-15T15:58:47.685371154+01:00",
+          "bots": 10,
+          "video": {
+            "available": true,
+            "bots": 10,
+            "latency_seconds": {
+              "p50": 0.0105,
+              "p95": 0.0105,
+              "p99": 0.0105
+            },
+            "latency_available": true,
+            "frame_rate": {
+              "p50": 6.2256909827684215,
+              "p95": 6.4174705393809495,
+              "p99": 6.4174705393809495
+            },
+            "freeze_seconds": {
+              "p50": 809.144312979,
+              "p95": 983.482574348,
+              "p99": 983.482574348
+            },
+            "freezes_total": 8733,
+            "resolution_switches_total": 0,
+            "keyframe_requests_sent_total": 7239,
+            "keyframe_requests_received_total": 100,
+            "height_share": {
+              "360": 1
+            },
+            "requested_height_share": {
+              "p50": 1,
+              "p95": 1,
+              "p99": 1
+            }
+          },
+          "audio": {
+            "available": true,
+            "bots": 10,
+            "latency_seconds": {
+              "p50": 0.1955,
+              "p95": 0.1965,
+              "p99": 0.1965
+            },
+            "latency_available": true,
+            "concealed_ratio": {
+              "p50": 0.9169238072632329,
+              "p95": 0.9244719743290922,
+              "p99": 0.9244719743290922
+            },
+            "mos": {
+              "p50": 1.3698838827848592,
+              "p95": 1.412234742974414,
+              "p99": 1.412234742974414
+            }
+          },
+          "worst": {
+            "lowest_mos": [
+              {
+                "peer_id": "peer-live-e22986f4-98",
+                "value": 1.31644990891836
+              },
+              {
+                "peer_id": "peer-live-e22986f4-99",
+                "value": 1.3170545108453404
+              },
+              {
+                "peer_id": "peer-live-e22986f4-97",
+                "value": 1.3612002903574467
+              },
+              {
+                "peer_id": "peer-live-e22986f4-94",
+                "value": 1.3656189270131591
+              },
+              {
+                "peer_id": "peer-live-e22986f4-93",
+                "value": 1.3698838827848592
+              },
+              {
+                "peer_id": "peer-live-e22986f4-91",
+                "value": 1.3734182546649196
+              },
+              {
+                "peer_id": "peer-live-e22986f4-92",
+                "value": 1.3734922672459748
+              },
+              {
+                "peer_id": "peer-live-e22986f4-90",
+                "value": 1.376561919944096
+              },
+              {
+                "peer_id": "peer-live-e22986f4-95",
+                "value": 1.3905451843826109
+              },
+              {
+                "peer_id": "peer-live-e22986f4-96",
+                "value": 1.412234742974414
+              }
+            ],
+            "most_freeze_seconds": [
+              {
+                "peer_id": "peer-live-e22986f4-99",
+                "value": 983.482574348
+              },
+              {
+                "peer_id": "peer-live-e22986f4-92",
+                "value": 952.015657736
+              },
+              {
+                "peer_id": "peer-live-e22986f4-93",
+                "value": 903.543913977
+              },
+              {
+                "peer_id": "peer-live-e22986f4-90",
+                "value": 896.071009496
+              },
+              {
+                "peer_id": "peer-live-e22986f4-97",
+                "value": 812.557395293
+              },
+              {
+                "peer_id": "peer-live-e22986f4-96",
+                "value": 809.144312979
+              },
+              {
+                "peer_id": "peer-live-e22986f4-94",
+                "value": 784.070878607
+              },
+              {
+                "peer_id": "peer-live-e22986f4-98",
+                "value": 754.363811475
+              },
+              {
+                "peer_id": "peer-live-e22986f4-95",
+                "value": 728.391967352
+              },
+              {
+                "peer_id": "peer-live-e22986f4-91",
+                "value": 712.626797835
+              }
+            ],
+            "highest_latency_p95_seconds": [
+              {
+                "peer_id": "peer-live-e22986f4-95",
+                "value": 0.395
+              },
+              {
+                "peer_id": "peer-live-e22986f4-97",
+                "value": 0.385
+              },
+              {
+                "peer_id": "peer-live-e22986f4-96",
+                "value": 0.2235
+              },
+              {
+                "peer_id": "peer-live-e22986f4-98",
+                "value": 0.2225
+              },
+              {
+                "peer_id": "peer-live-e22986f4-92",
+                "value": 0.2205
+              },
+              {
+                "peer_id": "peer-live-e22986f4-94",
+                "value": 0.2205
+              },
+              {
+                "peer_id": "peer-live-e22986f4-90",
+                "value": 0.2195
+              },
+              {
+                "peer_id": "peer-live-e22986f4-91",
+                "value": 0.2195
+              },
+              {
+                "peer_id": "peer-live-e22986f4-93",
+                "value": 0.2195
+              },
+              {
+                "peer_id": "peer-live-e22986f4-99",
+                "value": 0.2195
+              }
+            ],
+            "lowest_requested_height_share": [
+              {
+                "peer_id": "peer-live-e22986f4-90",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-91",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-92",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-93",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-94",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-95",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-96",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-97",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-98",
+                "value": 1
+              },
+              {
+                "peer_id": "peer-live-e22986f4-99",
+                "value": 1
+              }
+            ]
+          },
+          "server": {
+            "available": false
+          },
+          "load_machine": {
+            "engine": {
+              "cpu_threads": {
+                "average": 0,
+                "peak": 0,
+                "first": 0
+              },
+              "memory_bytes": {
+                "peak": 0,
+                "first": 0
+              },
+              "samples": 0,
+              "missed": 0
+            },
+            "hardware_threads": 0,
+            "usable_threads": 0
+          },
+          "reception_reports": {
+            "available": false,
+            "reason": "not_negotiated"
+          }
+        }
+      }
+    ],
+    "unconstrained_quality": {
+      "scenario_id": "live-e22986f4",
+      "generated_at": "2026-11-15T15:58:47.685371154+01:00",
+      "bots": 90,
+      "video": {
+        "available": true,
+        "bots": 90,
+        "latency_seconds": {
+          "p50": 0.0055,
+          "p95": 0.0065,
+          "p99": 0.0075
+        },
+        "latency_available": true,
+        "frame_rate": {
+          "p50": 30.041698264407245,
+          "p95": 30.333129234309077,
+          "p99": 30.359960188268637
+        },
+        "freeze_seconds": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0
+        },
+        "freezes_total": 0,
+        "resolution_switches_total": 0,
+        "keyframe_requests_sent_total": 71,
+        "keyframe_requests_received_total": 4187,
+        "height_share": {
+          "360": 1
+        },
+        "requested_height_share": {
+          "p50": 1,
+          "p95": 1,
+          "p99": 1
+        }
+      },
+      "audio": {
+        "available": true,
+        "bots": 90,
+        "latency_seconds": {
+          "p50": 0.0045,
+          "p95": 0.0045,
+          "p99": 0.0045
+        },
+        "latency_available": true,
+        "concealed_ratio": {
+          "p50": 0.0007401924500370096,
+          "p95": 0.001161072408697488,
+          "p99": 0.0012355333124804506
+        },
+        "mos": {
+          "p50": 4.358973208911224,
+          "p95": 4.365132610854571,
+          "p99": 4.367209093104689
+        }
+      },
+      "worst": {
+        "lowest_mos": [
+          {
+            "peer_id": "peer-live-e22986f4-78",
+            "value": 4.326954206197465
+          },
+          {
+            "peer_id": "peer-live-e22986f4-69",
+            "value": 4.328504539742999
+          },
+          {
+            "peer_id": "peer-live-e22986f4-65",
+            "value": 4.330685666345792
+          },
+          {
+            "peer_id": "peer-live-e22986f4-67",
+            "value": 4.331782756219894
+          },
+          {
+            "peer_id": "peer-live-e22986f4-64",
+            "value": 4.33226744265958
+          },
+          {
+            "peer_id": "peer-live-e22986f4-44",
+            "value": 4.332772077488559
+          },
+          {
+            "peer_id": "peer-live-e22986f4-38",
+            "value": 4.333932403445188
+          },
+          {
+            "peer_id": "peer-live-e22986f4-89",
+            "value": 4.334408902899573
+          },
+          {
+            "peer_id": "peer-live-e22986f4-20",
+            "value": 4.334501324403171
+          },
+          {
+            "peer_id": "peer-live-e22986f4-12",
+            "value": 4.336346979092605
+          }
+        ],
+        "most_freeze_seconds": [],
+        "highest_latency_p95_seconds": [
+          {
+            "peer_id": "peer-live-e22986f4-77",
+            "value": 0.0155
+          },
+          {
+            "peer_id": "peer-live-e22986f4-79",
+            "value": 0.0155
+          },
+          {
+            "peer_id": "peer-live-e22986f4-83",
+            "value": 0.0155
+          },
+          {
+            "peer_id": "peer-live-e22986f4-86",
+            "value": 0.0155
+          },
+          {
+            "peer_id": "peer-live-e22986f4-43",
+            "value": 0.0145
+          },
+          {
+            "peer_id": "peer-live-e22986f4-45",
+            "value": 0.0145
+          },
+          {
+            "peer_id": "peer-live-e22986f4-49",
+            "value": 0.0145
+          },
+          {
+            "peer_id": "peer-live-e22986f4-50",
+            "value": 0.0145
+          },
+          {
+            "peer_id": "peer-live-e22986f4-54",
+            "value": 0.0145
+          },
+          {
+            "peer_id": "peer-live-e22986f4-59",
+            "value": 0.0145
+          }
+        ],
+        "lowest_requested_height_share": [
+          {
+            "peer_id": "peer-live-e22986f4-0",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-1",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-10",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-11",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-12",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-13",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-14",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-15",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-16",
+            "value": 1
+          },
+          {
+            "peer_id": "peer-live-e22986f4-17",
+            "value": 1
+          }
+        ]
+      },
+      "server": {
+        "available": false
+      },
+      "load_machine": {
+        "engine": {
+          "cpu_threads": {
+            "average": 0,
+            "peak": 0,
+            "first": 0
+          },
+          "memory_bytes": {
+            "peak": 0,
+            "first": 0
+          },
+          "samples": 0,
+          "missed": 0
+        },
+        "hardware_threads": 0,
+        "usable_threads": 0
+      },
+      "reception_reports": {
+        "available": false,
+        "reason": "not_negotiated"
+      }
+    },
+    "bots": [
+      {
+        "bot": "peer-live-e22986f4-90",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 235550,
+              "delivered_packets": 18197,
+              "delivered_kbps": {
+                "mean": 499.9,
+                "max_10s": 500.8
+              },
+              "dropped_by_cap_share": 0.9227467628953513,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.5,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 40837,
+              "delivered_packets": 11349,
+              "delivered_kbps": {
+                "mean": 400,
+                "max_10s": 400.8
+              },
+              "dropped_by_cap_share": 0.7220902612826603,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 202.7,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9267195870644821,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 18.5,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 18.6,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 19.6,
+              "kbps": 636
+            },
+            {
+              "at_seconds": 20.6,
+              "kbps": 673
+            },
+            {
+              "at_seconds": 21.7,
+              "kbps": 734
+            },
+            {
+              "at_seconds": 22.7,
+              "kbps": 790
+            },
+            {
+              "at_seconds": 23.7,
+              "kbps": 849
+            },
+            {
+              "at_seconds": 24.7,
+              "kbps": 912
+            },
+            {
+              "at_seconds": 25.8,
+              "kbps": 1009
+            },
+            {
+              "at_seconds": 26.8,
+              "kbps": 1078
+            },
+            {
+              "at_seconds": 27.9,
+              "kbps": 1188
+            },
+            {
+              "at_seconds": 28.9,
+              "kbps": 1277
+            },
+            {
+              "at_seconds": 29.9,
+              "kbps": 1372
+            },
+            {
+              "at_seconds": 31,
+              "kbps": 1433
+            },
+            {
+              "at_seconds": 32.1,
+              "kbps": 1433
+            },
+            {
+              "at_seconds": 33.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 34.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 35.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 36.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 37.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 38.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 39.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 40.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 41.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 42.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 43.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 69.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 70.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 71.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 72.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 73.4,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 74.5,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 75.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 76.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 77.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 78.8,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 79.8,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 80.9,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 82,
+              "kbps": 8
+            },
+            {
+              "at_seconds": 83,
+              "kbps": 8
+            },
+            {
+              "at_seconds": 84.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 99.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 100.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 107.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 108.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 109.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 110.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 111.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 112.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 113.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 114.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 115.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 116.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 117.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 118.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 119.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 121,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 122,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 123.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 124.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 125.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 126.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 127.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 128.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 129.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 130.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 131.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 132.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 133.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 134.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 135.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 136.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 137.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 138.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 140,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 141.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 142.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 143.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 144.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 145.3,
+              "kbps": 100
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-91",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 257008,
+              "delivered_packets": 17523,
+              "delivered_kbps": {
+                "mean": 499.9,
+                "max_10s": 500.6
+              },
+              "dropped_by_cap_share": 0.9318192429807632,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.7,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 45171,
+              "delivered_packets": 12326,
+              "delivered_kbps": {
+                "mean": 399.9,
+                "max_10s": 400.7
+              },
+              "dropped_by_cap_share": 0.7271258108078191,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 202.3,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9231347052957404,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 18.7,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 18.8,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 19.8,
+              "kbps": 621
+            },
+            {
+              "at_seconds": 20.8,
+              "kbps": 680
+            },
+            {
+              "at_seconds": 21.8,
+              "kbps": 732
+            },
+            {
+              "at_seconds": 22.9,
+              "kbps": 788
+            },
+            {
+              "at_seconds": 23.9,
+              "kbps": 871
+            },
+            {
+              "at_seconds": 25,
+              "kbps": 936
+            },
+            {
+              "at_seconds": 26.1,
+              "kbps": 1032
+            },
+            {
+              "at_seconds": 27.1,
+              "kbps": 1106
+            },
+            {
+              "at_seconds": 28.1,
+              "kbps": 1207
+            },
+            {
+              "at_seconds": 29.2,
+              "kbps": 1299
+            },
+            {
+              "at_seconds": 30.3,
+              "kbps": 1368
+            },
+            {
+              "at_seconds": 31.4,
+              "kbps": 1368
+            },
+            {
+              "at_seconds": 32.5,
+              "kbps": 760
+            },
+            {
+              "at_seconds": 33.5,
+              "kbps": 760
+            },
+            {
+              "at_seconds": 34.5,
+              "kbps": 553
+            },
+            {
+              "at_seconds": 35.6,
+              "kbps": 413
+            },
+            {
+              "at_seconds": 36.7,
+              "kbps": 301
+            },
+            {
+              "at_seconds": 37.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 38.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 39.9,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 9
+            },
+            {
+              "at_seconds": 42.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 43.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 86.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 87.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 88.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 95.9,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 97,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 98,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 102.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 107.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 108.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 109.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 110.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 111.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 112.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 113.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 114.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 115.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 116.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 117.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 119,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 120,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 121.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 122.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 123.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 124.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 125.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 126.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 127.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 128.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 129.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 130.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 131.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 132.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 133.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 134.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 135.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 136.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 137.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 138.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 140,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 141,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 142.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 143.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 144.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 145.3,
+              "kbps": 100
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-92",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 280170,
+              "delivered_packets": 17651,
+              "delivered_kbps": {
+                "mean": 499.9,
+                "max_10s": 500.7
+              },
+              "dropped_by_cap_share": 0.9369989649141592,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.7,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 43729,
+              "delivered_packets": 13253,
+              "delivered_kbps": {
+                "mean": 399.9,
+                "max_10s": 400.9
+              },
+              "dropped_by_cap_share": 0.6969288115438268,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 201.3,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9237499185083773,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 18.9,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 19,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 20.1,
+              "kbps": 642
+            },
+            {
+              "at_seconds": 21.1,
+              "kbps": 697
+            },
+            {
+              "at_seconds": 22.2,
+              "kbps": 753
+            },
+            {
+              "at_seconds": 23.2,
+              "kbps": 826
+            },
+            {
+              "at_seconds": 24.3,
+              "kbps": 887
+            },
+            {
+              "at_seconds": 25.4,
+              "kbps": 948
+            },
+            {
+              "at_seconds": 26.4,
+              "kbps": 1045
+            },
+            {
+              "at_seconds": 27.5,
+              "kbps": 1100
+            },
+            {
+              "at_seconds": 28.6,
+              "kbps": 1233
+            },
+            {
+              "at_seconds": 29.6,
+              "kbps": 1326
+            },
+            {
+              "at_seconds": 30.6,
+              "kbps": 1360
+            },
+            {
+              "at_seconds": 31.7,
+              "kbps": 1360
+            },
+            {
+              "at_seconds": 32.7,
+              "kbps": 998
+            },
+            {
+              "at_seconds": 33.7,
+              "kbps": 998
+            },
+            {
+              "at_seconds": 34.8,
+              "kbps": 998
+            },
+            {
+              "at_seconds": 35.8,
+              "kbps": 998
+            },
+            {
+              "at_seconds": 36.8,
+              "kbps": 609
+            },
+            {
+              "at_seconds": 37.9,
+              "kbps": 448
+            },
+            {
+              "at_seconds": 38.9,
+              "kbps": 327
+            },
+            {
+              "at_seconds": 40,
+              "kbps": 327
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 327
+            },
+            {
+              "at_seconds": 42,
+              "kbps": 327
+            },
+            {
+              "at_seconds": 43.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 45.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 107.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 108.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 109.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 110.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 111.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 112.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 113.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 114.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 115.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 117,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 118.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 119.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 120.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 121.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 122.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 123.3,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 124.3,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 125.3,
+              "kbps": 11
+            },
+            {
+              "at_seconds": 126.4,
+              "kbps": 11
+            },
+            {
+              "at_seconds": 127.5,
+              "kbps": 17
+            },
+            {
+              "at_seconds": 128.5,
+              "kbps": 17
+            },
+            {
+              "at_seconds": 129.6,
+              "kbps": 20
+            },
+            {
+              "at_seconds": 130.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 131.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 132.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 133.8,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 134.9,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 136,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 137.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 138.1,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 139.1,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 140.2,
+              "kbps": 12
+            },
+            {
+              "at_seconds": 141.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 142.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 143.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 144.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 145.7,
+              "kbps": 100
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-93",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 264193,
+              "delivered_packets": 18179,
+              "delivered_kbps": {
+                "mean": 500,
+                "max_10s": 500.8
+              },
+              "dropped_by_cap_share": 0.9311904554624839,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.1,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 40600,
+              "delivered_packets": 12385,
+              "delivered_kbps": {
+                "mean": 400,
+                "max_10s": 400.8
+              },
+              "dropped_by_cap_share": 0.6949507389162561,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.5,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9269945326872749,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 19.1,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 19.2,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 20.3,
+              "kbps": 644
+            },
+            {
+              "at_seconds": 21.4,
+              "kbps": 694
+            },
+            {
+              "at_seconds": 22.4,
+              "kbps": 747
+            },
+            {
+              "at_seconds": 23.4,
+              "kbps": 803
+            },
+            {
+              "at_seconds": 24.5,
+              "kbps": 885
+            },
+            {
+              "at_seconds": 25.5,
+              "kbps": 953
+            },
+            {
+              "at_seconds": 26.5,
+              "kbps": 898
+            },
+            {
+              "at_seconds": 27.6,
+              "kbps": 1040
+            },
+            {
+              "at_seconds": 28.6,
+              "kbps": 1204
+            },
+            {
+              "at_seconds": 29.6,
+              "kbps": 1297
+            },
+            {
+              "at_seconds": 30.6,
+              "kbps": 1393
+            },
+            {
+              "at_seconds": 31.7,
+              "kbps": 255
+            },
+            {
+              "at_seconds": 32.7,
+              "kbps": 255
+            },
+            {
+              "at_seconds": 33.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 34.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 35.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 36.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 37.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 38.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 40,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 42.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 43.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 102.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 106.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 107.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 108.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 109.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 110.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 111.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 112.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 113.8,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 114.9,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 116,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 117,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 118,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 119.1,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 120.1,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 121.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 122.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 123.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 124.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 125.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 126.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 127.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 128.5,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 129.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 130.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 131.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 132.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 133.8,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 134.9,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 136,
+              "kbps": 10
+            },
+            {
+              "at_seconds": 137,
+              "kbps": 10
+            },
+            {
+              "at_seconds": 138,
+              "kbps": 12
+            },
+            {
+              "at_seconds": 139.1,
+              "kbps": 15
+            },
+            {
+              "at_seconds": 140.2,
+              "kbps": 15
+            },
+            {
+              "at_seconds": 141.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 142.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 143.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 144.6,
+              "kbps": 9
+            },
+            {
+              "at_seconds": 145.7,
+              "kbps": 9
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-94",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 254313,
+              "delivered_packets": 18139,
+              "delivered_kbps": {
+                "mean": 500,
+                "max_10s": 500.7
+              },
+              "dropped_by_cap_share": 0.9286745073983634,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.1,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 39679,
+              "delivered_packets": 11646,
+              "delivered_kbps": {
+                "mean": 399.9,
+                "max_10s": 400.9
+              },
+              "dropped_by_cap_share": 0.7064946193200433,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 201.2,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.927480816751203,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 19.3,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 19.4,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 20.5,
+              "kbps": 621
+            },
+            {
+              "at_seconds": 21.6,
+              "kbps": 676
+            },
+            {
+              "at_seconds": 22.6,
+              "kbps": 747
+            },
+            {
+              "at_seconds": 23.7,
+              "kbps": 802
+            },
+            {
+              "at_seconds": 24.7,
+              "kbps": 855
+            },
+            {
+              "at_seconds": 25.7,
+              "kbps": 919
+            },
+            {
+              "at_seconds": 26.8,
+              "kbps": 1010
+            },
+            {
+              "at_seconds": 27.9,
+              "kbps": 1114
+            },
+            {
+              "at_seconds": 29,
+              "kbps": 1197
+            },
+            {
+              "at_seconds": 30,
+              "kbps": 1285
+            },
+            {
+              "at_seconds": 31.1,
+              "kbps": 1285
+            },
+            {
+              "at_seconds": 32.2,
+              "kbps": 951
+            },
+            {
+              "at_seconds": 33.3,
+              "kbps": 704
+            },
+            {
+              "at_seconds": 34.4,
+              "kbps": 496
+            },
+            {
+              "at_seconds": 35.5,
+              "kbps": 359
+            },
+            {
+              "at_seconds": 36.5,
+              "kbps": 260
+            },
+            {
+              "at_seconds": 37.6,
+              "kbps": 260
+            },
+            {
+              "at_seconds": 38.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 39.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 40.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 41.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 42.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 50.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 51.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 98.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 99.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 100.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 101.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 102.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 103.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 104.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 105.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 106.4,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 107.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 108.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 109.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 110.7,
+              "kbps": 9
+            },
+            {
+              "at_seconds": 111.8,
+              "kbps": 11
+            },
+            {
+              "at_seconds": 112.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 113.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 114.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 116,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 117,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 118,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 119.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 120.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 121.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 122.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 123.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 124.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 125.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 126.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 127.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 128.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 129.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 130.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 131.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 132.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 134,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 135.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 136.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 137.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 138.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 139.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 140.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 141.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 142.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 143.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 144.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 145.4,
+              "kbps": 100
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-95",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 271434,
+              "delivered_packets": 13671,
+              "delivered_kbps": {
+                "mean": 499.9,
+                "max_10s": 500.6
+              },
+              "dropped_by_cap_share": 0.9496341652114326,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 203.8,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 39627,
+              "delivered_packets": 13876,
+              "delivered_kbps": {
+                "mean": 400,
+                "max_10s": 400.5
+              },
+              "dropped_by_cap_share": 0.6498347086582381,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 199.7,
+                "max": 225.1
+              }
+            },
+            "missing_after_retransmission_share": 0.9158415841584159,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 19.5,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 19.6,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 20.7,
+              "kbps": 644
+            },
+            {
+              "at_seconds": 21.7,
+              "kbps": 694
+            },
+            {
+              "at_seconds": 22.8,
+              "kbps": 747
+            },
+            {
+              "at_seconds": 23.9,
+              "kbps": 824
+            },
+            {
+              "at_seconds": 25,
+              "kbps": 879
+            },
+            {
+              "at_seconds": 26,
+              "kbps": 946
+            },
+            {
+              "at_seconds": 27.1,
+              "kbps": 1039
+            },
+            {
+              "at_seconds": 28.2,
+              "kbps": 1135
+            },
+            {
+              "at_seconds": 29.3,
+              "kbps": 1219
+            },
+            {
+              "at_seconds": 30.4,
+              "kbps": 1287
+            },
+            {
+              "at_seconds": 31.5,
+              "kbps": 1287
+            },
+            {
+              "at_seconds": 32.5,
+              "kbps": 953
+            },
+            {
+              "at_seconds": 33.6,
+              "kbps": 719
+            },
+            {
+              "at_seconds": 34.7,
+              "kbps": 719
+            },
+            {
+              "at_seconds": 35.8,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 36.8,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 37.8,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 38.9,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 39.9,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 41,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 42,
+              "kbps": 543
+            },
+            {
+              "at_seconds": 43.1,
+              "kbps": 396
+            },
+            {
+              "at_seconds": 44.1,
+              "kbps": 396
+            },
+            {
+              "at_seconds": 45.2,
+              "kbps": 396
+            },
+            {
+              "at_seconds": 46.3,
+              "kbps": 285
+            },
+            {
+              "at_seconds": 47.4,
+              "kbps": 207
+            },
+            {
+              "at_seconds": 48.4,
+              "kbps": 151
+            },
+            {
+              "at_seconds": 49.5,
+              "kbps": 151
+            },
+            {
+              "at_seconds": 50.6,
+              "kbps": 151
+            },
+            {
+              "at_seconds": 51.6,
+              "kbps": 151
+            },
+            {
+              "at_seconds": 52.6,
+              "kbps": 151
+            },
+            {
+              "at_seconds": 53.7,
+              "kbps": 110
+            },
+            {
+              "at_seconds": 54.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 78.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 79.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 80.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 81.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 102.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.9,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 108,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 109,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 110.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 111.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 112.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 113.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 114.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 115.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 116.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 117.4,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 118.5,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 119.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 120.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 121.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 122.7,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 123.8,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 124.8,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 125.8,
+              "kbps": 8
+            },
+            {
+              "at_seconds": 126.8,
+              "kbps": 8
+            },
+            {
+              "at_seconds": 127.8,
+              "kbps": 8
+            },
+            {
+              "at_seconds": 128.9,
+              "kbps": 9
+            },
+            {
+              "at_seconds": 129.9,
+              "kbps": 9
+            },
+            {
+              "at_seconds": 130.9,
+              "kbps": 9
+            },
+            {
+              "at_seconds": 132,
+              "kbps": 10
+            },
+            {
+              "at_seconds": 133,
+              "kbps": 10
+            },
+            {
+              "at_seconds": 134.1,
+              "kbps": 10
+            },
+            {
+              "at_seconds": 135.2,
+              "kbps": 10
+            },
+            {
+              "at_seconds": 136.3,
+              "kbps": 11
+            },
+            {
+              "at_seconds": 137.4,
+              "kbps": 12
+            },
+            {
+              "at_seconds": 138.4,
+              "kbps": 12
+            },
+            {
+              "at_seconds": 139.5,
+              "kbps": 12
+            },
+            {
+              "at_seconds": 140.5,
+              "kbps": 13
+            },
+            {
+              "at_seconds": 141.5,
+              "kbps": 14
+            },
+            {
+              "at_seconds": 142.6,
+              "kbps": 14
+            },
+            {
+              "at_seconds": 143.7,
+              "kbps": 14
+            },
+            {
+              "at_seconds": 144.8,
+              "kbps": 15
+            },
+            {
+              "at_seconds": 145.8,
+              "kbps": 5
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-96",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 266518,
+              "delivered_packets": 13547,
+              "delivered_kbps": {
+                "mean": 499.9,
+                "max_10s": 500.7
+              },
+              "dropped_by_cap_share": 0.9491704125049715,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 204.2,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 39165,
+              "delivered_packets": 13656,
+              "delivered_kbps": {
+                "mean": 399.9,
+                "max_10s": 400.6
+              },
+              "dropped_by_cap_share": 0.6513213328226733,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.4,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9158433149886694,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 19.7,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 19.8,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 20.8,
+              "kbps": 621
+            },
+            {
+              "at_seconds": 21.9,
+              "kbps": 688
+            },
+            {
+              "at_seconds": 23,
+              "kbps": 741
+            },
+            {
+              "at_seconds": 24.1,
+              "kbps": 815
+            },
+            {
+              "at_seconds": 25.2,
+              "kbps": 879
+            },
+            {
+              "at_seconds": 26.2,
+              "kbps": 866
+            },
+            {
+              "at_seconds": 27.2,
+              "kbps": 1003
+            },
+            {
+              "at_seconds": 28.2,
+              "kbps": 1110
+            },
+            {
+              "at_seconds": 29.3,
+              "kbps": 1086
+            },
+            {
+              "at_seconds": 30.3,
+              "kbps": 1197
+            },
+            {
+              "at_seconds": 31.3,
+              "kbps": 1197
+            },
+            {
+              "at_seconds": 32.4,
+              "kbps": 1197
+            },
+            {
+              "at_seconds": 33.4,
+              "kbps": 839
+            },
+            {
+              "at_seconds": 34.4,
+              "kbps": 618
+            },
+            {
+              "at_seconds": 35.5,
+              "kbps": 456
+            },
+            {
+              "at_seconds": 36.6,
+              "kbps": 244
+            },
+            {
+              "at_seconds": 37.6,
+              "kbps": 177
+            },
+            {
+              "at_seconds": 38.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 39.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 40.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 41.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 42.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 43.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 100,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 101.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 102.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 103.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 104.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 105.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 106.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 107.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 108.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 109.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 110.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 111.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 112.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 113.8,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 114.9,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 115.9,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 117,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 118,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 119.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 120.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 121.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 122.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 123.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 124.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 125.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 126.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 127.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 128.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 129.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 130.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 131.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 132.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 133.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 134.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 135.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 136.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 137.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 138.9,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 140,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 141,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 142.1,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 143.1,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 144.1,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 145.2,
+              "kbps": 6
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-97",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 272311,
+              "delivered_packets": 13478,
+              "delivered_kbps": {
+                "mean": 500,
+                "max_10s": 500.6
+              },
+              "dropped_by_cap_share": 0.9505051209829937,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 204.5,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 40385,
+              "delivered_packets": 14259,
+              "delivered_kbps": {
+                "mean": 399.9,
+                "max_10s": 400.8
+              },
+              "dropped_by_cap_share": 0.6469233626346416,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.5,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9150969009787063,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 19.9,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 20,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 21,
+              "kbps": 621
+            },
+            {
+              "at_seconds": 22.1,
+              "kbps": 687
+            },
+            {
+              "at_seconds": 23.2,
+              "kbps": 740
+            },
+            {
+              "at_seconds": 24.2,
+              "kbps": 783
+            },
+            {
+              "at_seconds": 25.3,
+              "kbps": 845
+            },
+            {
+              "at_seconds": 26.4,
+              "kbps": 926
+            },
+            {
+              "at_seconds": 27.5,
+              "kbps": 1015
+            },
+            {
+              "at_seconds": 28.6,
+              "kbps": 1091
+            },
+            {
+              "at_seconds": 29.6,
+              "kbps": 1066
+            },
+            {
+              "at_seconds": 30.7,
+              "kbps": 1175
+            },
+            {
+              "at_seconds": 31.7,
+              "kbps": 1175
+            },
+            {
+              "at_seconds": 32.8,
+              "kbps": 886
+            },
+            {
+              "at_seconds": 33.9,
+              "kbps": 886
+            },
+            {
+              "at_seconds": 34.9,
+              "kbps": 886
+            },
+            {
+              "at_seconds": 36,
+              "kbps": 633
+            },
+            {
+              "at_seconds": 37,
+              "kbps": 633
+            },
+            {
+              "at_seconds": 38.1,
+              "kbps": 455
+            },
+            {
+              "at_seconds": 39.2,
+              "kbps": 455
+            },
+            {
+              "at_seconds": 40.2,
+              "kbps": 238
+            },
+            {
+              "at_seconds": 41.3,
+              "kbps": 174
+            },
+            {
+              "at_seconds": 42.4,
+              "kbps": 174
+            },
+            {
+              "at_seconds": 43.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 69.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 87.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 88.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 89.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 90.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 91.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 92.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 93.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 102.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 107.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 108.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 109.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 110.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 112,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 113.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 114.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 115.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 116.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 117.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 118.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 119.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 120.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 121.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 122.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 123.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 124.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 125.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 126.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 127.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 128.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 130,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 131,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 132.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 133.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 134.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 135.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 136.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 137.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 138.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 139.5,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 140.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 141.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 142.8,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 143.9,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 144.9,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 145.9,
+              "kbps": 6
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-98",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 294690,
+              "delivered_packets": 17671,
+              "delivered_kbps": {
+                "mean": 500,
+                "max_10s": 500.5
+              },
+              "dropped_by_cap_share": 0.9400352913230853,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.4,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 45367,
+              "delivered_packets": 15215,
+              "delivered_kbps": {
+                "mean": 399.9,
+                "max_10s": 400.7
+              },
+              "dropped_by_cap_share": 0.6646240659510216,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 199.4,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9240039223781998,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 20.1,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 20.2,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 21.3,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 22.3,
+              "kbps": 639
+            },
+            {
+              "at_seconds": 23.3,
+              "kbps": 687
+            },
+            {
+              "at_seconds": 24.3,
+              "kbps": 739
+            },
+            {
+              "at_seconds": 25.4,
+              "kbps": 797
+            },
+            {
+              "at_seconds": 26.4,
+              "kbps": 874
+            },
+            {
+              "at_seconds": 27.5,
+              "kbps": 961
+            },
+            {
+              "at_seconds": 28.6,
+              "kbps": 1032
+            },
+            {
+              "at_seconds": 29.6,
+              "kbps": 1109
+            },
+            {
+              "at_seconds": 30.7,
+              "kbps": 1191
+            },
+            {
+              "at_seconds": 31.7,
+              "kbps": 263
+            },
+            {
+              "at_seconds": 32.8,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 33.9,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 35,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 36.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 37.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 38.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 39.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 40.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 41.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 42.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 43.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 44.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 49.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 85.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 97.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 102.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 108,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 109.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 110.1,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 111.2,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 112.3,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 113.4,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 114.5,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 115.5,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 116.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 117.6,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 118.7,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 119.8,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 120.9,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 122,
+              "kbps": 6
+            },
+            {
+              "at_seconds": 123.1,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 124.1,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 125.2,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 126.3,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 127.3,
+              "kbps": 7
+            },
+            {
+              "at_seconds": 128.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 129.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 130.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 131.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 132.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 133.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 134.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 135.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 136.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 137.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 139,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 140.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 141.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 142.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 143.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 144.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 145.5,
+              "kbps": 100
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      },
+      {
+        "bot": "peer-live-e22986f4-99",
+        "group": "both",
+        "requested_height": 360,
+        "steps": [
+          {
+            "index": 0,
+            "downlink": {
+              "offered_packets": 221248,
+              "delivered_packets": 18111,
+              "delivered_kbps": {
+                "mean": 499.9,
+                "max_10s": 500.7
+              },
+              "dropped_by_cap_share": 0.9181416329187156,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200,
+                "max": 220.2
+              }
+            },
+            "uplink": {
+              "offered_packets": 38399,
+              "delivered_packets": 10929,
+              "delivered_kbps": {
+                "mean": 400,
+                "max_10s": 400.7
+              },
+              "dropped_by_cap_share": 0.7153832131045079,
+              "dropped_by_loss_share": 0,
+              "mean_burst": null,
+              "added_delay_ms": {
+                "mean": 200.4,
+                "max": 225.2
+              }
+            },
+            "missing_after_retransmission_share": 0.9279879677410989,
+            "reaction_seconds": 2.000110461,
+            "recovery_seconds": null,
+            "recovered": null
+          }
+        ],
+        "sender": {
+          "adapts": false,
+          "reason": "cannot_adapt",
+          "layers": [
+            {
+              "at_seconds": 20.3,
+              "heights": [
+                360
+              ]
+            }
+          ],
+          "estimate_kbps": [
+            {
+              "at_seconds": 20.4,
+              "kbps": 564
+            },
+            {
+              "at_seconds": 21.5,
+              "kbps": 639
+            },
+            {
+              "at_seconds": 22.5,
+              "kbps": 687
+            },
+            {
+              "at_seconds": 23.5,
+              "kbps": 671
+            },
+            {
+              "at_seconds": 24.6,
+              "kbps": 796
+            },
+            {
+              "at_seconds": 25.6,
+              "kbps": 855
+            },
+            {
+              "at_seconds": 26.7,
+              "kbps": 919
+            },
+            {
+              "at_seconds": 27.8,
+              "kbps": 1007
+            },
+            {
+              "at_seconds": 28.9,
+              "kbps": 1113
+            },
+            {
+              "at_seconds": 30,
+              "kbps": 1196
+            },
+            {
+              "at_seconds": 31.1,
+              "kbps": 1255
+            },
+            {
+              "at_seconds": 32.1,
+              "kbps": 1255
+            },
+            {
+              "at_seconds": 33.2,
+              "kbps": 705
+            },
+            {
+              "at_seconds": 34.2,
+              "kbps": 386
+            },
+            {
+              "at_seconds": 35.2,
+              "kbps": 386
+            },
+            {
+              "at_seconds": 36.3,
+              "kbps": 386
+            },
+            {
+              "at_seconds": 37.4,
+              "kbps": 282
+            },
+            {
+              "at_seconds": 38.4,
+              "kbps": 282
+            },
+            {
+              "at_seconds": 39.5,
+              "kbps": 156
+            },
+            {
+              "at_seconds": 40.5,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 41.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 42.6,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 43.7,
+              "kbps": 5
+            },
+            {
+              "at_seconds": 44.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 45.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 46.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 47.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 48.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 50,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 51,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 52.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 53.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 54.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 55.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 56.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 57.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 58.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 59.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 60.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 61.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 62.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 63.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 64.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 65.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 66.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 67.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 68.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 70,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 71,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 72.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 73.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 74.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 75.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 76.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 77.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 78.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 79.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 80.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 81.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 82.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 83.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 84.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 86,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 87,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 88,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 89,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 90,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 91.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 92.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 93.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 94.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 95.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 96.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 97.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 98.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 99.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 100.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 101.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 102.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 103.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 104.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 105.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 106.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 107.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 108.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 110,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 111.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 112.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 113.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 114.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 115.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 116.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 117.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 118.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 119.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 120.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 121.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 122.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 123.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 124.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 125.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 126.8,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 127.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 128.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 129.9,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 131,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 132.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 133.1,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 134.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 135.2,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 136.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 137.3,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 138.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 139.4,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 140.5,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 141.6,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 142.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 143.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 144.7,
+              "kbps": 100
+            },
+            {
+              "at_seconds": 145.7,
+              "kbps": 100
+            }
+          ]
+        },
+        "server_estimate": {
+          "reason": "not_given_by_server"
+        }
+      }
+    ]
+  }
+}
